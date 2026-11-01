@@ -1,0 +1,12 @@
+{
+  "name": "attestra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Attestra: schema-based attestations on NEAR",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test"
+  }
+}
