@@ -1,0 +1,9 @@
+{
+  "name": "@attestra/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Attestra site, explorer and sandbox",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "scripts": { "dev": "next dev", "build": "next build", "test": "vitest run" }
+}
