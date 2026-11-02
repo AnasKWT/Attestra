@@ -1,0 +1,8 @@
+{
+  "name": "@attestra/cli",
+  "version": "0.1.0",
+  "description": "Attestra command line",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "scripts": { "build": "tsup", "test": "vitest run" }
+}

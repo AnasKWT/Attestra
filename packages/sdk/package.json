@@ -1,0 +1,10 @@
+{
+  "name": "@attestra/sdk",
+  "version": "0.1.0",
+  "description": "Attestra SDK: schemas, attestations and authorities on NEAR",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": { "build": "tsup", "test": "vitest run" }
+}
