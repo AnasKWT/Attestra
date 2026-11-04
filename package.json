@@ -1,12 +1,28 @@
 {
   "name": "attestra",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Attestra: schema-based attestations on NEAR",
+  "description": "Attestra: the trust layer for NEAR. Schema-based attestations about people, wallets on any chain, and AI agents.",
   "author": "Attestra contributors",
   "license": "MIT",
+  "packageManager": "pnpm@10.7.0",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "build": "pnpm -r build",
-    "test": "pnpm -r test"
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "test:contracts": "cd contracts && cargo test --workspace --exclude attestra-sandbox-tests",
+    "test:sandbox": "cd contracts && cargo test -p attestra-sandbox-tests -- --test-threads=1",
+    "build:contracts": "contracts/scripts/build.sh",
+    "security": "node scripts/security.mjs",
+    "verify": "node --experimental-strip-types scripts/verify.ts",
+    "dev": "node --experimental-strip-types scripts/dev.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
   }
 }
