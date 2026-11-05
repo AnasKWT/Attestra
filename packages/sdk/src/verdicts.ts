@@ -36,7 +36,19 @@ export function verdictDigest(v: AiVerdict): Uint8Array {
   return sha256(w.toBytes());
 }
 
-/** EVM chain ids the verdicts contract maps foreign events to (CAIP-2 `eip155:<id>`). */
+/**
+ * EVM chain ids the verdicts contract maps foreign events to (CAIP-2 `eip155:<id>`). The testnet
+ * MPC network reads the test networks (Base Sepolia and so on), so testnet uses their ids.
+ */
+export const foreignChainIdsTestnet: Record<string, number> = {
+  ethereum: 11155111,
+  base: 84532,
+  arbitrum: 421614,
+  polygon: 80002,
+  bnb: 97,
+  avalanche: 43113,
+};
+
 export const foreignChainIds: Record<string, number> = {
   ethereum: 1,
   base: 8453,
