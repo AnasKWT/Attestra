@@ -1,8 +1,39 @@
 {
   "name": "@attestra/cli",
-  "version": "0.1.0",
-  "description": "Attestra command line",
+  "version": "1.0.0",
+  "description": "Attestra command line: schemas, attestations, authorities, resolvers, delegation, credentials, light client proofs, private AI checks, cross-chain facts and agent reputation on NEAR.",
   "author": "Attestra contributors",
   "license": "MIT",
-  "scripts": { "build": "tsup", "test": "vitest run" }
+  "type": "module",
+  "bin": {
+    "attestra": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e:testnet": "tsx scripts/e2e-testnet.ts"
+  },
+  "dependencies": {
+    "@attestra/sdk": "workspace:*",
+    "commander": "14.0.2",
+    "near-kit": "0.20.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "fast-check": "4.10.2",
+    "tsup": "8.5.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "keywords": ["near", "attestation", "attestra", "cli"],
+  "publishConfig": { "access": "public" },
+  "engines": { "node": ">=20" }
 }

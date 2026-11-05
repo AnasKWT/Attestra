@@ -17,6 +17,37 @@ importers:
 
   apps/web: {}
 
+  packages/cli:
+    dependencies:
+      '@attestra/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      commander:
+        specifier: 14.0.2
+        version: 14.0.2
+      near-kit:
+        specifier: 0.20.2
+        version: 0.20.2
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.1
+        version: 22.19.1
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.32)(tsx@4.21.0)(typescript@5.9.3)
+      tsx:
+        specifier: 4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@22.19.1)(tsx@4.21.0)
+
   packages/sdk:
     dependencies:
       '@noble/ciphers':
@@ -729,6 +760,10 @@ packages:
   chownr@3.0.0:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
+
+  commander@14.0.2:
+    resolution: {integrity: sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==}
+    engines: {node: '>=20'}
 
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
@@ -1603,6 +1638,8 @@ snapshots:
       readdirp: 4.1.2
 
   chownr@3.0.0: {}
+
+  commander@14.0.2: {}
 
   commander@4.1.1: {}
 
