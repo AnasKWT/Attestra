@@ -5,6 +5,7 @@
   "description": "Attestra: the trust layer for NEAR. Schema-based attestations about people, wallets on any chain, and AI agents.",
   "author": "Attestra contributors",
   "license": "MIT",
+  "type": "module",
   "packageManager": "pnpm@10.7.0",
   "engines": {
     "node": ">=22"
@@ -23,6 +24,9 @@
   },
   "devDependencies": {
     "tsx": "4.21.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@attestra/sdk": "workspace:*",
+    "near-kit": "0.20.2",
+    "@types/node": "22.19.1"
   }
 }

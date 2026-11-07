@@ -1,124 +1,281 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  --foreground: #171717;
-  --background: #ffffff;
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+  --color-brand-800: #9a3412;
+  --color-brand-900: #7c2d12;
+  --color-brand-950: #431407;
+
+  --color-ink-50: #fafaf9;
+  --color-ink-100: #f4f4f3;
+  --color-ink-200: #e7e6e4;
+  --color-ink-300: #d6d4d1;
+  --color-ink-400: #a8a49f;
+  --color-ink-500: #78746e;
+  --color-ink-600: #57534e;
+  --color-ink-700: #3f3b37;
+  --color-ink-800: #292524;
+  --color-ink-900: #1c1917;
+  --color-ink-950: #0c0a09;
+
+  --color-ok: #10b981;
+  --color-warn: #f59e0b;
+  --color-bad: #ef4444;
+  --color-info: #0ea5e9;
+
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-beam: beam 3.2s linear infinite;
+  --animate-pulse-glow: pulse-glow 4s ease-in-out infinite;
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-spin-slow: spin 18s linear infinite;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes beam {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50% { opacity: 0.9; transform: scale(1.06); }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes shimmer {
+    from { background-position: -400px 0; }
+    to { background-position: 400px 0; }
+  }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: 'Inter', system-ui, sans-serif;
+/* ── Semantic colors (light and dark) ──────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --bg: #fcfbfa;
+  --bg-soft: #f6f4f1;
+  --panel: #ffffff;
+  --panel-2: #faf9f7;
+  --line: #e9e6e1;
+  --line-strong: #d9d5cf;
+  --fg: #1c1917;
+  --fg-soft: #57534e;
+  --fg-mute: #8a857f;
+  --accent: #ea580c;
+  --accent-soft: #fff1e6;
+  --glow: rgba(249, 115, 22, 0.22);
+  --grid: rgba(28, 25, 23, 0.055);
+  --shadow: 0 1px 2px rgba(28, 25, 23, 0.04), 0 8px 24px -12px rgba(28, 25, 23, 0.12);
+  --shadow-lg: 0 2px 4px rgba(28, 25, 23, 0.04), 0 24px 60px -24px rgba(28, 25, 23, 0.25);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0b0908;
+  --bg-soft: #110e0c;
+  --panel: #151210;
+  --panel-2: #1a1613;
+  --line: #2a2420;
+  --line-strong: #3a322c;
+  --fg: #f5f2ee;
+  --fg-soft: #c3bcb4;
+  --fg-mute: #8b837a;
+  --accent: #fb923c;
+  --accent-soft: rgba(249, 115, 22, 0.12);
+  --glow: rgba(249, 115, 22, 0.3);
+  --grid: rgba(255, 237, 213, 0.05);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 30px 70px -24px rgba(0, 0, 0, 0.8);
 }
 
 html {
-  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
 }
 
-html, body {
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
 
-/* Grid background pattern */
-.grid-bg {
-  background-image:
-    linear-gradient(to right, #e5e5e5 1px, transparent 1px),
-    linear-gradient(to bottom, #e5e5e5 1px, transparent 1px);
-  background-size: 60px 60px;
+::selection {
+  background: rgba(249, 115, 22, 0.25);
 }
 
-/* Bracket label style — decorative corner brackets that frame the text */
-.bracket-label {
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────────── */
+@utility bg-app { background-color: var(--bg); }
+@utility bg-soft { background-color: var(--bg-soft); }
+@utility bg-panel { background-color: var(--panel); }
+@utility bg-panel-2 { background-color: var(--panel-2); }
+@utility bg-accent-soft { background-color: var(--accent-soft); }
+@utility border-line { border-color: var(--line); }
+@utility border-line-strong { border-color: var(--line-strong); }
+@utility text-fg { color: var(--fg); }
+@utility text-soft { color: var(--fg-soft); }
+@utility text-mute { color: var(--fg-mute); }
+@utility text-accent { color: var(--accent); }
+@utility shadow-panel { box-shadow: var(--shadow); }
+@utility shadow-float { box-shadow: var(--shadow-lg); }
+
+/* Fine grid that fades out at the edges. */
+@utility grid-fade {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 40%, transparent 100%);
+}
+
+/* Dotted surface for the sandbox canvas. */
+@utility dot-field {
+  background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+/* Warm light falling from the top of a section. */
+@utility spotlight {
+  background:
+    radial-gradient(60rem 28rem at 50% -8rem, var(--glow), transparent 70%),
+    radial-gradient(30rem 20rem at 85% 10%, rgba(251, 191, 36, 0.08), transparent 70%);
+}
+
+/* Gradient text in the brand colors. */
+@utility text-gradient {
+  background: linear-gradient(100deg, #fb923c 0%, #f97316 35%, #ea580c 65%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A thin animated light line, used for connectors. */
+@utility beam {
+  background: linear-gradient(90deg, transparent 0%, transparent 35%, #fb923c 50%, transparent 65%, transparent 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-beam);
+}
+
+/* Glass panel for floating cards over lit backgrounds. */
+@utility glass {
+  background: color-mix(in oklab, var(--panel) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+/* Gradient border: 1px ring that is brighter at the top. */
+@utility ring-gradient {
   position: relative;
-  display: inline-block;
-  padding: 10px 20px;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(251, 146, 60, 0.55), var(--line) 45%, var(--line));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* Bracket label: corner brackets around a small uppercase label. */
+@utility bracket {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-/* Top-only corners (default) */
-.bracket-label::before,
-.bracket-label::after {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-color: currentColor;
-}
-
-.bracket-label::before {
-  top: 0;
-  left: 0;
-  border-top: 1.5px solid;
-  border-left: 1.5px solid;
-}
-
-.bracket-label::after {
-  top: 0;
-  right: 0;
-  border-top: 1.5px solid;
-  border-right: 1.5px solid;
-}
-
-/* 4-corner bracket variant: ::before = left side (top-left + bottom-left), ::after = right side (top-right + bottom-right) */
-.bracket-label.bracket-label-bottom::before {
-  top: 0;
-  left: 0;
-  width: 16px;
-  height: 100%;
-  border-top: 1.5px solid;
-  border-left: 1.5px solid;
-  border-bottom: 1.5px solid;
-  border-right: none;
-}
-
-.bracket-label.bracket-label-bottom::after {
-  top: 0;
-  right: 0;
-  width: 16px;
-  height: 100%;
-  border-top: 1.5px solid;
-  border-right: 1.5px solid;
-  border-bottom: 1.5px solid;
-  border-left: none;
-}
-
-/* macOS window dots */
-.mac-dots::before {
-  content: '';
-  display: inline-flex;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ff5f57;
-  box-shadow: 18px 0 0 #febc2e, 36px 0 0 #28c840;
-}
-
-@media (max-width: 640px) {
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    border: 1.5px solid currentColor;
+    opacity: 0.7;
   }
+  &::before { left: 0; border-right: 0; }
+  &::after { right: 0; border-left: 0; }
+}
 
-  input[type="text"],
-  input[type="email"],
-  textarea {
-    font-size: 16px;
+@utility skeleton {
+  background: linear-gradient(90deg, var(--bg-soft) 0%, var(--line) 50%, var(--bg-soft) 100%);
+  background-size: 800px 100%;
+  animation: var(--animate-shimmer);
+}
+
+@layer base {
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  code, kbd, pre {
+    font-family: var(--font-mono);
   }
 }
 
-/* Hide footer inside sandbox app */
-:has(.sandbox-layout) footer {
-  display: none;
+/* Scroll reveal: elements start hidden only when JS runs; reduced motion shows them at once. */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
 }
 
-/* Dotted circle pattern for sandbox playground */
-.dot-bg {
-  background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-color: #f5f5f5;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
 }
+
+/* Code tokens */
+.tok-k { color: #c084fc; }
+.tok-s { color: #86efac; }
+.tok-n { color: #fdba74; }
+.tok-c { color: #78716c; font-style: italic; }
+.tok-f { color: #7dd3fc; }
+.tok-p { color: #e7e5e4; }
