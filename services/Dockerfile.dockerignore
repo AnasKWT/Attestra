@@ -1,0 +1,13 @@
+# Build context allowlist for services/Dockerfile (built from the repository root).
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!packages/sdk
+!services
+**/node_modules
+**/dist
+**/.data
+**/.env
+**/.env.*

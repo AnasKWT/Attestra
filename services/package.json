@@ -1,0 +1,33 @@
+{
+  "name": "@attestra/services",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Attestra services: the gasless relayer, the keeper (scheduled revocations, expiry records, indexer drift) and the treasury top-up.",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "relayer": "tsx src/main.ts relayer",
+    "keeper": "tsx src/main.ts keeper",
+    "topup": "tsx src/main.ts topup",
+    "setup-gas-key": "tsx scripts/setup-gas-key.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@attestra/sdk": "workspace:*",
+    "@hono/node-server": "1.19.18",
+    "hono": "4.13.17",
+    "near-kit": "0.20.2",
+    "tsx": "4.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
