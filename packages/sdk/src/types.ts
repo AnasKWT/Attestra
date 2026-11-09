@@ -227,6 +227,10 @@ export interface IndexedEvent {
   event: string;
   contract: string;
   data: Record<string, unknown>;
+  uid: string | null;
+  accounts: string[];
+  standard: string;
+  log_index: number;
   tx_hash: string;
   receipt_id: string;
   block_height: number;

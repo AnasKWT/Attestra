@@ -24,6 +24,7 @@ pub const ATTESTATION_PENDING: &str = "attestation_pending";
 pub const ATTESTATION_CREATED: &str = "attestation_created";
 pub const ATTESTATION_REJECTED: &str = "attestation_rejected";
 pub const ATTESTATION_REVOKED: &str = "attestation_revoked";
+pub const ATTESTATION_EXPIRED: &str = "attestation_expired";
 pub const REVOCATION_REJECTED: &str = "revocation_rejected";
 pub const REVOCATION_SCHEDULED: &str = "revocation_scheduled";
 pub const AUTHORITY_REGISTERED: &str = "authority_registered";

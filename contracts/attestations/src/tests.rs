@@ -644,3 +644,33 @@ fn ref_uid_must_exist() {
     let o = value(c.attest(schema(1), "bob.testnet".into(), Base64VecU8(vec![]), None, Some(first)));
     assert_eq!(c.get_attestation(o.uid).unwrap().ref_uid, Some(first));
 }
+
+#[test]
+fn record_expiry_once() {
+    let mut c = setup();
+    set("alice.testnet", NearToken::from_millinear(50));
+    let uid = value(c.attest(schema(1), "bob.testnet".into(), Base64VecU8(vec![]), Some(T0 + 10), None)).uid;
+    set_at("keeper.testnet", T0 + 11);
+    assert_eq!(c.record_expiry(uid).status, "expired");
+}
+
+#[test]
+#[should_panic(expected = "expiry already recorded")]
+fn record_expiry_twice() {
+    let mut c = setup();
+    set("alice.testnet", NearToken::from_millinear(50));
+    let uid = value(c.attest(schema(1), "bob.testnet".into(), Base64VecU8(vec![]), Some(T0 + 10), None)).uid;
+    set_at("keeper.testnet", T0 + 11);
+    c.record_expiry(uid);
+    c.record_expiry(uid);
+}
+
+#[test]
+#[should_panic(expected = "has not expired")]
+fn record_expiry_too_early() {
+    let mut c = setup();
+    set("alice.testnet", NearToken::from_millinear(50));
+    let uid = value(c.attest(schema(1), "bob.testnet".into(), Base64VecU8(vec![]), Some(T0 + 10), None)).uid;
+    set_at("keeper.testnet", T0 + 10);
+    c.record_expiry(uid);
+}
