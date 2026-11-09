@@ -1,0 +1,15 @@
+[package]
+name = "attestra-mpc-double"
+description = "Test double of the NEAR MPC contract's verify_foreign_transaction, for the sandbox tests only."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }

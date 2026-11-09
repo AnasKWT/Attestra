@@ -9,7 +9,9 @@ members = [
     "staking",
     "verdicts",
     "token",
-#    "sandbox-tests",
+    "sandbox-tests",
+    "sandbox-tests/doubles/mpc",
+    "sandbox-tests/doubles/resolver",
 ]
 
 [workspace.package]
