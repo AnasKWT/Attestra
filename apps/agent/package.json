@@ -1,0 +1,31 @@
+{
+  "name": "@attestra/agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Attestra agent: chat over the protocol on NEAR AI Cloud verifiable models, private AI checks, paid verification over x402, MCP, A2A and REST.",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@attestra/mcp": "workspace:*",
+    "@attestra/sdk": "workspace:*",
+    "@hono/node-server": "1.19.18",
+    "@noble/curves": "2.2.0",
+    "@noble/hashes": "2.0.1",
+    "hono": "4.13.17",
+    "near-kit": "0.20.2",
+    "tsx": "4.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

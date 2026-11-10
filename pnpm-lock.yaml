@@ -24,6 +24,43 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  apps/agent:
+    dependencies:
+      '@attestra/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
+      '@attestra/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@hono/node-server':
+        specifier: 1.19.18
+        version: 1.19.18(hono@4.13.17)
+      '@noble/curves':
+        specifier: 2.2.0
+        version: 2.2.0
+      '@noble/hashes':
+        specifier: 2.0.1
+        version: 2.0.1
+      hono:
+        specifier: 4.13.17
+        version: 4.13.17
+      near-kit:
+        specifier: 0.20.2
+        version: 0.20.2(@hot-labs/near-connect@0.12.0)
+      tsx:
+        specifier: 4.21.0
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.1
+        version: 22.19.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@22.19.1)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)
+
   apps/indexer:
     dependencies:
       '@attestra/sdk':
