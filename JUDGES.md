@@ -104,6 +104,6 @@ pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser wit
 Stated plainly so nothing here is a surprise:
 
 - The contracts are verified on NearBlocks (SourceScan) only after the repository is public; until then they are reproducible builds, verifiable with `near contract verify`.
-- Signing in with a NEAR wallet in a browser was tested against a mocked wallet list, not with a real wallet extension; passkey sign-in is tested live.
+- NEAR wallet sign-in was tested live with the NEAR CLI wallet in NEAR Connect (a sign-in and a signed attestation) and up to the extension hand-off with Meteor; it is not in the automated suites, which use passkeys.
 - Nothing is deployed on mainnet; the plan and its one switch are in [MAINNET.md](MAINNET.md).
 - The npm packages are not published yet; every command above runs from the repository.

@@ -122,7 +122,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       await fn();
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message ?? String(e);
+      // Closing the wallet picker or a passkey prompt is a choice, not an error.
+      if (!/cancel|rejected by user|user rejected|closed|NotAllowedError|AbortError/i.test(`${(e as Error).name} ${message}`)) setError(message);
     } finally {
       setBusy(false);
     }
