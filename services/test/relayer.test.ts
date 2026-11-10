@@ -214,6 +214,20 @@ describe('relayer API', () => {
     expect(await (await r.post('/v1/sponsor-storage', { account_id: 'rich.testnet', contract: 'attestations' })).json()).toMatchObject({ deposited: '0' });
   });
 
+  it('funds a new passkey account once, and only implicit accounts', async () => {
+    const r = relayer({ env: { RELAYER_STORAGE_BUDGET_NEAR: '1' } });
+    const id = 'ab'.repeat(32);
+    const res = await r.post('/v1/passkey-account', { account_id: id });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ created: true, account_id: id });
+    expect(r.writer!.sent[0]).toMatchObject({ kind: 'transfer', receiver: id, amount: parseNear('0.05') });
+    expect((await r.post('/v1/passkey-account', { account_id: id })).status).toBe(429);
+    expect((await r.post('/v1/passkey-account', { account_id: 'named.testnet' })).status).toBe(400);
+    r.reader.balances.set('cd'.repeat(32), 10n);
+    expect(await (await r.post('/v1/passkey-account', { account_id: 'cd'.repeat(32) })).json()).toMatchObject({ created: false });
+    expect(r.writer!.sent).toHaveLength(1);
+  });
+
   it('shows balance, budgets, queue and gas key use in /health', async () => {
     const r = relayer();
     const res = await r.app.request('/health');

@@ -211,5 +211,38 @@ export function createRelayerApp(deps: RelayerDeps) {
     }
   });
 
+  /**
+   * Funds a passkey account so it exists on chain: a passkey derives an ed25519 key whose implicit
+   * account (64 hex characters) the transfer creates. Once per account, within the storage budget.
+   */
+  app.post('/v1/passkey-account', async (c) => {
+    if (!writer) return c.json(idle(), 503);
+    const body = (await jsonBody(c)) as { account_id?: unknown } | undefined;
+    const account = body?.account_id;
+    if (typeof account !== 'string' || !/^[0-9a-f]{64}$/.test(account)) return c.json({ error: 'account_id must be an implicit account (64 hex characters)' }, 400);
+    if (!policy.allows(account)) return c.json({ error: `${account} is not on the relayer's allowlist` }, 403);
+    let exists = false;
+    try {
+      exists = (await reader.balance(account)) !== null;
+    } catch {
+      exists = false;
+    }
+    if (exists) return c.json({ created: false, account_id: account, tx_hash: null });
+    if (!policy.takeSponsor(account, 'passkey')) return c.json({ error: `${account} was already funded today` }, 429);
+    if (!policy.takeStorage(SPONSOR_AMOUNT)) {
+      policy.refundSponsor(account, 'passkey');
+      return c.json({ error: "the relayer's daily budget is spent" }, 429);
+    }
+    try {
+      const r = await writer.transfer(account, SPONSOR_AMOUNT);
+      log(`passkey-account funded ${account} with ${formatNear(SPONSOR_AMOUNT)} NEAR tx ${r.txHash}`);
+      return c.json({ created: true, account_id: account, funded: SPONSOR_AMOUNT.toString(), tx_hash: r.txHash });
+    } catch (e) {
+      policy.refundStorage(SPONSOR_AMOUNT);
+      policy.refundSponsor(account, 'passkey');
+      return c.json(chainError(`passkey-account ${account}`, e), 502);
+    }
+  });
+
   return app;
 }
