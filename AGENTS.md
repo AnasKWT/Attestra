@@ -56,6 +56,7 @@ pnpm market:listing                 # print the Agent Market listing; --register
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
 - Services and the agent run read-only without keys and say what is off on `/health`.
 - `tools/nearai-verify` is its own pnpm workspace because `@nearai/inference-sdk` needs Node >= 24.22.1: the root `pnpm -r` scripts skip it, `pnpm verify` runs it with Node 24 (this node, `NODE24` or nvm's newest), and `--chat-id` needs the exact request and response bytes (`--request-file`, `--response-file`), not their hashes.
+- The TDX quote collateral comes from Intel's PCS; when it does not answer (`quote.collateral_unavailable`), the verifier retries and then uses NEAR AI's PCCS cache, still checked against Intel's pinned root CA, and says so in its report.
 
 ## Where each NEAR primitive lives
 

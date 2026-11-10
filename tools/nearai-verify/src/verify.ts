@@ -123,14 +123,49 @@ export async function attestModel(
   verifier: AttestationVerifier,
   model: string,
   trusted?: { key: string; algo?: SigningAlgo },
+  tries = 4,
+  delayMs = 1500,
 ): Promise<{ report: ModelReport; models: readonly VerifiedModelAttestation[] }> {
   let result: AttestationVerificationResult;
-  try {
-    result = await verifier.verify(model);
-  } catch (e) {
-    return { report: { model, ok: false, checks: [], signers: [], error: failure(e) }, models: [] };
+  for (let i = 1; ; i++) {
+    try {
+      result = await verifier.verify(model);
+      break;
+    } catch (e) {
+      // Intel's quote collateral or a TEE node can be briefly unavailable; the SDK marks those retryable.
+      if (i < tries && retryable(e)) {
+        await new Promise((r) => setTimeout(r, delayMs * i));
+        continue;
+      }
+      return { report: { model, ok: false, checks: [], signers: [], error: failure(e) }, models: [] };
+    }
   }
   return { report: judge(model, result, trusted), models: result.models };
+}
+
+/** NEAR AI's caching proxy for Intel's collateral service, used when Intel's own service does not answer. */
+export const NEAR_AI_PCCS_URL = 'https://cloud.near.ai/api/proxy/pccs';
+
+/**
+ * `attestModel` against Intel's collateral service first; when that collateral is unavailable, again
+ * through `fallback` (a verifier fetching collateral from NEAR AI's PCCS cache). The collateral is
+ * signed by Intel and checked against Intel's root CA either way, so the cache cannot forge it.
+ * Returns the verifier that succeeded, for the response checks that follow.
+ */
+export async function attestModelWithFallback<V extends AttestationVerifier>(
+  primary: V,
+  fallback: (() => V) | undefined,
+  model: string,
+  trusted?: { key: string; algo?: SigningAlgo },
+  tries?: number,
+  delayMs?: number,
+): Promise<{ report: ModelReport; models: readonly VerifiedModelAttestation[]; verifier: V }> {
+  const first = await attestModel(primary, model, trusted, tries, delayMs);
+  if (first.report.error?.code !== 'quote.collateral_unavailable' || !fallback) return { ...first, verifier: primary };
+  const verifier = fallback();
+  const second = await attestModel(verifier, model, trusted, tries, delayMs);
+  const note = `Collateral: Intel's PCS did not answer, so the quote collateral came from NEAR AI's PCCS cache (${NEAR_AI_PCCS_URL}), still verified against Intel's root CA`;
+  return { report: { ...second.report, checks: [...second.report.checks, note] }, models: second.models, verifier };
 }
 
 function judge(model: string, result: AttestationVerificationResult, trusted?: { key: string; algo?: SigningAlgo }): ModelReport {

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError, VerificationError, type AttestationVerificationResult, type CompletionSignature, type VerifiedModelAttestation } from '@nearai/inference-sdk/node';
 import { DEFAULT_CONTRACT, nodeSupported, parseCli, render, UsageError } from '../src/cli.js';
 import { readTrustedSigners } from '../src/contract.js';
-import { attestModel, bindsKey, fetchSignature, probe, retryable, verifyChat, type ChatProbe, type SignatureSource } from '../src/verify.js';
+import { attestModel, attestModelWithFallback, bindsKey, fetchSignature, probe, retryable, verifyChat, type ChatProbe, type SignatureSource } from '../src/verify.js';
 
 const MODEL = 'z-ai/glm-5.3-flash';
 
@@ -135,6 +135,46 @@ describe('attestModel', () => {
       throw new VerificationError({ code: 'policy.gpu_evidence_required' });
     };
     const { report } = await attestModel({ verify }, MODEL, { key: '5a'.repeat(32) });
+    expect(report).toMatchObject({ ok: false, error: { code: 'policy.gpu_evidence_required' } });
+  });
+
+  it('retries a retryable failure such as missing quote collateral, then reports the result', async () => {
+    let calls = 0;
+    const verify = async () => {
+      if (++calls < 3) throw new VerificationError({ code: 'quote.collateral_unavailable', retryable: true });
+      return result([modelAttestation('5a'.repeat(32))]);
+    };
+    const { report } = await attestModel({ verify }, MODEL, { key: '5a'.repeat(32) }, 4, 1);
+    expect(calls).toBe(3);
+    expect(report).toMatchObject({ ok: true, trusted: { attested: true } });
+  });
+
+  it('gives up on a retryable failure after the last try', async () => {
+    let calls = 0;
+    const verify = async () => {
+      calls++;
+      throw new VerificationError({ code: 'quote.collateral_unavailable', retryable: true });
+    };
+    const { report } = await attestModel({ verify }, MODEL, undefined, 3, 1);
+    expect(calls).toBe(3);
+    expect(report).toMatchObject({ ok: false, error: { code: 'quote.collateral_unavailable' } });
+  });
+
+  it("falls back to NEAR AI's collateral cache when Intel's service does not answer, and says so", async () => {
+    const intel = { verify: async () => { throw new VerificationError({ code: 'quote.collateral_unavailable', retryable: true }); } };
+    const cache = { verify: async () => result([modelAttestation('5a'.repeat(32))]) };
+    const { report, verifier } = await attestModelWithFallback(intel, () => cache, MODEL, { key: '5a'.repeat(32) }, 2, 1);
+    expect(verifier).toBe(cache);
+    expect(report).toMatchObject({ ok: true, trusted: { attested: true } });
+    expect(report.checks.at(-1)).toMatch(/PCCS cache .* Intel's root CA/);
+  });
+
+  it('keeps the first answer when it is not a collateral failure', async () => {
+    let fell = false;
+    const bad = { verify: async () => { throw new VerificationError({ code: 'policy.gpu_evidence_required' }); } };
+    const { report, verifier } = await attestModelWithFallback(bad, () => { fell = true; return bad; }, MODEL, undefined, 2, 1);
+    expect(fell).toBe(false);
+    expect(verifier).toBe(bad);
     expect(report).toMatchObject({ ok: false, error: { code: 'policy.gpu_evidence_required' } });
   });
 

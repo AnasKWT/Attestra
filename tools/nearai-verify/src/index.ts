@@ -9,10 +9,10 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { AttestationClient, InferenceClient, type SigningAlgo } from '@nearai/inference-sdk/node';
+import { AttestationClient, createTdxQuoteVerifier, InferenceClient, type SigningAlgo } from '@nearai/inference-sdk/node';
 import { nodeSupported, parseCli, render, USAGE, UsageError, type Options, type Summary } from './cli.js';
 import { readTrustedSigners } from './contract.js';
-import { attestModel, failure, probe, verifyChat, type ModelReport, type TrustedSigner } from './verify.js';
+import { attestModelWithFallback, failure, NEAR_AI_PCCS_URL, probe, verifyChat, type ModelReport, type TrustedSigner } from './verify.js';
 
 function sdkVersion(): string | undefined {
   try {
@@ -45,19 +45,26 @@ async function run(o: Options, apiKey: string): Promise<Summary> {
     targets = [{ model: o.model!, algo: o.algo }];
   }
 
-  const clients = new Map<SigningAlgo, InferenceClient>();
-  const clientFor = (algo: SigningAlgo) => {
-    let c = clients.get(algo);
+  const clients = new Map<string, InferenceClient>();
+  const clientFor = (algo: SigningAlgo, pccsUrl?: string) => {
+    let c = clients.get(`${algo} ${pccsUrl ?? ''}`);
     if (!c) {
-      c = new InferenceClient({ apiKey, signingAlgo: algo, ...(o.baseUrl ? { baseUrl: o.baseUrl } : {}), modelVerification: { policy: { gpuEvidence: o.gpu } } });
-      clients.set(algo, c);
+      const tdxQuote = pccsUrl ? createTdxQuoteVerifier({ pccsUrl }) : undefined;
+      c = new InferenceClient({
+        apiKey,
+        signingAlgo: algo,
+        ...(o.baseUrl ? { baseUrl: o.baseUrl } : {}),
+        ...(tdxQuote ? { gatewayVerification: { verifiers: { tdxQuote } } } : {}),
+        modelVerification: { policy: { gpuEvidence: o.gpu }, ...(tdxQuote ? { verifiers: { tdxQuote } } : {}) },
+      });
+      clients.set(`${algo} ${pccsUrl ?? ''}`, c);
     }
     return c;
   };
 
   for (const t of targets) {
-    const client = clientFor(t.algo);
-    const { report, models } = await attestModel(client, t.model, t.trusted ? { key: t.trusted.key, algo: t.trusted.algo } : undefined);
+    const trusted = t.trusted ? { key: t.trusted.key, algo: t.trusted.algo } : undefined;
+    const { report, models, verifier: client } = await attestModelWithFallback(clientFor(t.algo), () => clientFor(t.algo, NEAR_AI_PCCS_URL), t.model, trusted);
     const withResponse = async (r: ModelReport): Promise<ModelReport> => {
       if (!r.ok) return r;
       let response;
