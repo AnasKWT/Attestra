@@ -321,7 +321,7 @@ export default function Home() {
       {/* ── Tracks ───────────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
         <Reveal>
-          <SectionHeading eyebrow="Where it fits" title="Built for four NEAR HACKATHON tracks." />
+          <SectionHeading eyebrow="Where it fits" title="Built for four NEAR Hackathon tracks." />
         </Reveal>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {TRACKS.map((t, i) => (

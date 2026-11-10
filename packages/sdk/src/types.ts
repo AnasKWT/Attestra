@@ -1,5 +1,5 @@
 /**
- * Types shared by the SDK: the zero-throw response wrapper, error categories, and the JSON shapes
+ * Types shared by the SDK: the response wrapper every method returns instead of throwing, error categories, and the JSON shapes
  * the Attestra contracts and indexer return.
  */
 
