@@ -3,13 +3,14 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { handleMcpRequest } from '@attestra/mcp';
-import { x402, type AttestraClient, type Outcome } from '@attestra/sdk';
+import { bytesToHex, x402, type AttestraClient, type Outcome } from '@attestra/sdk';
 import type { Near } from 'near-kit';
 import { a2aError, a2aReply, agentCard, textOf, type A2ARequest } from './a2a';
 import { chat, type ChatTurn } from './chat';
 import { publicKeyOf, runCheck, type Rule } from './check';
 import type { AgentConfig } from './config';
 import { NearAi, VERIFY_URL } from './nearai';
+import { checkerRequest, nearChain, runCheckOnOutLayer, type OutLayerChain, type OutLayerConfig } from './outlayer';
 import { paid, requirements } from './paid';
 
 export interface AgentDeps {
@@ -19,6 +20,20 @@ export interface AgentDeps {
   client: AttestraClient;
   near: Near | null;
   startedAt: number;
+  /** The chain the OutLayer checker is requested on; defaults to `near` as the agent account. */
+  outlayer?: OutLayerChain;
+}
+
+/** The OutLayer request settings, or the reason the outlayer checker cannot run. */
+export function outlayerSettings(config: AgentConfig): OutLayerConfig | string {
+  if (!config.outlayerWasmUrl || !config.outlayerWasmHash) return 'OUTLAYER_WASM_URL and OUTLAYER_WASM_HASH are not set: private checks are off';
+  return {
+    contract: config.net.outlayer,
+    wasmUrl: config.outlayerWasmUrl,
+    wasmHash: config.outlayerWasmHash,
+    secretsOwner: config.accountId,
+    secretsProfile: config.outlayerSecretsProfile,
+  };
 }
 
 export function createApp(d: AgentDeps) {
@@ -32,6 +47,8 @@ export function createApp(d: AgentDeps) {
     modelCache = { id, at: Date.now() };
     return id;
   };
+  const outlayer = d.config.checkerMode === 'outlayer' ? outlayerSettings(d.config) : null;
+  const checkerOff = outlayer === null ? (d.config.checkerKey ? null : 'CHECKER_PRIVATE_KEY is not set: private checks are off') : typeof outlayer === 'string' ? outlayer : null;
   const fail = (e: unknown) => {
     stats.errors++;
     stats.lastError = (e as Error).message.slice(0, 300);
@@ -43,7 +60,7 @@ export function createApp(d: AgentDeps) {
     const reasons: string[] = [];
     if (!d.ai.configured) reasons.push('NEARAI_API_KEY is not set: chat and private checks are off');
     if (!d.near) reasons.push('AGENT_PRIVATE_KEY is not set: verdicts and x402 settlement are off');
-    if (!d.config.checkerKey) reasons.push('CHECKER_PRIVATE_KEY is not set: private checks are off');
+    if (checkerOff) reasons.push(checkerOff);
     return c.json(
       {
         ok: reasons.length === 0,
@@ -51,7 +68,10 @@ export function createApp(d: AgentDeps) {
         network: d.config.network,
         account: d.config.accountId,
         model: modelCache?.id ?? d.config.model ?? null,
-        checker: { mode: d.config.checkerMode, key: d.config.checkerKey ? publicKeyOf(d.config.checkerKey) : null },
+        checker:
+          d.config.checkerMode === 'outlayer'
+            ? { mode: 'outlayer', wasm_hash: d.config.outlayerWasmHash ?? null }
+            : { mode: 'local', key: d.config.checkerKey ? publicKeyOf(d.config.checkerKey) : null },
         uptime_s: Math.floor((Date.now() - d.startedAt) / 1000),
         reason: reasons.join('; ') || undefined,
         stats,
@@ -87,7 +107,7 @@ export function createApp(d: AgentDeps) {
   });
 
   app.post('/v1/check', async (c) => {
-    if (!d.ai.configured || !d.config.checkerKey || !d.near) return c.json({ error: 'private checks are not configured on this agent' }, 503);
+    if (!d.ai.configured || checkerOff || !d.near) return c.json({ error: 'private checks are not configured on this agent' }, 503);
     const body = (await c.req.json().catch(() => ({}))) as { rule_id?: string; subject?: string; encrypted_evidence?: string; github?: string | null; model?: string };
     if (!body.rule_id || !body.subject) return c.json({ error: 'rule_id and subject are required' }, 400);
     try {
@@ -97,7 +117,21 @@ export function createApp(d: AgentDeps) {
       const id = await model();
       if (body.model && body.model !== id) return c.json({ error: `encrypt to ${id}, the model this agent uses` }, 409);
       stats.checks++;
-      const out = await runCheck(d.ai, id, d.config.checkerKey, { rule, subject: body.subject, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github }, { githubToken: d.config.githubToken });
+      const out =
+        outlayer && typeof outlayer !== 'string'
+          ? await runCheckOnOutLayer(
+              d.outlayer ?? nearChain(d.near, d.config.accountId),
+              outlayer,
+              checkerRequest({
+                requestId: bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
+                ruleId: rule.id,
+                subject: body.subject,
+                model: id,
+                encryptedEvidence: body.encrypted_evidence ?? '',
+                github: body.github,
+              }),
+            )
+          : await runCheck(d.ai, id, d.config.checkerKey!, { rule, subject: body.subject, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github }, { githubToken: d.config.githubToken });
       const r = await d.client.callRaw<Outcome>(d.client.contracts.verdicts, 'submit_ai_verdict', {
         verdict: out.verdict,
         enclave_key: out.enclaveKey,

@@ -4,6 +4,9 @@
  * configuration steps run only when the chain differs from the plan.
  *
  *   tsx scripts/deploy.ts sandbox                    a local sandbox node (rehearsal; writes internal/deployments/sandbox.json)
+ *   REHEARSE=mainnet BUILD=<commit> tsx scripts/deploy.ts sandbox
+ *                                                    the mainnet code paths on a local node: reproducible wasm only, no faucet
+ *                                                    token, a stand-in NEP-141 for USDC and staking (internal/deployments/sandbox-mainnet.json)
  *   BUILD=<commit> tsx scripts/deploy.ts testnet     the reproducible build of <commit> (target/near-reproducible/<commit>)
  *   UPGRADE=1 BUILD=<commit> tsx scripts/deploy.ts testnet   also redeploy code that changed (state is kept)
  *   tsx scripts/deploy.ts mainnet                    #mainnet: refuses unless ATTESTRA_MAINNET_GO=<root> (the owner's yes)
@@ -11,6 +14,8 @@
  * Keys: the root account's key comes from the NEAR CLI keychain (~/.near-credentials/<network>/<root>.json);
  * every sub-account gets a fresh full-access key saved there too.
  * Optional env: ROOT, RPC_URL, ENCLAVE_PUBLIC_KEY (ed25519:...), MODEL_SIGNERS (JSON list), GOVERNANCE.
+ * HOLD=<file> (sandbox only): keep the node running after the deploy and write its RPC URL and the root's
+ * test key to <file> for other scripts (scripts/cli-e2e.ts); stops on SIGTERM or SIGINT.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -28,6 +33,9 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NET = (process.argv[2] ?? 'testnet') as 'testnet' | 'mainnet' | 'sandbox';
 const log = (m: string) => console.log(`${new Date().toISOString().slice(11, 19)} ${m}`);
 
+// #mainnet: true on mainnet and in the mainnet-shaped local rehearsal.
+const MAINNET_SHAPE = NET === 'mainnet' || (NET === 'sandbox' && process.env.REHEARSE === 'mainnet');
+
 const NEAR = 10n ** 24n;
 let MPC_ACCOUNT = 'v1.signer-prod.testnet';
 const near = (n: number) => (BigInt(Math.round(n * 1000)) * NEAR) / 1000n;
@@ -41,7 +49,7 @@ const RULES = [
 
 // #mainnet: the faucet token is testnet only; mainnet stakes a real NEP-141 named by STAKING_TOKEN.
 function stakingToken(c: ReturnType<typeof contractIdsFor>): string {
-  if (NET !== 'mainnet') return c.token;
+  if (!MAINNET_SHAPE) return c.token;
   if (!process.env.STAKING_TOKEN) throw new Error('#mainnet: set STAKING_TOKEN to the NEP-141 that authorities stake');
   return process.env.STAKING_TOKEN;
 }
@@ -75,7 +83,7 @@ function wasmPath(crate: string): string {
     const commit = execFileSync('git', ['rev-parse', `${build}^{commit}`], { cwd: repo, encoding: 'utf8' }).trim();
     return join(repo, 'contracts/target/near-reproducible', commit, `attestra_${crate}.wasm`);
   }
-  if (NET === 'mainnet') throw new Error('mainnet deploys only reproducible builds: set BUILD=<commit>');
+  if (MAINNET_SHAPE) throw new Error('mainnet deploys only reproducible builds: set BUILD=<commit>');
   return join(repo, 'contracts/target/near', `attestra_${crate}`, `attestra_${crate}.wasm`);
 }
 
@@ -88,6 +96,9 @@ async function main() {
   let rpcUrl: string;
   let keyStore: FileKeyStore | InMemoryKeyStore;
   let mpc = '';
+  // #mainnet: native USDC on mainnet, a stand-in NEP-141 in the rehearsal, the faucet token otherwise.
+  let paymentToken: string | undefined;
+  let rootSecret: string | undefined;
 
   if (NET === 'sandbox') {
     sandbox = await Sandbox.start({ detached: false });
@@ -97,8 +108,25 @@ async function main() {
     root = `attestra.${sandbox.rootAccount.id}`;
     const rk = generateKey();
     await keyStore.add(root, rk);
+    rootSecret = rk.secretKey;
     await base.transaction(sandbox.rootAccount.id).createAccount(root).transfer(root, '200 NEAR').addKey(rk.publicKey.toString(), { type: 'fullAccess' }).send();
     nearClient = new Near({ network: { rpcUrl, networkId: sandbox.networkId }, keyStore });
+    if (MAINNET_SHAPE) {
+      const standIn = `usdc.${sandbox.rootAccount.id}`;
+      const sk = generateKey();
+      await keyStore.add(standIn, sk);
+      await base
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(standIn)
+        .transfer(standIn, '5 NEAR')
+        .addKey(sk.publicKey.toString(), { type: 'fullAccess' })
+        .deployContract(standIn, new Uint8Array(readFileSync(wasmPath('token'))))
+        .functionCall(standIn, 'new', { owner: root, total_supply: (1_000_000n * 10n ** 6n).toString() }, { gas: '100 Tgas' })
+        .send();
+      paymentToken = standIn;
+      process.env.STAKING_TOKEN ??= standIn;
+      log(`rehearsing mainnet: ${standIn} stands in for USDC and the staking token`);
+    }
   } else {
     if (NET === 'mainnet' && process.env.ATTESTRA_MAINNET_GO !== (process.env.ROOT ?? DEFAULT_ROOTS.mainnet)) {
       throw new Error('#mainnet: refusing without ATTESTRA_MAINNET_GO set to the root account (the owner must approve)');
@@ -108,6 +136,7 @@ async function main() {
     rpcUrl = process.env.RPC_URL ?? net.rpcUrls[0];
     mpc = net.mpc;
     MPC_ACCOUNT = net.mpc;
+    if (NET === 'mainnet') paymentToken = net.paymentToken;
     keyStore = new FileKeyStore(join(homedir(), '.near-credentials'), NET);
     nearClient = new Near({ network: NET, rpcUrl, keyStore });
   }
@@ -157,7 +186,7 @@ async function main() {
   record.start_height = previousStart ?? (await rpc<{ header: { height: number } }>('block', { finality: 'final' })).header.height - 10;
 
   // 1. accounts and code
-  for (const p of PLAN.filter((p) => NET !== 'mainnet' || p.name !== 'token')) {
+  for (const p of PLAN.filter((p) => !MAINNET_SHAPE || p.name !== 'token')) {
     const id = accountOf(p.name);
     const wasm = readFileSync(wasmPath(p.crate));
     const hash = codeHash(wasm);
@@ -210,7 +239,7 @@ async function main() {
   }
   // The fee resolver accepts prepaid balances only in tokens its owner lists.
   const feeTokens = (await view<string[]>(ids.resolvers.fee, 'fee_tokens')) ?? [];
-  const feeToken = NET === 'mainnet' ? resolveNetwork('mainnet').paymentToken : ids.token;
+  const feeToken = paymentToken ?? ids.token;
   if (!feeTokens.includes(feeToken)) log(`fee token ${feeToken} ${await call(root, ids.resolvers.fee, 'add_fee_token', { token: feeToken }, '1')}`);
   // Token storage for contracts that receive or hold the payment token, and for staking in its token.
   const holders: [string, string][] = [ids.resolvers.fee, ids.resolvers.tokenReward, ids.resolvers.tokenGated, `agent.${root}`].map((h) => [feeToken, h]);
@@ -258,10 +287,18 @@ async function main() {
   }
 
   // 5. record
-  const out = NET === 'sandbox' ? join(repo, 'internal/deployments/sandbox.json') : join(repo, `deployments/${NET}.json`);
+  const out = NET === 'sandbox' ? join(repo, `internal/deployments/${MAINNET_SHAPE ? 'sandbox-mainnet' : 'sandbox'}.json`) : join(repo, `deployments/${NET}.json`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
   log(`wrote ${out}`);
+  if (sandbox && process.env.HOLD) {
+    writeFileSync(process.env.HOLD, JSON.stringify({ rpcUrl, root, rootSecret, paymentToken: paymentToken ?? ids.token }));
+    log(`holding the sandbox at ${rpcUrl} (details in ${process.env.HOLD})`);
+    await new Promise<void>((resolve) => {
+      process.once('SIGTERM', resolve);
+      process.once('SIGINT', resolve);
+    });
+  }
   if (sandbox) await sandbox.stop();
 }
 

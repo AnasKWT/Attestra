@@ -1,0 +1,25 @@
+// The OutLayer signing-keys host interface (outlayer:signing-keys@0.1.0), the types exactly as the
+// worker serves them (worker/wit/deps/signing-keys.wit in github.com/fastnear/near-outlayer).
+// A key is declared in the `outlayer.manifest` custom section and derived by the keystore inside
+// the TEE; the component names it by path and never sees the secret.
+package outlayer:signing-keys@0.1.0;
+
+interface api {
+    record nep413-signature {
+        account-id: string,
+        public-key: string,
+        signature: string,
+    }
+
+    /// ed25519: the 32-byte public key.
+    public-key: func(path: string, vault: option<string>) -> result<list<u8>, string>;
+
+    /// ed25519: an RFC 8032 signature (64 bytes) over the raw message, at most 65536 bytes.
+    sign: func(path: string, vault: option<string>, message: list<u8>) -> result<list<u8>, string>;
+
+    sign-nep413: func(path: string, vault: option<string>, message: string, recipient: string, nonce: list<u8>, callback-url: option<string>) -> result<nep413-signature, string>;
+}
+
+world signing-keys-host {
+    import api;
+}

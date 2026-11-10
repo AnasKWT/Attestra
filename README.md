@@ -100,6 +100,7 @@ near contract verify deployed-at attestations.attestra.testnet network-config te
 - **What is public:** every attestation's schema, subject, attester and data. Never put secrets or raw evidence in attestation data.
 - **What stays private:** evidence for a private check is encrypted in the browser to the NEAR AI model's key; the chain stores only the verdict, the rule, the model and the evidence hash.
 - **Whom you trust for an AI verdict:** the model's signing key, published by NEAR AI Cloud from inside its TEE, and the checker key that the verdicts contract's owner allowlisted. The contract checks both signatures and that the NEAR AI signature covers the exact request it was given.
+- **Where the checker runs:** `checker/` is a WASI component for NEAR OutLayer whose signing key is derived inside the TEE from the hash of its own build, so no one, the operators included, can make other code sign with it. The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`); the status page says which mode is live.
 - **Whom you trust for a foreign event:** the NEAR MPC network's key; the contract recomputes the signed payload hash itself.
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself.
 - **Contract owners** can change allowlisted keys and resolver settings; reviews, fixes and accepted risks are in [SECURITY.md](SECURITY.md).

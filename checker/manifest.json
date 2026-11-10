@@ -1,0 +1,17 @@
+{
+  "display": { "name": "Attestra private checker" },
+  "operations": ["check", "public_key"],
+  "capabilities": {
+    "network": [
+      { "host": "cloud-api.near.ai", "timeout_secs": 90 },
+      "api.github.com",
+      "test.rpc.fastnear.com",
+      "rpc.testnet.fastnear.com",
+      "free.rpc.fastnear.com",
+      "rpc.mainnet.fastnear.com"
+    ]
+  },
+  "signing_keys": [
+    { "path": "verdicts", "type": "ed25519", "bind": "wasm", "caller": "none" }
+  ]
+}

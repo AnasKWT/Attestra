@@ -40,10 +40,10 @@ Decisions and accounts the owner provides:
    contracts/scripts/build.sh --reproducible <commit>
    ```
 
-2. Rehearse the whole deploy on a local node from the same commit:
+2. Rehearse the whole mainnet deploy on a local node from the same build: reproducible wasm only, no faucet token, a stand-in NEP-141 for USDC and staking.
 
    ```bash
-   pnpm deploy:sandbox
+   REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox
    ```
 
 3. Deploy. The script refuses unless `ATTESTRA_MAINNET_GO` names the root, so it cannot run by accident:

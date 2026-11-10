@@ -13,6 +13,7 @@ This file is for AI agents and engineers working in the repository; the product 
   - `credentials` (NEP-171, non-transferable, burned on revoke), `staking` (NEP-141 tiers), `token` (testnet NEP-141 with a faucet).
   - `verdicts`: AI-checked facts (enclave and NEAR AI signatures), cross-chain facts (Chain Signatures `verify_foreign_transaction`), wallet links (ERC-191, ed25519).
   - `sandbox-tests`: near-workspaces flows across all contracts.
+- `checker/` (Rust, its own Cargo project, wasm32-wasip2): the private checker as a NEAR OutLayer component; signs verdicts with an OutLayer signing key bound to its build (`bind: "wasm"`), started on chain by the agent when `CHECKER_MODE=outlayer`.
 - `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, E2EE, agent tools; `@attestra/sdk/ai` for LangChain.
 - `packages/cli` (`@attestra/cli`, binary `attestra`), `packages/mcp` (`@attestra/mcp`, binary `attestra-mcp`).
 - `apps/web`: Next.js 16 site, explorer, sandbox (31 tools), docs, `/mcp` (hosted, read only), `/llms.txt`.
@@ -29,6 +30,8 @@ This file is for AI agents and engineers working in the repository; the product 
 pnpm install && pnpm build          # SDK, MCP and CLI to dist/
 pnpm test                           # every TypeScript suite
 pnpm test:contracts                 # every contract unit test
+pnpm test:checker                   # the OutLayer checker (cargo test in checker/, native, mocked host)
+checker/build.sh --reproducible     # checker wasm in OutLayer's pinned compiler image, prints its sha256
 pnpm test:sandbox                   # near-workspaces flows (build wasm first: contracts/scripts/build.sh)
 pnpm typecheck && pnpm lint
 pnpm security                       # Clippy -D warnings, cargo audit, cargo deny, pnpm audit
@@ -37,6 +40,8 @@ docker compose up --build           # the same stack in containers (site with --
 pnpm verify                         # every README claim against the live deployment, PASS or FAIL
 contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's pinned image
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
+REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
+pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
 ```
 
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
@@ -55,7 +60,8 @@ pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 | Cross-contract resolver gate | `contracts/attestations/src/gate.rs`, `contracts/resolvers/src/pipeline.rs` |
 | Light client proofs | `packages/sdk/src/lightclient.ts` |
 | Chain Signatures foreign tx | `contracts/verdicts/src/{foreign,mpc}.rs` |
-| NEAR AI Cloud (verifiable models, E2EE, signatures) | `apps/agent/src/{nearai,check,chat}.ts`, `packages/sdk/src/e2ee.ts`, `contracts/verdicts/src/ai.rs` |
+| NEAR AI Cloud (verifiable models, E2EE, signatures) | `apps/agent/src/{nearai,check,chat}.ts`, `packages/sdk/src/e2ee.ts`, `contracts/verdicts/src/ai.rs`, `checker/src/{e2ee,nearai,check}.rs` |
+| OutLayer TEE (build-bound signing key, `request_execution`) | `checker/`, `apps/agent/src/outlayer.ts` |
 | Wallets: NEAR Connect and passkeys | `apps/web/src/components/wallet/WalletProvider.tsx`, `apps/web/src/lib/passkey.ts` |
 | Gas keys (relayer lanes) | `services/src/lib/chain.ts`, `services/scripts/setup-gas-key.ts` |
 | x402 on NEAR | `packages/sdk/src/x402.ts`, `apps/agent/src/paid.ts` |
@@ -81,4 +87,5 @@ By hand: `near contract verify deployed-at attestations.attestra.testnet network
 - The FastNEAR transactions API allows about 60 requests a minute without a key; the indexer paces itself.
 - RPC views at `final` lag a just-sent transaction by a block or two; the SDK reads `optimistic`.
 - NEAR keys are base58 and case-sensitive: never lowercase a key.
+- The checker's key changes with every build: a new `checker/` wasm needs `set_enclave_keys` on the verdicts contract and a new `OUTLAYER_WASM_HASH`; regenerate `checker/tests/fixtures/ts.json` after changing the E2EE, prompt or digest code on either side.
 - `next lint` is gone in Next.js 16: lint the site with `pnpm --filter @attestra/web lint`.

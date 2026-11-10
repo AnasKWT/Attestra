@@ -19,6 +19,8 @@ contracts/scripts/build.sh && pnpm test:sandbox    # 19 near-workspaces flows on
 pnpm security                                      # Clippy -D warnings, cargo audit, cargo deny, pnpm audit
 contracts/scripts/build.sh --reproducible          # the wasm SourceScan builds, in its pinned image
 pnpm deploy:sandbox                                # the full deploy and wiring on a local node
+pnpm build && pnpm cli:e2e                         # 90 CLI steps against a fresh local deployment
+pnpm test:checker                                  # the OutLayer checker, natively against a mocked host
 ```
 
 ## Claims
@@ -29,7 +31,7 @@ pnpm deploy:sandbox                                # the full deploy and wiring 
 | Resolvers gate an attestation asynchronously and roll back on refusal | `contracts/attestations/src/gate.rs`, `contracts/resolvers` | resolver unit tests; sandbox `resolvers` flows incl. a refusal and pipelines with rewards | sandbox tools on the site (whitelist, fee, token gate, reward, pipeline) |
 | Delegation by grant and by NEP-413 signature, gasless through a relayer | `contracts/attestations/src/authority.rs`, `ops.rs` (`submit_signed`), `services/src/relayer` | unit tests incl. replay and expiry; relayer tests | sandbox "Delegated attestation" and "Gasless issuing" |
 | Multisig authorities, scheduled revocation, credentials burned on revoke, staking tiers, large schemas | `contracts/attestations/src/multisig.rs`, `contracts/credentials`, `contracts/staking`, `contracts/schemas` | unit tests; sandbox flows incl. a mint and revoke race | sandbox tools of the same names |
-| Private facts checked by verifiable AI; evidence never on chain | `contracts/verdicts/src/ai.rs`, `apps/agent/src/check.ts`, `packages/sdk/src/e2ee.ts` | verdicts unit tests (signatures, age, replay, model match); agent tests with real E2EE and signatures | `pnpm verify` checks an AI-checked attestation's two signatures |
+| Private facts checked by verifiable AI; evidence never on chain | `contracts/verdicts/src/ai.rs`, `checker/` (OutLayer TEE, build-bound key), `apps/agent/src/{check,outlayer}.ts`, `packages/sdk/src/e2ee.ts` | verdicts unit tests (signatures, age, replay, model match); checker tests with vectors from the TypeScript side; agent tests with real E2EE and signatures | `pnpm verify` checks an AI-checked attestation's two signatures |
 | Facts about other chains with no oracle | `contracts/verdicts/src/{foreign,mpc}.rs` | unit tests against the MPC's Borsh layout; sandbox flows with an MPC double signing real secp256k1 answers | `pnpm verify` checks a cross-chain attestation and its final event |
 | Wallet links for Ethereum and Solana wallets | `contracts/verdicts/src/wallet.rs` | unit tests (EIP-191 recovery, ed25519); sandbox `verdicts` flows | sandbox "Wallet link" |
 | Know Your Agent: identity, delegation, reviews | well-known schemas in `packages/sdk/src/schemas.ts`, `getAgentProfile` in `client.ts` | SDK and MCP tests | `pnpm verify` reads an agent's reputation; `/agents` on the site |

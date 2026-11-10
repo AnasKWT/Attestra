@@ -1,0 +1,241 @@
+/**
+ * Drives the built `attestra` CLI through every command group that needs only the chain, against
+ * a fresh local sandbox with every contract deployed (scripts/deploy.ts sandbox), and prints PASS or
+ * FAIL per step. Groups that need the indexer, the agent or NEAR AI (lists, profile, events list,
+ * check run, pay, ai) are covered by their own suites and by `pnpm verify` on testnet.
+ *
+ *   pnpm build && contracts/scripts/build.sh && pnpm cli:e2e
+ */
+
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
+import { keccak_256 } from '@noble/hashes/sha3.js';
+import { InMemoryKeyStore, Near, generateKey } from 'near-kit';
+
+const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
+const cli = join(repo, 'packages/cli/dist/index.js');
+const work = mkdtempSync(join(tmpdir(), 'attestra-cli-e2e-'));
+const holdFile = join(work, 'sandbox.json');
+
+type Json = { success: boolean; data?: any; error?: { type: string; message: string }; tx_hash?: string };
+const results: { step: string; ok: boolean; detail?: string }[] = [];
+
+async function main() {
+  if (!existsSync(cli)) throw new Error('build the CLI first: pnpm build');
+  const deploy = spawn('npx', ['tsx', 'scripts/deploy.ts', 'sandbox'], { cwd: repo, env: { ...process.env, HOLD: holdFile }, stdio: ['ignore', 'pipe', 'inherit'] });
+  deploy.stdout.on('data', (b: Buffer) => process.stdout.write(`  deploy | ${b.toString()}`.replace(/\n(?!$)/g, '\n  deploy | ')));
+  const exited = new Promise<number | null>((r) => deploy.on('exit', r));
+  try {
+    while (!existsSync(holdFile)) {
+      if (deploy.exitCode !== null) throw new Error('the sandbox deploy failed');
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    await scenario(JSON.parse(readFileSync(holdFile, 'utf8')));
+  } finally {
+    deploy.kill('SIGTERM');
+    await exited;
+    rmSync(work, { recursive: true, force: true });
+  }
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failed.length} passed, ${failed.length} failed`);
+  if (failed.length) process.exit(1);
+}
+
+async function scenario(env: { rpcUrl: string; root: string; rootSecret: string }) {
+  const keyStore = new InMemoryKeyStore({ [env.root]: env.rootSecret });
+  const near = new Near({ network: { rpcUrl: env.rpcUrl, networkId: 'sandbox' }, keyStore });
+  const keys: Record<string, string> = {};
+  for (const name of ['alice', 'bob', 'carol']) {
+    const id = `${name}.${env.root}`;
+    const k = generateKey();
+    await near.transaction(env.root).createAccount(id).transfer(id, '30 NEAR').addKey(k.publicKey.toString(), { type: 'fullAccess' }).send();
+    keys[id] = k.secretKey;
+  }
+  const [alice, bob, carol] = ['alice', 'bob', 'carol'].map((n) => `${n}.${env.root}`);
+  const ids = {
+    whitelist: `whitelist.${env.root}`,
+    fee: `fee.${env.root}`,
+    gated: `gated.${env.root}`,
+    reward: `reward.${env.root}`,
+    pipeline: `pipeline.${env.root}`,
+    token: `token.${env.root}`,
+  };
+
+  const run = (args: string[], as?: string): Json => {
+    const r = spawnSync('node', [cli, '--json', '--rpc', env.rpcUrl, '--root', env.root, ...(as ? ['-a', as] : []), ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, ATTESTRA_PRIVATE_KEY: as ? keys[as] : '', ATTESTRA_INDEXER_URL: 'http://127.0.0.1:9' },
+    });
+    try {
+      return JSON.parse(r.stdout || r.stderr) as Json;
+    } catch {
+      return { success: false, error: { type: 'PARSE', message: (r.stdout + r.stderr).slice(0, 300) } };
+    }
+  };
+  const step = (name: string, res: Json, check: (d: any) => boolean = () => true): any => {
+    const ok = res.success && check(res.data);
+    results.push({ step: name, ok, detail: ok ? undefined : JSON.stringify(res.error ?? res.data).slice(0, 300) });
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `\n      ${JSON.stringify(res.error ?? res.data).slice(0, 300)}`}`);
+    return res.data;
+  };
+  const refused = (name: string, res: Json, type?: string) => {
+    const ok = !res.success && (!type || res.error?.type === type);
+    results.push({ step: name, ok, detail: ok ? undefined : JSON.stringify(res) });
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `\n      expected a refusal${type ? ` (${type})` : ''}, got ${JSON.stringify(res).slice(0, 300)}`}`);
+  };
+
+  // schema
+  const def = 'string name, u8 level';
+  const s = step('schema create', run(['schema', 'create', '-d', def, '--revocable'], alice), (d) => /^[0-9a-f]{64}$/.test(d.schemaUid)).schemaUid;
+  step('schema fetch', run(['schema', 'fetch', s]), (d) => d.definition === def && d.authority === alice);
+  step('schema uid matches the chain', run(['schema', 'uid', '-d', def, '--revocable']), (d) => d.uid === s);
+  step('schema known', run(['schema', 'known']), (d) => Array.isArray(d) && d.length >= 6);
+
+  // blob (large schema)
+  const big = join(work, 'big.txt');
+  writeFileSync(big, Array.from({ length: 40 }, (_, i) => `string field_${i}`).join(', '));
+  const blob = step('blob store', run(['blob', 'store', '-f', big], alice), (d) => /^[0-9a-f]{64}$/.test(d.blobHash)).blobHash;
+  step('blob fetch', run(['blob', 'fetch', blob]), (d) => d.definition.includes('field_39'));
+  step('blob register', run(['blob', 'register', blob, '--revocable'], alice), (d) => /^[0-9a-f]{64}$/.test(d.schemaUid));
+
+  // attestation
+  const a1 = step('attestation create', run(['attestation', 'create', '-s', s, '--subject', bob, '-v', '{"name":"Bob","level":3}'], alice), (d) => d.status === 'created').attestationUid;
+  step('attestation fetch decodes data', run(['attestation', 'fetch', a1]), (d) => JSON.stringify(d).includes('Bob'));
+  step('attestation verify', run(['attestation', 'verify', a1]), (d) => d.valid === true);
+  refused('attestation revoke by a stranger', run(['attestation', 'revoke', a1], carol));
+
+  // authority and storage
+  step('authority register', run(['authority', 'register', '-m', 'Alice Labs', '-k', 'organization'], alice));
+  step('authority fetch', run(['authority', 'fetch', alice]), (d) => JSON.stringify(d).includes('Alice Labs'));
+  step('storage balance', run(['storage', 'balance', 'attestations', alice]), (d) => d !== null);
+  step('storage deposit', run(['storage', 'deposit', 'attestations', '100000000000000000000000'], alice));
+
+  // delegation
+  step('delegate add', run(['delegate', 'add', bob, '--schemas', s, '--max-uses', '2', '--can-revoke'], alice));
+  step('delegate check', run(['delegate', 'check', alice, bob]), (d) => d === true || d?.isDelegate === true || d?.delegate === true);
+  step('delegate list', run(['delegate', 'list', alice]), (d) => JSON.stringify(d).includes(bob));
+  const a2 = step('delegate attest', run(['delegate', 'attest', '--authority', alice, '-s', s, '--subject', carol, '-v', '{"name":"Carol","level":1}'], bob), (d) => d.status === 'created').attestationUid;
+  step('delegate revoke', run(['delegate', 'revoke', a2], bob));
+  step('delegate remove', run(['delegate', 'remove', bob], alice));
+  refused('delegate attest after removal', run(['delegate', 'attest', '--authority', alice, '-s', s, '--subject', carol, '-v', '{"name":"Carol","level":1}'], bob));
+
+  // whitelist resolver
+  const sw = step('whitelist schema', run(['schema', 'create', '-d', 'bool member', '--revocable', '-r', ids.whitelist], alice), (d) => d.schemaUid).schemaUid;
+  step('whitelist add', run(['whitelist', 'add', sw, bob], alice));
+  step('whitelist check', run(['whitelist', 'check', sw, bob]), (d) => d === true || d?.whitelisted === true);
+  step('whitelist info', run(['whitelist', 'info']));
+  step('whitelisted attester is accepted', run(['attestation', 'create', '-s', sw, '--subject', alice, '-v', '{"member":true}'], bob), (d) => d.status === 'created');
+  refused('other attester is refused by the resolver', run(['attestation', 'create', '-s', sw, '--subject', alice, '-v', '{"member":true}'], carol));
+  step('whitelist remove', run(['whitelist', 'remove', sw, bob], alice));
+
+  // test token and staking
+  step('token faucet', run(['token', 'faucet'], alice));
+  step('token balance', run(['token', 'balance', alice]), (d) => BigInt(d.balance ?? d) > 0n);
+  step('staking tiers', run(['staking', 'tiers']));
+  step('staking stake', run(['staking', 'stake', '1000000000000000000'], alice));
+  step('staking info', run(['staking', 'info', alice]), (d) => JSON.stringify(d).includes('1000000000000000000'));
+  step('staking unstake', run(['staking', 'unstake', '1000000000000000000'], alice));
+
+  // fee resolver (NEAR)
+  const sf = step('fee schema', run(['schema', 'create', '-d', 'string note', '--revocable', '-r', ids.fee], alice), (d) => d.schemaUid).schemaUid;
+  step('fee set-fee', run(['fee', 'set-fee', sf, '10000000000000000000000'], alice));
+  step('fee get-fee', run(['fee', 'get-fee', sf]), (d) => JSON.stringify(d).includes('10000000000000000000000'));
+  refused('attest without a prepaid fee is refused', run(['attestation', 'create', '-s', sf, '--subject', bob, '-v', '{"note":"x"}'], carol));
+  step('fee deposit', run(['fee', 'deposit', '20000000000000000000000'], carol));
+  step('fee balance', run(['fee', 'balance', carol]), (d) => JSON.stringify(d).includes('20000000000000000000000'));
+  step('paid attestation is accepted', run(['attestation', 'create', '-s', sf, '--subject', bob, '-v', '{"note":"paid"}'], carol), (d) => d.status === 'created');
+  step('fee collected', run(['fee', 'collected', sf]), (d) => JSON.stringify(d).includes('10000000000000000000000'));
+  step('fee withdraw', run(['fee', 'withdraw', sf], alice));
+  step('fee refund', run(['fee', 'refund'], carol));
+
+  // token gate and token reward
+  const sg = step('token-gated schema', run(['schema', 'create', '-d', 'string note', '-r', ids.gated], alice), (d) => d.schemaUid).schemaUid;
+  step('token-gated set-config', run(['token-gated', 'set-config', sg, ids.token, '1'], alice));
+  step('token-gated get-config', run(['token-gated', 'get-config', sg]), (d) => JSON.stringify(d).includes(ids.token));
+  step('token holder passes the gate', run(['attestation', 'create', '-s', sg, '--subject', bob, '-v', '{"note":"holder"}'], alice), (d) => d.status === 'created');
+  refused('account without tokens is refused', run(['attestation', 'create', '-s', sg, '--subject', bob, '-v', '{"note":"none"}'], carol));
+  const sr = step('token-reward schema', run(['schema', 'create', '-d', 'string note', '-r', ids.reward], alice), (d) => d.schemaUid).schemaUid;
+  step('token-reward set-config', run(['token-reward', 'set-config', sr, ids.token, '5'], alice));
+  step('token-reward fund', run(['token-reward', 'fund', sr, ids.token, '100'], alice));
+  step('token-reward get-config', run(['token-reward', 'get-config', sr]), (d) => JSON.stringify(d).includes(ids.token));
+  step('rewarded attestation', run(['attestation', 'create', '-s', sr, '--subject', bob, '-v', '{"note":"thanks"}'], alice), (d) => d.status === 'created');
+  step('token-reward distributed', run(['token-reward', 'distributed', sr, bob]), (d) => JSON.stringify(d).includes('5'));
+
+  // pipeline
+  const sp = step('pipeline schema', run(['schema', 'create', '-d', 'string note', '--revocable', '-r', ids.pipeline], alice), (d) => d.schemaUid).schemaUid;
+  step('pipeline set', run(['pipeline', 'set', sp, ids.whitelist], alice));
+  step('pipeline get', run(['pipeline', 'get', sp]), (d) => JSON.stringify(d).includes(ids.whitelist));
+  step('whitelist add through the pipeline schema', run(['whitelist', 'add', sp, alice], alice));
+  step('pipeline accepts a whitelisted attester', run(['attestation', 'create', '-s', sp, '--subject', bob, '-v', '{"note":"ok"}'], alice), (d) => d.status === 'created');
+  refused('pipeline refuses another attester', run(['attestation', 'create', '-s', sp, '--subject', bob, '-v', '{"note":"no"}'], carol));
+
+  // credentials
+  const a3 = step('attestation for a credential', run(['attestation', 'create', '-s', s, '--subject', bob, '-v', '{"name":"Bob","level":5}'], alice), (d) => d.status === 'created').attestationUid;
+  step('credential mint (subject)', run(['credential', 'mint', a3], bob));
+  step('credential fetch', run(['credential', 'fetch', a3]), (d) => JSON.stringify(d).includes(bob));
+  step('credential list', run(['credential', 'list', bob]), (d) => JSON.stringify(d).includes(a3));
+  step('attestation revoke', run(['attestation', 'revoke', a3], alice));
+  step('attestation no longer valid', run(['attestation', 'verify', a3]), (d) => d.valid === false);
+  await waitFor(() => { const r = run(['credential', 'fetch', a3]); return r.success && r.data === null; }, 'credential burned');
+
+  // scheduled revocation
+  const a4 = step('attestation to schedule', run(['attestation', 'create', '-s', s, '--subject', carol, '-v', '{"name":"Carol","level":2}'], alice), (d) => d.status === 'created').attestationUid;
+  step('schedule revoke', run(['schedule', 'revoke', a4, '--in', '4'], alice));
+  step('schedule status', run(['schedule', 'status', a4]), (d) => d !== null);
+  await waitFor(() => run(['attestation', 'verify', a4]).data?.valid === false, 'scheduled revocation takes effect');
+  step('schedule finalize', run(['schedule', 'finalize', a4], carol));
+
+  // multisig
+  const ms = step('multisig create', run(['multisig', 'create', '--members', `${alice},${bob},${carol}`, '--threshold', '2', '-m', 'Council'], alice), (d) => d.multisigId).multisigId;
+  step('multisig fetch', run(['multisig', 'fetch', ms]), (d) => d.threshold === 2);
+  const sm = step('schema for the multisig', run(['schema', 'create', '-d', 'string decision', '--revocable'], alice), (d) => d.schemaUid).schemaUid;
+  const pid = step('multisig propose-attest', run(['multisig', 'propose-attest', ms, '-s', sm, '--subject', bob, '-v', '{"decision":"approved"}'], alice), (d) => typeof d.proposalId === 'number').proposalId;
+  step('multisig proposal', run(['multisig', 'proposal', String(pid)]), (d) => d !== null);
+  step('multisig approve reaches the threshold', run(['multisig', 'approve', String(pid)], bob));
+  step('multisig proposal executed', run(['multisig', 'proposal', String(pid)]), (d) => JSON.stringify(d).toLowerCase().includes('execut'));
+
+  // wallet link (Ethereum personal_sign)
+  const sk = secp256k1.utils.randomSecretKey();
+  const address = `0x${Buffer.from(keccak_256(secp256k1.getPublicKey(sk, false).slice(1)).slice(-20)).toString('hex')}`;
+  const message = step('chain link-message', run(['chain', 'link-message', 'eip155', address], bob), (d) => d.message.includes(bob)).message as string;
+  const text = new TextEncoder().encode(message);
+  const digest = keccak_256(new Uint8Array([...new TextEncoder().encode(`\x19Ethereum Signed Message:\n${text.length}`), ...text]));
+  const rec = secp256k1.sign(digest, sk, { prehash: false, format: 'recovered' });
+  const signature = Buffer.from([...rec.slice(1), 27 + rec[0]]).toString('hex');
+  step('chain link', run(['chain', 'link', 'eip155', address, signature], bob));
+  step('chain linked', run(['chain', 'linked', `eip155:1:${address}`]), (d) => JSON.stringify(d).includes(bob));
+  refused('chain link with a wrong signature', run(['chain', 'link', 'eip155', address, `${signature.slice(0, -4)}0000`], carol));
+
+  // Know Your Agent
+  const agentAcct = `agent.${carol}`;
+  step('agent register', run(['agent', 'register', agentAcct, '--name', 'Scout', '--model', 'z-ai/glm-5.3-flash', '--capabilities', 'search,verify'], carol));
+  step('agent delegate', run(['agent', 'delegate', agentAcct, '--max-uses', '3'], carol));
+  step('agent rate', run(['agent', 'rate', agentAcct, '5', '--comment', 'fast and correct'], alice));
+
+  // data helpers
+  const enc = step('encode', run(['encode', def, '{"name":"Dan","level":7}']), (d) => typeof (d.data ?? d) === 'string');
+  step('decode round-trips', run(['decode', def, enc.data ?? enc]), (d) => JSON.stringify(d).includes('Dan'));
+}
+
+async function waitFor(fn: () => boolean, name: string, timeoutMs = 30_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (fn()) {
+      results.push({ step: name, ok: true });
+      console.log(`PASS  ${name}`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  results.push({ step: name, ok: false, detail: 'timed out' });
+  console.log(`FAIL  ${name} (timed out)`);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

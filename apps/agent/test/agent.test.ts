@@ -90,6 +90,19 @@ describe('private check pipeline', () => {
     expect(out.verdict.result).toBe(false);
   });
 
+  it('refuses a model signature over another response', async () => {
+    const fake = fakeNearAi('PASS');
+    const f = (async (url: string | URL | Request, init?: RequestInit) => {
+      const res = await fake.f(url, init);
+      if (!String(url).includes('/signature/')) return res;
+      const sig = (await res.json()) as { text: string };
+      const text = sig.text.replace(/:[0-9a-f]{64}$/, `:${'00'.repeat(32)}`);
+      return Response.json({ ...sig, text, signature: bytesToHex(ed25519.sign(new TextEncoder().encode(text), modelSeed)) });
+    }) as typeof fetch;
+    const ai = new NearAi('k', f);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'b.testnet', encryptedEvidence: encryptForModel('x', modelPub) })).rejects.toThrow(/different response/);
+  });
+
   it('refuses plaintext evidence', async () => {
     const ai = new NearAi('k', fakeNearAi().f);
     await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'b', encryptedEvidence: 'my passport says 1990' })).rejects.toThrow(/encrypted/);

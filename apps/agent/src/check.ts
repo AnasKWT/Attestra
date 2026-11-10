@@ -8,8 +8,9 @@
  *      over the request and response hashes,
  *   5. signs the verdict with the checker key; the verdicts contract checks both signatures.
  *
- * The checker key is the enclave key when this runs in an OutLayer TEE (CHECKER_MODE=outlayer, key bound
- * to the build). In local mode the key is a configured bootstrap key, which the status page says.
+ * With CHECKER_MODE=outlayer the same steps run in checker/ (Rust, inside an OutLayer TEE) and the
+ * verdict is signed with a key bound to that build (see outlayer.ts). In local mode the key is a
+ * configured bootstrap key, which the status page says.
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
@@ -87,7 +88,7 @@ export async function runCheck(ai: NearAi, model: string, checkerSecret: string,
     max_tokens: 8,
     stream: false,
   });
-  const { json, requestHash } = await ai.chatRaw(body, {
+  const { json, requestHash, responseHash } = await ai.chatRaw(body, {
     'X-Signing-Algo': 'ed25519',
     'X-Client-Pub-Key': bytesToHex(ed25519.getPublicKey(ephemeral)),
     'X-Encryption-Version': '2',
@@ -99,6 +100,7 @@ export async function runCheck(ai: NearAi, model: string, checkerSecret: string,
   if (!verifySignature(sig, { ed25519: keys.ed25519 })) throw new Error('the model signature does not verify against the attested key');
   const hashes = signedHashes(sig.text);
   if (hashes.requestHash !== requestHash) throw new Error('the model signed a different request');
+  if (hashes.responseHash !== responseHash) throw new Error('the model signed a different response');
 
   const now = Math.floor((opts.now ?? Date.now)() / 1000);
   const verdict: AiVerdict = {
