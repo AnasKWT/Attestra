@@ -8,6 +8,8 @@ description: Use and extend Attestra, the attestation protocol on NEAR. Use when
 Attestra stores claims on NEAR as attestations: an attester says something about a subject (a NEAR account or a CAIP-10 account on another chain) under a schema that defines the fields.
 Testnet contracts live under `attestra.testnet` (`schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.`, and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`).
 
+Install this skill for Claude Code or Codex with `npx skills add ./skills/attestra` from a clone (or point `npx skills add` at the repository once it is public).
+
 ## Fastest path for an agent: MCP
 
 ```bash
@@ -23,7 +25,8 @@ args = ["-y", "@attestra/mcp"]
 ```
 
 Until the package is on npm, run it from a clone: `pnpm install && pnpm build && node packages/mcp/dist/cli.js`.
-Read tools need nothing. Write tools appear when `ATTESTRA_ACCOUNT_ID` and `ATTESTRA_PRIVATE_KEY` (a testnet account) are set, and are capped per tool and per day.
+Read tools need nothing.
+Write tools appear when `ATTESTRA_ACCOUNT_ID` and `ATTESTRA_PRIVATE_KEY` (a testnet account) are set, and are capped per tool and per day.
 A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
 
 | Tool | Use it to |
@@ -40,6 +43,7 @@ A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
 | `request_private_check` | prove a private fact (age, income, GitHub contributions) without revealing the evidence |
 | `link_wallet` | link a wallet on another chain once it signed the link message (write) |
 | `attest_foreign_event` | attest an EVM log the NEAR MPC network verified, no oracle (write, deposit capped) |
+| `attest_foreign_instruction` | attest an inner instruction of a finalized Solana transaction the NEAR MPC network verified (devnet on testnet; write, deposit capped) |
 | `register_agent`, `delegate_to_agent` | register an agent you own; let it attest for you within `expires_at` or `max_uses` (write) |
 | `grant_agent_key` | give an agent a function-call key: attestations contract only, attest and revoke methods only, gas allowance capped (write) |
 | `paid_verify` | buy a verified claim or agent check from the Attestra agent over x402 (write, payment capped) |
@@ -47,7 +51,8 @@ A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
 Decision rules:
 - Trust a claim only when `verify_attestation` says `valid: true`; for high stakes also run `prove_attestation`.
 - Trust an agent only with an active identity attestation; weigh `average_score` by `review_count`.
-- Never put secrets or raw evidence in `create_attestation` values: attestations are public. Use `request_private_check`.
+- Never put secrets or raw evidence in `create_attestation` values: attestations are public.
+  Use `request_private_check`.
 
 ## SDK
 
@@ -79,7 +84,8 @@ Well-known schemas (UIDs are deterministic; `well_known_schemas` lists them): ag
 ## Extending Attestra
 
 - New resolver kind: add a module in `contracts/resolvers/src/`, implement `on_attest`, `on_revoke`, `on_aborted`, `on_committed`; never panic in a callback after changing state; add unit tests and a sandbox flow.
-- New private-check rule: add it with `set_rules` on the verdicts contract (owner); the checkers build the prompt from the rule's on-chain claim, so a rule judged from evidence needs no code. A rule that fetches its own data (like the GitHub rules) needs code in both `apps/agent/src/check.ts` and `checker/src/check.rs`, and a new checker build means a new key: `set_enclave_keys` and `OUTLAYER_WASM_HASH`.
+- New private-check rule: add it with `set_rules` on the verdicts contract (owner); the checkers build the prompt from the rule's on-chain claim, so a rule judged from evidence needs no code.
+  A rule that fetches its own data (like the GitHub rules) needs code in both `apps/agent/src/check.ts` and `checker/src/check.rs`, and a new checker build means a new key: `set_enclave_keys` and `OUTLAYER_WASM_HASH`.
 - New agent tool: add it to `packages/sdk/src/tools.ts`; the MCP server, the agent and `@attestra/sdk/ai` pick it up.
 - Keep the UID vectors in `packages/sdk/test/uid.test.ts` and `contracts/common/src/uid.rs` in sync.
 - Run `pnpm test`, `pnpm test:contracts` and `pnpm security` before proposing a change.
