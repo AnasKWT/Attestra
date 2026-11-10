@@ -90,24 +90,38 @@ export interface EvmLog {
   topics: string[];
 }
 
-/** Reads one log of a transaction receipt from the chain's public RPC (or `rpcUrl`) and shapes it as an `EvmLog`. */
+/**
+ * Reads one log of a transaction receipt from the chain's public RPC (or `rpcUrl`) and shapes it as an `EvmLog`.
+ * The MPC network verifies only logs in blocks at or below the chain's `finalized` head and keeps
+ * retrying younger ones until the request times out, so this refuses a log that is not final yet
+ * (on L2 test networks that takes about 20 to 25 minutes).
+ */
 export async function fetchEvmLog(network: 'testnet' | 'mainnet', chain: string, txHash: string, logIndex: number, rpcUrl?: string): Promise<EvmLog> {
   const url = rpcUrl ?? EVM_CHAINS[network][chain]?.rpc;
   if (!url) throw new Error(`unknown chain ${chain}; one of ${Object.keys(EVM_CHAINS[network]).join(', ')}`);
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [txHash] }) });
-  const j = (await res.json()) as { result?: { logs: Array<Record<string, string | string[] | boolean>>; transactionIndex: string; blockHash: string; blockNumber: string } };
-  if (!j.result) throw new Error(`transaction ${txHash} not found on ${chain}`);
+  const call = async <T>(method: string, params: unknown[]): Promise<T | undefined> => {
+    const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    return ((await res.json()) as { result?: T }).result;
+  };
+  const receipt = await call<{ logs: Array<Record<string, string | string[] | boolean>>; transactionIndex: string; blockHash: string; blockNumber: string }>('eth_getTransactionReceipt', [txHash]);
+  if (!receipt) throw new Error(`transaction ${txHash} not found on ${chain}`);
+  const finalized = await call<{ number: string; timestamp: string }>('eth_getBlockByNumber', ['finalized', false]);
+  const block = parseInt(receipt.blockNumber, 16);
+  if (finalized && parseInt(finalized.number, 16) < block) {
+    const behind = Math.max(1, Math.round((Date.now() / 1000 - parseInt(finalized.timestamp, 16)) / 60));
+    throw new Error(`block ${block} is not finalized on ${chain} yet (its finalized head is block ${parseInt(finalized.number, 16)}, about ${behind} minutes old); the MPC network verifies only final blocks, so try again later`);
+  }
   const index = (l: Record<string, unknown>) => parseInt(String(l.logIndex), 16);
-  const log = j.result.logs.find((l) => index(l) === logIndex);
-  if (!log) throw new Error(`the transaction has no log with index ${logIndex}; it has ${j.result.logs.map(index).join(', ') || 'none'}`);
+  const log = receipt.logs.find((l) => index(l) === logIndex);
+  if (!log) throw new Error(`the transaction has no log with index ${logIndex}; it has ${receipt.logs.map(index).join(', ') || 'none'}`);
   const strip = (h: string) => h.replace(/^0x/, '').toLowerCase();
   return {
     removed: Boolean(log.removed),
     log_index: logIndex,
-    transaction_index: parseInt(j.result.transactionIndex, 16),
+    transaction_index: parseInt(receipt.transactionIndex, 16),
     transaction_hash: strip(txHash),
-    block_hash: strip(j.result.blockHash),
-    block_number: parseInt(j.result.blockNumber, 16),
+    block_hash: strip(receipt.blockHash),
+    block_number: block,
     address: strip(String(log.address)),
     data: String(log.data),
     topics: (log.topics as string[]).map(strip),

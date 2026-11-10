@@ -23,6 +23,7 @@ export default function CrossChain() {
         <>
           <p>The verdicts contract calls <code>verify_foreign_transaction</code> on the NEAR MPC signer (<code>{NET.mpc}</code>). Its nodes read the transaction from a quorum of RPC providers, extract the log, and threshold-sign the result.</p>
           <p>The contract recomputes the expected payload hash itself and checks the signature against the MPC network&apos;s public key with <code>ecrecover</code>. No oracle, no relayer to trust.</p>
+          <p>The nodes verify only blocks their chain has finalized, about 20 to 25 minutes after the transaction on an L2 test network; step 1 tells you when a block is not final yet.</p>
           <p>The attestation&apos;s subject defaults to the log&apos;s emitter as a CAIP-10 id; set it to the payer or anyone else.</p>
         </>
       }

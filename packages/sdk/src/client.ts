@@ -186,16 +186,41 @@ export class AttestraClient {
     return this.accountId;
   }
 
-  async callRaw<T>(contractId: string, method: string, args: object, opts: { deposit?: bigint | string; gas?: bigint } = {}): Promise<CallResult<T>> {
+  /**
+   * `slow`: the call waits on a yield (the MPC network answers within about 200 blocks), which
+   * outlasts the RPC's own timeout, so it is sent at INCLUDED and its status read until it executed.
+   */
+  async callRaw<T>(contractId: string, method: string, args: object, opts: { deposit?: bigint | string; gas?: bigint; slow?: boolean } = {}): Promise<CallResult<T>> {
     const signerId = this.signer();
     const deposit = opts.deposit === undefined ? 0n : BigInt(opts.deposit);
-    const outcome = await this.near.call(contractId, method, args, {
-      signerId,
-      gas: `${(opts.gas ?? DEFAULT_GAS) / TGAS} Tgas`,
-      attachedDeposit: `${deposit} yocto`,
-      waitUntil: 'EXECUTED_OPTIMISTIC',
-    } as never);
-    return { value: decodeSuccessValue(outcome) as T, txHash: txHashOf(outcome) };
+    const gas = `${(opts.gas ?? DEFAULT_GAS) / TGAS} Tgas`;
+    const attachedDeposit = `${deposit} yocto`;
+    if (opts.slow) {
+      const tx = this.near.transaction(signerId).functionCall(contractId, method, args, { gas, attachedDeposit } as never);
+      // A wallet signs and sends in one step, so it takes the ordinary path below.
+      const txHash = await tx.sign().then(() => tx.getHash()).catch(() => null);
+      if (txHash) {
+        // near-kit's response schema rejects the in-flight status a pending yield reports; the hash is known already.
+        await tx.send({ waitUntil: 'INCLUDED' }).catch((e: Error) => {
+          if (e.name !== 'ZodError') throw e;
+        });
+        return this.untilExecuted<T>(txHash, signerId, method);
+      }
+    }
+    const sent = await this.near.call(contractId, method, args, { signerId, gas, attachedDeposit, waitUntil: 'EXECUTED_OPTIMISTIC' } as never);
+    return { value: decodeSuccessValue(sent) as T, txHash: txHashOf(sent) };
+  }
+
+  /** Reads a transaction's status without waiting (a waiting request would hit the RPC's timeout) until it executed. */
+  private async untilExecuted<T>(txHash: string, signerId: string, method: string): Promise<CallResult<T>> {
+    const deadline = Date.now() + 5 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const outcome = await this.rpc<{ status?: unknown }>('tx', { tx_hash: txHash, sender_account_id: signerId, wait_until: 'NONE' }).catch(() => undefined);
+      const status = outcome?.status as Record<string, unknown> | undefined;
+      if (status && typeof status === 'object' && ('SuccessValue' in status || 'Failure' in status)) return { value: decodeSuccessValue(outcome) as T, txHash };
+    }
+    throw new Error(`${method} did not finish within 5 minutes; its transaction is ${txHash}`);
   }
 
   /** Runs a write and wraps it; configuration problems become CONFIGURATION_ERROR. */
@@ -855,7 +880,7 @@ export class AttestraClient {
       const log = claim.log ?? (await fetchEvmLog(this.network, claim.chain, claim.txId, claim.logIndex));
       const args = { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log, subject: claim.subject ?? null } };
       const deposit = await this.view<string>(this.contracts.verdicts, 'foreign_event_deposit', args);
-      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit });
+      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit, slow: true });
       if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the event');
       return { data: r.value, txHash: r.txHash };
     });

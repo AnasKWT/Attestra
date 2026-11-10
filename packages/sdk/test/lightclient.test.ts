@@ -21,6 +21,19 @@ describe('light client proof (recorded from testnet)', () => {
     expect(BigInt(res.head.approvedStake) * 3n > BigInt(res.head.totalStake) * 2n).toBe(true);
   });
 
+  it('steps back when the RPC has no light client block after the final head', async () => {
+    let asked = 0;
+    const base = fixtureRpc();
+    const rpc = async <T>(method: string, params: unknown): Promise<T> => {
+      if (method === 'next_light_client_block' && asked++ === 0) return {} as T;
+      if (method === 'block' && (params as { block_id?: string }).block_id) return { header: { hash: 'older', prev_hash: 'older' } } as T;
+      return base<T>(method, params);
+    };
+    const res = await proveReceipt(rpc, fx.receipt);
+    expect(asked).toBe(2);
+    expect(res.verified).toBe(true);
+  });
+
   it('fails when a log is altered', async () => {
     const res = await proveReceipt(
       fixtureRpc((m, r) => {

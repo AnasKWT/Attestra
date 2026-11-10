@@ -183,7 +183,15 @@ export async function proveReceipt(
 ): Promise<ProofResult> {
   const checks: ProofCheck[] = [];
   const final = await rpc<{ header: { hash: string } }>('block', { finality: 'final' });
-  const lcb = await rpc<LightClientBlock>('next_light_client_block', { last_block_hash: final.header.hash });
+  // next_light_client_block answers {} when the serving node has nothing final after the given
+  // block, which is common when it is asked from the latest final block: step back and ask again.
+  let from = final.header.hash;
+  let lcb = await rpc<LightClientBlock>('next_light_client_block', { last_block_hash: from });
+  for (let i = 0; i < 5 && !lcb?.inner_lite; i++) {
+    from = (await rpc<{ header: { prev_hash: string } }>('block', { block_id: from })).header.prev_hash;
+    lcb = await rpc<LightClientBlock>('next_light_client_block', { last_block_hash: from });
+  }
+  if (!lcb?.inner_lite) throw new Error('the RPC returned no light client block');
   const { headHash } = approvalMessage(lcb);
   const headHashStr = base58Encode(headHash);
   const producers = await rpc<Validator[]>('EXPERIMENTAL_validators_ordered', [lcb.inner_lite.height]);

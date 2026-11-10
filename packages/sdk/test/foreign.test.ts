@@ -4,6 +4,14 @@ import { fetchEvmLog } from '../src/verdicts';
 
 const respond = (body: unknown) => vi.fn(async () => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
 
+/** An EVM RPC that answers the receipt and a finalized head at `finalized`. */
+const evm = (receipt: unknown, finalized: number) =>
+  vi.fn(async (_url: string, init: RequestInit) => {
+    const { method } = JSON.parse(String(init.body)) as { method: string };
+    const result = method === 'eth_getTransactionReceipt' ? receipt : { number: `0x${finalized.toString(16)}`, timestamp: `0x${Math.floor(Date.now() / 1000 - 1200).toString(16)}` };
+    return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }), { headers: { 'content-type': 'application/json' } });
+  });
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('view errors', () => {
@@ -35,7 +43,7 @@ describe('fetchEvmLog', () => {
   };
 
   it("shapes the receipt's log as the contract's EvmLog", async () => {
-    const f = respond({ jsonrpc: '2.0', id: 1, result: receipt });
+    const f = evm(receipt, 16);
     vi.stubGlobal('fetch', f);
     const log = await fetchEvmLog('testnet', 'base', '0x99', 4);
     expect(log).toEqual({
@@ -53,8 +61,13 @@ describe('fetchEvmLog', () => {
   });
 
   it('names the indexes a transaction has when the asked one is missing', async () => {
-    vi.stubGlobal('fetch', respond({ jsonrpc: '2.0', id: 1, result: receipt }));
+    vi.stubGlobal('fetch', evm(receipt, 16));
     await expect(fetchEvmLog('testnet', 'base', '0x99', 0)).rejects.toThrow('it has 4, 5');
+  });
+
+  it('refuses a log whose block is not finalized yet, which the MPC network would never answer', async () => {
+    vi.stubGlobal('fetch', evm(receipt, 15));
+    await expect(fetchEvmLog('testnet', 'base', '0x99', 4)).rejects.toThrow('block 16 is not finalized on base yet (its finalized head is block 15, about 20 minutes old)');
   });
 
   it('refuses a chain the MPC network does not read', async () => {
