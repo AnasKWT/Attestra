@@ -29,7 +29,7 @@ A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
 | Tool | Use it to |
 |---|---|
 | `verify_attestation` | answer "is this claim valid right now?" (status: active, pending, revoking, revoked, expired) |
-| `get_attestation` | read an attestation with its data decoded |
+| `get_attestation`, `list_attestations` | read an attestation with its data decoded; list them by schema, attester or subject |
 | `prove_attestation` | prove the event behind an attestation is in a final block (light client proof, checked locally) |
 | `get_agent_reputation` | Know Your Agent: identity (owner, model, capabilities), delegations, reviews and average score |
 | `get_authority`, `get_delegates` | who an issuer is, whether governance verified it, who may issue for it |

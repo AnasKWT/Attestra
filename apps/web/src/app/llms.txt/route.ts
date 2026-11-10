@@ -40,7 +40,7 @@ Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 - Every method returns { success, data?, error?, txHash? } and never throws.
 
 ## CLI (@attestra/cli)
-attestra schema|attestation|authority|delegate|whitelist|fee|token-gated|token-reward|pipeline|credential|schedule|multisig|staking|blob|events|check|chain|agent|pay|ai ... --json
+attestra schema|attestation|authority|storage|delegate|whitelist|fee|token-gated|token-reward|pipeline|credential|schedule|multisig|staking|token|blob|events|check|chain|agent|pay|ai ... --json
 
 ## REST API (indexer)
 GET /api/stats, /api/status, /api/schemas, /api/schemas/:uid, /api/attestations?schema&attester&subject&status, /api/attestations/:uid, /api/authorities, /api/authorities/:account, /api/agents, /api/agents/:account, /api/events?event&account&uid, /api/profile/:account, /api/search?q
