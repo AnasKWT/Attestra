@@ -7,7 +7,7 @@ Set up once with `python3 -m venv tools/.venv && tools/.venv/bin/pip install -r 
 
 Why it is built this way:
 - Colours come from apps/web/src/app/globals.css (`--accent` and the dark theme tokens), parsed at run
-  time, so a brand change on the site moves these images too. The mark is assets/brand/mark-512.png,
+  time, so a brand change on the site moves these images too. The mark is assets/brand/mark-<light|dark>-512.png,
   rendered from the site's icon.svg by tools/make_brand.sh.
 - The light diagram palette is fixed and shared across projects; only the accent changes. The text
   accent is derived (`readable_accent`) to clear 4.5:1 on both the card and the highlight band, and
@@ -39,7 +39,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS = ROOT / "apps/web/src/app/globals.css"
-MARK = ROOT / "assets/brand/mark-512.png"
+MARKS = {"light": ROOT / "assets/brand/mark-light-512.png", "dark": ROOT / "assets/brand/mark-dark-512.png"}
+MARK = MARKS["light"]  # the diagrams are white pages
 OUT = ROOT / "assets/readme"
 
 FONTS = {
@@ -553,7 +554,7 @@ def hero(palette: Palette) -> Image.Image:
     draw.rounded_rectangle(card, radius=px(22), outline=palette.border_strong, width=SCALE)
 
     mark_size = px(124)
-    source = Image.open(MARK).convert("RGBA")
+    source = Image.open(MARKS[palette.name]).convert("RGBA")
     mark = source.resize((mark_size, mark_size), Image.LANCZOS)
     art = source.getchannel("A").getbbox()
     scale = mark_size / source.height
@@ -726,8 +727,9 @@ def png_bytes(image: Image.Image) -> bytes:
 
 def main() -> int:
     check = "--check" in sys.argv[1:]
-    if not MARK.is_file():
-        print(f"ERROR: {MARK} is missing. Run tools/make_brand.sh first.")
+    missing = [m for m in MARKS.values() if not m.is_file()]
+    if missing:
+        print(f"ERROR: {missing[0]} is missing. Run tools/make_brand.sh first.")
         return 2
     for kind, (path, _) in FONTS.items():
         if not Path(path).is_file():

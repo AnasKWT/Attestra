@@ -1,18 +1,15 @@
 /** Shared markup for generated images (icons and share cards), rendered by next/og. */
 
-export function MarkSvg({ size }: { size: number }) {
+import { MARK, MARK_COLORS } from '@/components/brand/mark';
+
+/** The mark for dark grounds (share cards, app icons). */
+export function MarkSvg({ size, ink = MARK_COLORS.inkDark }: { size: number; ink?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64">
-      <defs>
-        <linearGradient id="g" x1="10" y1="4" x2="54" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#fdba74" />
-          <stop offset="0.45" stopColor="#f97316" />
-          <stop offset="1" stopColor="#c2410c" />
-        </linearGradient>
-      </defs>
-      <path d="M32 3.5 56.5 17.6v28.8L32 60.5 7.5 46.4V17.6z" fill="url(#g)" stroke="url(#g)" strokeWidth="3" strokeLinejoin="round" />
-      <path d="M32 11.5 49.5 21.6v20.8L32 52.5 14.5 42.4V21.6z" fill="none" stroke="#fff" strokeOpacity="0.35" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M21.5 32.5 29 40l14-15" fill="none" stroke="#fff" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox={MARK.viewBox}>
+      <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d={MARK.hex} stroke={ink} strokeWidth={MARK.hexWidth} />
+        <path d={MARK.check} stroke={MARK_COLORS.check} strokeWidth={MARK.checkWidth} />
+      </g>
     </svg>
   );
 }
