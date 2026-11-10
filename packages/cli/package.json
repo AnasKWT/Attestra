@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "e2e:testnet": "tsx scripts/e2e-testnet.ts"
+    "e2e:testnet": "tsx scripts/e2e-testnet.ts",
+    "prepack": "cp ../../LICENSE LICENSE"
   },
   "dependencies": {
     "@attestra/sdk": "workspace:*",
@@ -33,7 +34,16 @@
     "typescript": "5.9.3",
     "vitest": "4.1.12"
   },
-  "keywords": ["near", "attestation", "attestra", "cli"],
-  "publishConfig": { "access": "public" },
-  "engines": { "node": ">=20" }
+  "keywords": [
+    "near",
+    "attestation",
+    "attestra",
+    "cli"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

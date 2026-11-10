@@ -40,3 +40,5 @@ blob-report/
 Thumbs.db
 .vercel
 .claude/
+tools/.venv/
+packages/*/LICENSE

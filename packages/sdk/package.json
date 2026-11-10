@@ -29,7 +29,8 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "prepack": "cp ../../LICENSE LICENSE"
   },
   "dependencies": {
     "@noble/ciphers": "2.0.1",

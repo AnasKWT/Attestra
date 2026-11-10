@@ -39,13 +39,20 @@ const RULES = [
   { id: 'employed', claim: 'is currently employed', enabled: true },
 ];
 
+// #mainnet: the faucet token is testnet only; mainnet stakes a real NEP-141 named by STAKING_TOKEN.
+function stakingToken(c: ReturnType<typeof contractIdsFor>): string {
+  if (NET !== 'mainnet') return c.token;
+  if (!process.env.STAKING_TOKEN) throw new Error('#mainnet: set STAKING_TOKEN to the NEP-141 that authorities stake');
+  return process.env.STAKING_TOKEN;
+}
+
 type Plan = { name: string; crate: string; balance: number; init: (ids: ReturnType<typeof contractIdsFor>, root: string) => object; probe: string };
 
 const PLAN: Plan[] = [
   { name: 'schemas', crate: 'schemas', balance: 4, init: (c, r) => ({ owner: r, attestations: c.attestations }), probe: 'get_config' },
   { name: 'attestations', crate: 'attestations', balance: 6, init: (c, r) => ({ owner: r, governance: process.env.GOVERNANCE ?? r, schemas: c.schemas }), probe: 'get_config' },
   { name: 'token', crate: 'token', balance: 3, init: (_c, r) => ({ owner: r, total_supply: (1_000_000n * 10n ** 18n).toString() }), probe: 'ft_metadata' },
-  { name: 'staking', crate: 'staking', balance: 2.5, init: (c, r) => ({ owner: r, token: c.token, attestations: c.attestations, tiers: [] }), probe: 'get_tiers' },
+  { name: 'staking', crate: 'staking', balance: 2.5, init: (c, r) => ({ owner: r, token: stakingToken(c), attestations: c.attestations, tiers: [] }), probe: 'get_tiers' },
   { name: 'credentials', crate: 'credentials', balance: 3, init: (c, r) => ({ owner: r, attestations: c.attestations }), probe: 'nft_metadata' },
   { name: 'verdicts', crate: 'verdicts', balance: 4, init: (c, r) => ({ owner: r, attestations: c.attestations, mpc: MPC_ACCOUNT }), probe: 'get_config' },
   ...(['whitelist', 'fee', 'gated', 'reward', 'pipeline'] as const).map((n) => ({
@@ -113,7 +120,7 @@ async function main() {
     if (j.error) throw Object.assign(new Error(JSON.stringify(j.error)), { rpcError: j.error });
     return j.result as T;
   };
-  const account = (id: string) => rpc<{ code_hash: string; amount: string }>('query', { request_type: 'view_account', finality: 'final', account_id: id }).catch(() => null);
+  const account = (id: string) => rpc<{ code_hash: string; amount: string }>('query', { request_type: 'view_account', finality: 'optimistic', account_id: id }).catch(() => null);
   const view = async <T>(id: string, method: string, args: object = {}): Promise<T | null> => {
     try {
       const r = await rpc<{ result: number[] }>('query', {
@@ -150,7 +157,7 @@ async function main() {
   record.start_height = previousStart ?? (await rpc<{ header: { height: number } }>('block', { finality: 'final' })).header.height - 10;
 
   // 1. accounts and code
-  for (const p of PLAN) {
+  for (const p of PLAN.filter((p) => NET !== 'mainnet' || p.name !== 'token')) {
     const id = accountOf(p.name);
     const wasm = readFileSync(wasmPath(p.crate));
     const hash = codeHash(wasm);
@@ -205,10 +212,12 @@ async function main() {
   const feeTokens = (await view<string[]>(ids.resolvers.fee, 'fee_tokens')) ?? [];
   const feeToken = NET === 'mainnet' ? resolveNetwork('mainnet').paymentToken : ids.token;
   if (!feeTokens.includes(feeToken)) log(`fee token ${feeToken} ${await call(root, ids.resolvers.fee, 'add_fee_token', { token: feeToken }, '1')}`);
-  // Token storage for contracts that receive or hold the test token.
-  for (const holder of [ids.staking, ids.resolvers.fee, ids.resolvers.tokenReward, ids.resolvers.tokenGated, `agent.${root}`]) {
-    if (!(await view(ids.token, 'storage_balance_of', { account_id: holder }))) {
-      log(`token storage for ${holder} ${await call(root, ids.token, 'storage_deposit', { account_id: holder, registration_only: true }, (125n * 10n ** 19n).toString())}`);
+  // Token storage for contracts that receive or hold the payment token, and for staking in its token.
+  const holders: [string, string][] = [ids.resolvers.fee, ids.resolvers.tokenReward, ids.resolvers.tokenGated, `agent.${root}`].map((h) => [feeToken, h]);
+  holders.push([stakingToken(ids), ids.staking]);
+  for (const [token, holder] of holders) {
+    if (!(await view(token, 'storage_balance_of', { account_id: holder }))) {
+      log(`${token} storage for ${holder} ${await call(root, token, 'storage_deposit', { account_id: holder, registration_only: true }, (125n * 10n ** 19n).toString())}`);
     }
   }
   // The verdicts contract attests from its own storage balance.
