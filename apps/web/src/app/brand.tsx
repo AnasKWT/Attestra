@@ -2,13 +2,14 @@
 
 import { MARK, MARK_COLORS } from '@/components/brand/mark';
 
-/** The mark for dark grounds (share cards, app icons). */
-export function MarkSvg({ size, ink = MARK_COLORS.inkDark }: { size: number; ink?: string }) {
+/** The mark for a known ground (share cards, app icons): the cut is a halo in the ground colour. */
+export function MarkSvg({ size, ink = MARK_COLORS.inkDark, ground = '#0f0b08' }: { size: number; ink?: string; ground?: string }) {
   return (
     <svg width={size} height={size} viewBox={MARK.viewBox}>
-      <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-        <path d={MARK.hex} stroke={ink} strokeWidth={MARK.hexWidth} />
-        <path d={MARK.check} stroke={MARK_COLORS.check} strokeWidth={MARK.checkWidth} />
+      <g fill="none" strokeLinecap="round">
+        <path d={MARK.short} stroke={MARK_COLORS.check} strokeWidth={MARK.width} />
+        <path d={MARK.long} stroke={ground} strokeWidth={MARK.width + 2 * MARK.gap} />
+        <path d={MARK.long} stroke={ink} strokeWidth={MARK.width} />
       </g>
     </svg>
   );
