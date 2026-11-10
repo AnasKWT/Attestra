@@ -43,6 +43,7 @@ contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
 pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
+pnpm cli:e2e testnet                # the same against the testnet deployment, signed by its root; costs about 0.4 NEAR
 pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to the gitignored internal/secrets/
 ```
 
