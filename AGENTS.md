@@ -38,6 +38,7 @@ pnpm security                       # Clippy -D warnings, cargo audit, cargo den
 pnpm dev                            # indexer, agent, services and the site against testnet
 docker compose up --build           # the same stack in containers (site with --profile site)
 pnpm verify                         # every README claim against the live deployment, PASS or FAIL
+pnpm e2e                            # Playwright on a production build of the site, no deployment needed (E2E_PORT, default 3100)
 contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's pinned image
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node

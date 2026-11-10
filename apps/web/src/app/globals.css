@@ -128,10 +128,13 @@ body {
   background: rgba(249, 115, 22, 0.25);
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 6px;
+/* In the base layer so an element's own outline-none (with its focus ring) wins. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
 }
 
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
@@ -148,6 +151,10 @@ body {
 @utility text-accent { color: var(--accent); }
 @utility shadow-panel { box-shadow: var(--shadow); }
 @utility shadow-float { box-shadow: var(--shadow-lg); }
+/* The dropdown chevron of a select (appearance: none hides the native one). */
+@utility select-chevron {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a857f' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
 
 /* Fine grid that fades out at the edges. */
 @utility grid-fade {

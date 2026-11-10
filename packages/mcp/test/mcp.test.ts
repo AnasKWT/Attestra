@@ -34,7 +34,7 @@ async function connect(opts: Parameters<typeof createAttestraMcpServer>[0], clie
   return { c, client };
 }
 
-const text = (r: { content: unknown }) => JSON.parse((r.content as Array<{ text: string }>)[0].text);
+const text = (r: object) => JSON.parse((r as { content: Array<{ text: string }> }).content[0].text);
 
 describe('Attestra MCP server', () => {
   it('lists only read tools without a signer', async () => {
@@ -107,5 +107,14 @@ describe('Attestra MCP server', () => {
     expect(init.status).toBe(200);
     const body = (await init.json()) as { result: { serverInfo: { name: string } } };
     expect(body.result.serverInfo.name).toBe('attestra');
+  });
+
+  it('answers GET and DELETE with 405 instead of opening a stream no server will write to', async () => {
+    for (const method of ['GET', 'DELETE']) {
+      const res = await handleMcpRequest(new Request('http://x/mcp', { method, headers: { accept: 'text/event-stream' } }), { network: 'testnet', readOnly: true });
+      expect(res.status).toBe(405);
+      expect(res.headers.get('allow')).toBe('POST');
+      expect(await res.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 }, id: null });
+    }
   });
 });

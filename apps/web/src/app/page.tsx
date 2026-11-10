@@ -30,7 +30,7 @@ import { ButtonLink, Eyebrow, SectionHeading } from '@/components/ui/primitives'
 const PRIMITIVES = ['NEAR AI Cloud', 'OutLayer TEE', 'Chain Signatures', 'NEP-413 signatures', 'NEP-366 meta transactions', 'NEP-171 credentials', 'NEP-145 storage', 'NEP-297 events', 'Light client proofs', 'x402 payments', 'Passkeys', 'NEAR Connect'];
 
 const STEPS = [
-  { icon: Layers, title: 'Define a schema', body: 'Name the fields of a claim once. Its UID is derived from the definition, so anyone can compute it.', code: 'string name, u8 level, bool verified' },
+  { icon: Layers, title: 'Define a schema', body: 'Name the fields of a claim once. Its UID is derived from the definition, so anyone can compute it.', code: 'string name, u8 level' },
   { icon: FileCheck2, title: 'Attest', body: 'An authority issues a claim about a NEAR account or a wallet on any chain. Delegates, agents and multisigs can issue too.', code: 'attest(schema, subject, data)' },
   { icon: Workflow, title: 'Resolve', body: 'Resolvers add rules: whitelists, fees, token gates, rewards, or a pipeline of all of them. A refusal rolls everything back.', code: 'pending → created | rejected' },
   { icon: ShieldCheck, title: 'Verify anywhere', body: 'Read it from the contract, decode it with the SDK, or prove its event is final with a light client proof in the browser.', code: 'isValid(uid) → true' },
@@ -49,7 +49,7 @@ const NEAR_FEATURES = [
     icon: Link2,
     tone: 'from-sky-500/15 text-sky-600 dark:text-sky-400',
     title: 'Facts about any chain, without an oracle',
-    body: 'The NEAR MPC network verifies a transaction on Base, Arbitrum or Solana and the contract checks its signature itself.',
+    body: 'The NEAR MPC network verifies a transaction on Base, Arbitrum or Polygon and the contract checks its signature itself.',
     href: '/sandbox/app/cross-chain',
     span: '',
   },
@@ -92,7 +92,7 @@ const USE_CASES = [
   { icon: Lock, title: 'Private eligibility', body: 'Over 18, income above a threshold, employed: proven without the document ever leaving the enclave.' },
   { icon: GitPullRequest, title: 'Contributor credentials', body: 'Merged pull requests counted inside the enclave from GitHub itself, so the claim cannot be faked.' },
   { icon: Bot, title: 'Agent marketplaces', body: 'Hire agents by their verified owner, model and reviews; pay them per verification.' },
-  { icon: Globe2, title: 'Cross-chain receipts', body: 'A payment on Base or Solana becomes a NEAR attestation any contract can read.' },
+  { icon: Globe2, title: 'Cross-chain receipts', body: 'A payment on Base or Arbitrum becomes a NEAR attestation any contract can read.' },
   { icon: Building2, title: 'Organizational issuers', body: 'Companies verified by governance, staking for a tier, issuing through employees, bots and 2-of-3 multisigs.' },
 ];
 
@@ -221,8 +221,8 @@ export default function Home() {
         <Reveal>
           <SectionHeading eyebrow="How it works" title={<>From a claim to a fact anyone can check.</>} intro="Four steps, each a contract call you can make from the SDK, the CLI, the MCP server or the sandbox." />
         </Reveal>
-        <div className="relative mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <div className="beam pointer-events-none absolute left-[8%] right-[8%] top-[34px] hidden h-px opacity-70 lg:block" />
+        <div className="relative mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="beam pointer-events-none absolute left-[8%] right-[8%] top-[42px] hidden h-px opacity-70 xl:block" />
           {STEPS.map((s, i) => (
             <Reveal key={s.title} delay={i * 90}>
               <div className="group relative h-full rounded-2xl border border-line bg-panel p-5 shadow-panel transition duration-300 hover:-translate-y-1 hover:border-brand-400/50 hover:shadow-float">
@@ -273,9 +273,9 @@ export default function Home() {
       </section>
 
       {/* ── Developer experience ─────────────────────────────────────────── */}
-      <section className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-24 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
+      <section className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-24 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
         <Reveal>
-          <SectionHeading eyebrow="Build with it" title="One SDK, one CLI, one MCP server." intro="Every method returns a ServiceResponse and never throws. Every CLI command takes --json. Every read is a tool an agent can call." />
+          <SectionHeading eyebrow="Build with it" title="One SDK, one CLI, one MCP server." intro={<>Every method returns a ServiceResponse and never throws. Every CLI command takes <span className="whitespace-nowrap">--json</span>. Every read is a tool an agent can call.</>} />
           <ul className="mt-8 space-y-3">
             {DX.map((d) => (
               <li key={d.text} className="flex items-start gap-3 text-[14px] text-soft">

@@ -40,7 +40,6 @@ export function AccountView({ id, title }: { id: string; title?: string }) {
   const caip = id.includes(':');
   return (
     <ExplorerShell title={title ?? 'Account'} intro={<Hash value={id} full external={caip ? undefined : accountUrl(id)} />}>
-      {p.error && <Alert tone="warn">{p.error}</Alert>}
       <div className="space-y-8">
         {p.data?.authority && (
           <Panel>

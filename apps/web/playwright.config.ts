@@ -1,0 +1,56 @@
+import { existsSync } from 'node:fs';
+import { chromium, defineConfig, devices } from '@playwright/test';
+
+/**
+ * End-to-end suites for the site, run against a production build (`next build` + `next start`).
+ * No chain deployment or service is needed: e2e/support.ts answers the testnet RPC as if the
+ * contracts were not deployed and refuses connections to the indexer and the other services.
+ *
+ *   pnpm e2e          every suite except the screenshot sweep
+ *   pnpm e2e:shots    full-page screenshots of every route to internal/qa/shots/
+ *
+ * E2E_PORT picks another port (default 3100) when something else already serves 3100.
+ */
+
+const PORT = Number(process.env.E2E_PORT ?? 3100);
+const baseURL = `http://localhost:${PORT}`;
+const SHOTS = Boolean(process.env.E2E_SHOTS);
+
+// Playwright's own Chromium when it is installed (`pnpm exec playwright install chromium`), the system Chrome otherwise.
+const channel = existsSync(chromium.executablePath()) ? undefined : 'chrome';
+const browser = { ...devices['Desktop Chrome'], channel };
+
+// The build bakes these in; pinning them keeps the suites independent of any local .env file.
+const env = {
+  NEXT_PUBLIC_NEAR_NETWORK: 'testnet',
+  NEXT_PUBLIC_INDEXER_URL: 'http://localhost:5100',
+  NEXT_PUBLIC_RELAYER_URL: 'http://localhost:5200',
+  NEXT_PUBLIC_AGENT_URL: 'http://localhost:5300',
+  NEXT_PUBLIC_KEEPER_URL: 'http://localhost:5400',
+  NEXT_PUBLIC_TOPUP_URL: 'http://localhost:5500',
+  INDEXER_URL: 'http://localhost:5100',
+};
+
+export default defineConfig({
+  testDir: 'e2e',
+  globalSetup: './e2e/global-setup.ts',
+  fullyParallel: true,
+  forbidOnly: Boolean(process.env.CI),
+  retries: 0,
+  reporter: process.env.CI ? 'github' : 'list',
+  timeout: 30_000,
+  expect: { timeout: 10_000 },
+  use: { baseURL, trace: 'retain-on-failure' },
+  projects: SHOTS
+    ? [{ name: 'shots', grep: /@shots/, timeout: 60_000, use: browser }]
+    : [{ name: 'site', grepInvert: /@shots/, use: browser }],
+  webServer: {
+    command: `pnpm build && pnpm exec next start --port ${PORT}`,
+    url: `${baseURL}/llms.txt`,
+    env,
+    reuseExistingServer: !process.env.CI,
+    timeout: 300_000,
+    stdout: 'ignore',
+    stderr: 'pipe',
+  },
+});

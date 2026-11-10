@@ -40,7 +40,7 @@ export function SchemaPicker({ value, onChange, onDefinition }: { value: string;
       <Label htmlFor="schema" hint={status}>Schema</Label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Select aria-label="Well-known schemas" value={known.find((k) => k.uid === value)?.uid ?? ''} onChange={(e) => e.target.value && onChange(e.target.value)} className="sm:w-56">
-          <option value="">Pick a well-known schema</option>
+          <option value="">Well-known schema</option>
           {known.map((k) => (
             <option key={k.key} value={k.uid}>
               {k.name}

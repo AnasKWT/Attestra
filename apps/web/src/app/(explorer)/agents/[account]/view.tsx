@@ -26,7 +26,7 @@ export function AgentDetail({ account }: { account: string }) {
       intro={<span className="font-mono text-[13px]">{account}</span>}
       actions={<Link href={`/sandbox/app/agents?agent=${encodeURIComponent(account)}`} className={buttonClass('secondary', 'md')}>Review this agent</Link>}
     >
-      {error && <Alert tone="warn">{error}</Alert>}
+      {error && <Alert tone="warn" title={error.startsWith('not found') ? 'Not an indexed agent' : 'The indexer did not answer'}>{error}</Alert>}
       {loading && <Skeleton className="h-72 w-full" />}
       {data && (
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">

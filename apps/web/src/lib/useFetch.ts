@@ -11,7 +11,7 @@ export function useAsync<T>(load: () => Promise<T>, key: unknown[]): { data: T |
     let alive = true;
     load()
       .then((data) => alive && setSt({ k, data, error: null }))
-      .catch((e: Error) => alive && setSt({ k, data: null, error: e.message }));
+      .catch((e: Error) => alive && setSt({ k, data: null, error: readableError(e.message) }));
     return () => {
       alive = false;
     };
@@ -19,4 +19,9 @@ export function useAsync<T>(load: () => Promise<T>, key: unknown[]): { data: T |
   }, [k]);
   const current = st.k === k;
   return { data: current ? st.data : null, error: current ? st.error : null, loading: !current, reload: () => setTick((t) => t + 1) };
+}
+
+/** Browsers report an unreachable host as a bare "Failed to fetch" (Chrome), "NetworkError..." (Firefox) or "Load failed" (Safari). */
+export function readableError(message: string): string {
+  return /failed to fetch|networkerror|load failed|fetch failed/i.test(message) ? 'Not reachable from this browser.' : message;
 }

@@ -27,14 +27,16 @@ export function CopyButton({ value, className = '', label = 'Copy' }: { value: s
 /** A hash or id: truncated, copyable, optionally linked inside the site or out to the explorer. */
 export function Hash({ value, href, external, full = false, head = 8, tail = 6, className = '' }: { value: string; href?: string; external?: string; full?: boolean; head?: number; tail?: number; className?: string }) {
   const text = full ? value : truncate(value, head, tail);
+  // A full value wraps on narrow screens instead of pushing the page wider.
+  const fit = full ? 'min-w-0 break-all' : 'truncate';
   return (
-    <span className={`inline-flex min-w-0 items-center gap-1 font-mono text-[12.5px] ${className}`}>
+    <span className={`inline-flex min-w-0 max-w-full items-center gap-1 font-mono text-[12.5px] ${className}`}>
       {href ? (
-        <Link href={href} className="truncate text-fg underline-offset-4 hover:text-accent hover:underline" title={value}>
+        <Link href={href} className={`${fit} text-fg underline-offset-4 hover:text-accent hover:underline`} title={value}>
           {text}
         </Link>
       ) : (
-        <span className="truncate" title={value}>
+        <span className={fit} title={value}>
           {text}
         </span>
       )}

@@ -24,7 +24,7 @@ export default function AttestationProduct() {
         <ButtonLink href="/sandbox/app/create-attestation" size="lg">Issue one <ArrowRight className="size-4" /></ButtonLink>
         <ButtonLink href="/attestations" size="lg" variant="secondary">Browse attestations</ButtonLink>
       </PageHero>
-      <section className="mx-auto grid max-w-7xl items-start gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
+      <section className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
         <Reveal delay={80}>
           <CodeWindow title="attest.ts" code={CODE} />
         </Reveal>

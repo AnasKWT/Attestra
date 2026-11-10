@@ -25,7 +25,7 @@ export default function SchemaProduct() {
         <ButtonLink href="/sandbox/app/schema-builder" size="lg">Build a schema <ArrowRight className="size-4" /></ButtonLink>
         <ButtonLink href="/schemas" size="lg" variant="secondary">Browse schemas</ButtonLink>
       </PageHero>
-      <section className="mx-auto grid max-w-7xl items-start gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
+      <section className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
         <Reveal className="space-y-4">
           <FeatureRow icon={<Fingerprint className="size-5" />} title="Deterministic UIDs" body="The same definition, resolver and revocability always give the same UID, computed off chain byte for byte like the contract." />
           <FeatureRow icon={<Binary className="size-5" />} title="Borsh-encoded data" body="bool, u8 to u128, i8 to i128, string, account_id, bytes, bytes32 and lists. Compact on chain, decodable in Rust and TypeScript." />

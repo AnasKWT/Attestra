@@ -12,7 +12,8 @@ const grotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-grotesk', 
 const mono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains', display: 'swap' });
 
 export const metadata: Metadata = {
-  metadataBase: SITE_URL ? new URL(SITE_URL) : undefined,
+  // Absolute share-image URLs: the configured site, else Vercel's production domain, else this site's local port.
+  metadataBase: new URL(SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3100')),
   title: { default: 'Attestra: the trust layer for NEAR', template: '%s | Attestra' },
   description:
     'Schema-based attestations on NEAR about people, wallets on any chain and AI agents: private facts checked by verifiable AI, cross-chain facts without an oracle, Know Your Agent, and light client proofs in the browser.',

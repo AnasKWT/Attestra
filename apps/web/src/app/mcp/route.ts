@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const options = { network: NETWORK, root: ROOT, indexerUrl: process.env.INDEXER_URL ?? INDEXER_URL, agentUrl: AGENT_URL, relayerUrl: RELAYER_URL, readOnly: true };
 
-const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, accept, mcp-session-id, mcp-protocol-version', 'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS' };
+const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type, accept, mcp-session-id, mcp-protocol-version', 'access-control-allow-methods': 'POST, OPTIONS' };
 
 async function handle(req: Request) {
   const res = await handleMcpRequest(req, options);

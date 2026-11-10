@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import type { ServiceResponse } from '@attestra/sdk';
 import { txUrl } from '@/lib/config';
 import { toolBySlug } from '@/lib/tools';
+import { readableError } from '@/lib/useFetch';
 import { ConnectButton } from '../wallet/ConnectButton';
 import { useWallet } from '../wallet/WalletProvider';
 import { CopyButton } from '../ui/Copy';
@@ -106,7 +107,7 @@ export function Result<T>({ res, render }: { res: ServiceResponse<T>; render?: (
         <XCircle className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="font-semibold">{res.error?.type.replaceAll('_', ' ').toLowerCase()}</p>
-          <p className="mt-0.5 break-words">{res.error?.message}</p>
+          <p className="mt-0.5 break-words">{readableError(res.error?.message ?? '')}</p>
         </div>
       </div>
     );

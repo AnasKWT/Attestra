@@ -26,7 +26,8 @@ async function health(url: string) {
     const body = (await res.json()) as Record<string, unknown>;
     return { ok: res.ok && body.ok !== false, body };
   } catch (e) {
-    return { ok: false, body: { reason: (e as Error).message } };
+    // fetch throws a TypeError ("Failed to fetch") when the service cannot be reached at all.
+    return { ok: false, body: { reason: e instanceof TypeError ? 'not reachable' : (e as Error).message } };
   }
 }
 
@@ -58,7 +59,7 @@ export default function Status() {
       </div>
       <Panel className="mt-8">
         <PanelHeader icon={<Wallet className="size-4" />} title="Service wallets" subtitle="Refilled from the treasury within a daily cap" right={bal.data && (bal.data.treasury_low ? <Badge tone="bad"><AlertTriangle className="size-3" />treasury low</Badge> : <Badge tone="ok">treasury ok</Badge>)} />
-        {bal.error && <div className="p-5"><Alert tone="warn">{bal.error}</Alert></div>}
+        {bal.error && <div className="p-5"><Alert tone="warn" title="The top-up service did not answer">{bal.error}</Alert></div>}
         {bal.data && (
           <ul className="divide-y divide-[var(--line)]">
             {[{ account: bal.data.treasury.account, balance: bal.data.treasury.balance, min: '', target: '', low: bal.data.treasury_low }, ...bal.data.accounts].map((a) => (
