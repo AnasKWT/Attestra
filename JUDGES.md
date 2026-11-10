@@ -103,7 +103,6 @@ pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser wit
 
 Stated plainly so nothing here is a surprise:
 
-- The OutLayer checker has not run on an OutLayer worker yet; the agent runs the same checks in local mode with an allowlisted key, and the site says which mode is live.
 - The contracts are verified on NearBlocks (SourceScan) only after the repository is public; until then they are reproducible builds, verifiable with `near contract verify`.
 - Signing in with a NEAR wallet in a browser was tested against a mocked wallet list, not with a real wallet extension; passkey sign-in is tested live.
 - Nothing is deployed on mainnet; the plan and its one switch are in [MAINNET.md](MAINNET.md).

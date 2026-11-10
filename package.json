@@ -28,10 +28,12 @@
     "deploy:sandbox": "tsx scripts/deploy.ts sandbox",
     "cli:e2e": "tsx scripts/cli-e2e.ts",
     "market:listing": "tsx scripts/market-listing.ts",
-    "accounts": "tsx scripts/accounts.ts"
+    "accounts": "tsx scripts/accounts.ts",
+    "outlayer:publish": "tsx scripts/outlayer-publish.ts"
   },
   "devDependencies": {
     "@attestra/sdk": "workspace:*",
+    "@noble/ciphers": "2.0.1",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.0.1",
     "@types/node": "22.19.1",

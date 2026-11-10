@@ -188,6 +188,30 @@ async function main() {
     return `${list.data[0].uid.slice(0, 12)} in block ${p.data.block.height}, head approved by ${(Number((BigInt(p.data.head.approvedStake) * 1000n) / BigInt(p.data.head.totalStake)) / 10).toFixed(1)}% of stake`;
   });
 
+  await check('The private-check key is the OutLayer checker build\'s own key (TEE attestation binds it to the wasm hash)', async () => {
+    const ck = (dep as { checker?: { wasm_hash: string; wasm_url: string; key: string; key_tx: string; key_tx_signer: string } } | null)?.checker;
+    must(ck, `deployments/${network}.json has no checker record (scripts/outlayer-publish.ts writes it)`);
+    // 1. The published bytes are the recorded build.
+    const wasm = Buffer.from(await (await get(ck.wasm_url)).arrayBuffer());
+    must(createHash('sha256').update(wasm).digest('hex') === ck.wasm_hash, `${ck.wasm_url} does not serve the recorded build`);
+    // 2. OutLayer's TEE attestation of the key run names this build and the hash of its output.
+    const api = network === 'mainnet' ? 'https://api.outlayer.ai' : 'https://testnet-api.outlayer.ai';
+    const att = (await (await get(`${api}/attestations/by-tx/${ck.key_tx}`)).json()) as { executed_wasm_sha256?: string; output_hash?: string; tdx_quote?: string };
+    must(att.executed_wasm_sha256 === ck.wasm_hash, `the run's attestation names wasm ${att.executed_wasm_sha256}, not the recorded build`);
+    must(att.tdx_quote, 'the run has no TDX quote');
+    // 3. The run's output, read from the chain, has that hash and is the key.
+    const out = await rpc<{ status: { SuccessValue?: string } }>('EXPERIMENTAL_tx_status', { tx_hash: ck.key_tx, sender_account_id: ck.key_tx_signer, wait_until: 'FINAL' });
+    const output = Buffer.from(out.status.SuccessValue ?? '', 'base64');
+    must(createHash('sha256').update(output).digest('hex') === att.output_hash, 'the run\'s output does not match its attested hash');
+    must((JSON.parse(output.toString()) as { enclaveKey?: string }).enclaveKey === ck.key, 'the attested output is not the recorded key');
+    // 4. The verdicts contract trusts that key, and only it.
+    const cfg = await c.view<{ enclave_keys: string[] }>(c.contracts.verdicts, 'get_config');
+    must(cfg?.enclave_keys.includes(ck.key), 'the verdicts contract does not allowlist the checker key');
+    const local = join(root, 'checker/target/outlayer/attestra-checker.wasm');
+    const sameAsLocal = existsSync(local) && createHash('sha256').update(readFileSync(local)).digest('hex') === ck.wasm_hash;
+    return `wasm ${ck.wasm_hash.slice(0, 12)}... on FastFS${sameAsLocal ? ', equal to the local reproducible build' : ''}; key ${ck.key.slice(0, 20)}... from a TDX-attested run; allowlisted${cfg.enclave_keys.length === 1 ? ' (the only key)' : ` with ${cfg.enclave_keys.length - 1} other key(s)`}`;
+  });
+
   await check('An AI-checked attestation carries a valid enclave signature and NEAR AI model signature', async () => {
     const ev = await idx.listEvents({ event: 'verdict_accepted', limit: 5 });
     const hit = ev.data.find((e) => e.data.result === true);

@@ -58,7 +58,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 
 | Feature | NEAR primitive | Code | On testnet |
 |---|---|---|---|
-| Private AI checks | NEAR AI Cloud verifiable models, end-to-end encryption, the model's and the checker's signatures checked with `env::ed25519_verify` | [ai.rs](contracts/verdicts/src/ai.rs), [check.ts](apps/agent/src/check.ts), [checker](checker/src/check.rs) | [dkfUbne9](https://testnet.nearblocks.io/txns/dkfUbne926rGHW6uFrSkZ2QeUzbt152XorrdDw7WghJ) |
+| Private AI checks | NEAR AI Cloud verifiable models, end-to-end encryption, a checker in NEAR OutLayer's TEE with a key bound to its build, both signatures checked with `env::ed25519_verify` | [ai.rs](contracts/verdicts/src/ai.rs), [checker](checker/src/check.rs), [outlayer.ts](apps/agent/src/outlayer.ts) | run on OutLayer [GSXM8bdD](https://testnet.nearblocks.io/txns/GSXM8bdDuKr1vDqQ9Go4kXKPfsfbgHfuYqETLtkdBKat), verdict [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1), the checker's key from its attested run [6n3rj51G](https://testnet.nearblocks.io/txns/6n3rj51Gb7XN1QV3pF6tyiUYrYsPr2i2dto42Am98Ru3) |
 | Facts about EVM chains | Chain Signatures `verify_foreign_transaction` on an EVM log, answer checked with `env::ecrecover` | [foreign.rs](contracts/verdicts/src/foreign.rs), [mpc.rs](contracts/verdicts/src/mpc.rs) | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
 | Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3q5wPWqX](https://testnet.nearblocks.io/txns/3q5wPWqXMDTVxLdBkKpxJZetHHRQVARiNVZTKhTB2Fta) |
 | Wallet links | EIP-191 and ed25519 signatures verified on chain | [wallet.rs](contracts/verdicts/src/wallet.rs) | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
@@ -205,7 +205,8 @@ Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the sa
   The model's answer travels encrypted, so the chain cannot see it: the checker verifies that the signature covers the answer, and the contract relies on the checker's signature for the result.
 - **How to check that model key yourself:** `tools/nearai-verify` uses the official `@nearai/inference-sdk`, independently of the agent's code, to verify the Gateway's and the model's TEE attestations (Intel TDX quote, NVIDIA GPU evidence, a fresh nonce), that an attested report binds the key the verdicts contract allowlists, and response signatures over their exact bytes; `pnpm verify` runs it.
 - **Where the checker runs:** `checker/` is a WASI component for NEAR OutLayer whose signing key is derived inside the TEE from the hash of its own build, so no one, the operators included, can make other code sign with it.
-  The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`, the mode on testnet today); the status page, the private check tool and the Only on NEAR page say which mode is live.
+  On testnet the checks run on OutLayer (`CHECKER_MODE=outlayer`): `deployments/testnet.json` records the build's hash, its FastFS URL, the key and the run that produced it, and `pnpm verify` checks that OutLayer's TDX attestation of that run binds the key to the build.
+  The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`) for development; the status page, the private check tool and the Only on NEAR page say which mode is live.
 - **Whom you trust for a foreign event:** the NEAR MPC network's key; the contract recomputes the signed payload hash itself.
   For Solana the attested fact is the instruction as the program recorded it; what its data means (an amount, a recipient) is for the reader to decode.
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself: more than 2/3 of stake approved the block, and the outcome's merkle path leads to it.
@@ -231,7 +232,7 @@ Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the sa
 - The site and services run locally against testnet; they are not hosted publicly yet.
 - Mainnet is one switch away and not deployed: see [MAINNET.md](MAINNET.md).
 - The npm packages are packed and tested from a clean install but not published; every command above runs from the repository.
-- Private checks run live on testnet in local checker mode; the OutLayer checker is tested against mocked hosts and vectors from the TypeScript side and has not yet run on an OutLayer worker.
+- Private checks run live on testnet inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key.
 
 ## Built with
 

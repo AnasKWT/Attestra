@@ -53,15 +53,18 @@ The tests run natively against a mocked host (NEAR AI Cloud, NEAR RPC, GitHub an
 
 ## Publish and run on OutLayer
 
-With the [OutLayer CLI](https://github.com/fastnear/near-outlayer/blob/main/docs/CLI.md), logged in as the agent account:
+With the agent account's key and `NEARAI_API_KEY` in the environment (no OutLayer CLI needed; the script sends the same NEAR transactions):
 
 ```bash
-outlayer upload checker/target/outlayer/attestra-checker.wasm        # prints the FastFS URL
-outlayer secrets set '{"NEARAI_API_KEY":"..."}' --wasm-hash <sha256> --profile default --access whitelist:agent.attestra.testnet
-outlayer run --wasm <FastFS URL> --hash <sha256> '{"operation":"public_key"}'
+checker/build.sh --reproducible
+pnpm outlayer:publish checker/target/outlayer/attestra-checker.wasm
 ```
 
-The last command prints the key; the run's TEE attestation (`/attestations/by-tx/{tx_hash}` on the OutLayer API) binds that output to the wasm hash.
+It uploads the wasm to FastFS (one `__fastdata_fastfs` call to the OutLayer contract), stores `NEARAI_API_KEY` as the agent account's secret for this wasm hash (encrypted locally to the OutLayer keystore and readable only by the agent account), runs the published wasm once on chain with `{"operation":"public_key"}`, records the result under `checker` in `deployments/<network>.json`, and prints the agent's settings.
+The [OutLayer CLI](https://github.com/fastnear/near-outlayer/blob/main/docs/CLI.md) does the same with `outlayer upload`, `outlayer secrets set --wasm-hash` and `outlayer run --wasm`.
+
+The run's TEE attestation (`/attestations/by-tx/{tx_hash}` on the OutLayer API) binds that output, the key, to the wasm hash; `pnpm verify` checks it.
+On testnet the published build is `4a878586fb91e6debc543e51481b9b23274f034fb8945be547aea4fb8a4b3410` and its key `ed25519:73Tk5SqxCRFGfDYTadgWUkwoZDndcvRyipyMrXKzmLpV`.
 Then set the agent's `CHECKER_MODE=outlayer`, `OUTLAYER_WASM_URL`, `OUTLAYER_WASM_HASH` and `OUTLAYER_SECRETS_PROFILE` (see `apps/agent/.env.example`).
 For each check the agent calls `request_execution` on `outlayer.testnet` (or `outlayer.near`) with the estimated cost attached, verifies the signed verdict, and submits it with `submit_ai_verdict`.
 

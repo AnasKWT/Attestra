@@ -49,6 +49,7 @@ pnpm cli:e2e testnet                # the same against the testnet deployment, s
 pnpm --filter @attestra/web e2e:live   # every sandbox scenario in a real browser with one passkey account, on testnet, against a running stack (E2E_LIVE)
 pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to the gitignored internal/secrets/
 SCALE=0.5 pnpm accounts testnet     # the service accounts at half the plan, when the root is short of NEAR
+pnpm outlayer:publish checker/target/outlayer/attestra-checker.wasm   # FastFS upload, the NEARAI_API_KEY secret, the build's key, the record in deployments/
 pnpm market:listing                 # print the Agent Market listing; --register and --live only with the owner's go-ahead
 ```
 
