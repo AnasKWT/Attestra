@@ -46,7 +46,7 @@ pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
 pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
 pnpm cli:e2e testnet                # the same against the testnet deployment, signed by its root; costs about 0.4 NEAR
-pnpm --filter @attestra/web e2e:live   # passkey sign-in and a gasless attestation on testnet, against a running stack (E2E_LIVE)
+pnpm --filter @attestra/web e2e:live   # every sandbox scenario in a real browser with one passkey account, on testnet, against a running stack (E2E_LIVE)
 pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to the gitignored internal/secrets/
 SCALE=0.5 pnpm accounts testnet     # the service accounts at half the plan, when the root is short of NEAR
 pnpm market:listing                 # print the Agent Market listing; --register and --live only with the owner's go-ahead

@@ -117,12 +117,12 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (141 tests; 3 indexer database tests skip without Postgres)
-pnpm test:contracts       # every contract unit test (308)
-pnpm test:checker         # the OutLayer checker (23)
-contracts/scripts/build.sh && pnpm test:sandbox   # 19 flows across every contract on a local NEAR node
-pnpm cli:e2e              # 90 CLI steps against a fresh local deployment
-pnpm e2e                  # 220 Playwright tests on a production build of the site
+pnpm test                 # every TypeScript suite (172 tests; 3 indexer database tests skip without Postgres)
+pnpm test:contracts       # every contract unit and property test (323)
+pnpm test:checker         # the OutLayer checker (24)
+contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
+pnpm cli:e2e              # 95 CLI steps against a fresh local deployment
+pnpm e2e                  # 221 Playwright tests on a production build of the site
 ```
 
 `pnpm dev` starts the site on :3100 with the indexer, agent and services against testnet; `docker compose up --build` runs the same stack in containers.

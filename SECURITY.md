@@ -7,7 +7,7 @@ This file records how they were reviewed, what was found and fixed, what is acce
 
 ```bash
 pnpm security          # Clippy -D warnings, cargo audit, cargo deny on the wasm graph, pnpm audit
-pnpm test:contracts    # 308 unit tests
+pnpm test:contracts    # 323 unit and property tests
 pnpm test:sandbox      # 19 near-workspaces flows across every contract (build first: contracts/scripts/build.sh)
 ```
 
