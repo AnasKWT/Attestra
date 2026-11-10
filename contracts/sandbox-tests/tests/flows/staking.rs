@@ -77,6 +77,11 @@ async fn staking_tiers() -> anyhow::Result<()> {
     let authority: Value =
         env.view(&env.attestations, "get_authority", json!({ "account_id": bob.id() })).await?;
     assert_eq!(authority["tier"], Value::Null);
+    // Unstaking the rest leaves no tier entry behind; the view reads the default.
+    let _ = ok(unstake(50 * TOKEN, 1).await?);
+    let tier: Value = env.view(&env.attestations, "get_tier", json!({ "account_id": bob.id() })).await?;
+    assert_eq!(tier, json!({ "tier": null, "staked": "0" }));
+    assert_eq!(env.ft_balance(bob.id()).await?, 2_000 * TOKEN);
 
     // Only the token can stake and only staking can push tiers.
     let fake = bob

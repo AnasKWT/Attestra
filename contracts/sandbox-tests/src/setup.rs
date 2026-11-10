@@ -255,6 +255,8 @@ impl Env {
                 json!({ "account_id": self.pipeline.id() }),
                 yocto(0),
             ),
+            // The fee resolver only credits and charges tokens its owner accepted.
+            send(self.fee.id(), "add_fee_token", json!({ "token": self.token.id() }), yocto(1)),
             send(self.token.id(), "storage_deposit", json!({ "account_id": self.fee.id() }), millinear(10)),
             send(
                 self.token.id(),

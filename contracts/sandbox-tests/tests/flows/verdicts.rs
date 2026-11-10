@@ -7,7 +7,7 @@ use attestra_sandbox_tests::crypto::{
     Verdict,
 };
 use attestra_sandbox_tests::setup::{CLAIM, MODEL, RULE};
-use attestra_sandbox_tests::util::{chain_secs, event, events, fails_with, ok, TX_GAS};
+use attestra_sandbox_tests::util::{chain_secs, event, events, fails_with, ok, u128_of, yocto, TX_GAS};
 use attestra_sandbox_tests::Env;
 use borsh::BorshSerialize;
 use ed25519_dalek::Signer;
@@ -155,6 +155,22 @@ async fn ai_verdicts() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// What a wallet link costs bob: the link entries and the attestation.
+async fn link_deposit(env: &Env, chain: &str, address: &str) -> anyhow::Result<u128> {
+    let args = json!({ "account_id": env.bob.id(), "chain": chain, "address": address });
+    Ok(u128_of(&env.view::<Value>(&env.verdicts, "link_wallet_deposit", args).await?))
+}
+
+/// What a foreign event costs: its payload entry and the attestation.
+async fn event_deposit(env: &Env, claim: Value) -> anyhow::Result<u128> {
+    Ok(u128_of(&env.view::<Value>(&env.verdicts, "foreign_event_deposit", json!({ "claim": claim })).await?))
+}
+
+/// The verdicts contract's storage balance at the attestations contract, `(total, available)`.
+async fn verdicts_storage(env: &Env) -> anyhow::Result<(u128, u128)> {
+    Ok(env.storage(&env.attestations, env.verdicts.id()).await?.expect("registered"))
+}
+
 #[derive(BorshSerialize)]
 struct WalletData<'a>(&'a str, &'a str, &'a str);
 
@@ -163,9 +179,10 @@ async fn wallet_links() -> anyhow::Result<()> {
     let env = Env::new().await?;
     let bob = &env.bob;
     let verdicts = env.verdicts.id().as_str();
-    let link = |chain: &str, address: &str, signature: String| {
+    let link = |chain: &str, address: &str, signature: String, deposit: u128| {
         bob.call(env.verdicts.id(), "link_wallet")
             .args_json(json!({ "chain": chain, "address": address, "signature": signature }))
+            .deposit(yocto(deposit))
             .gas(TX_GAS)
             .transact()
     };
@@ -189,12 +206,21 @@ async fn wallet_links() -> anyhow::Result<()> {
         )
     );
     let signature = format!("0x{}", hex::encode(personal_sign(&wallet, &message)));
+    let deposit = link_deposit(&env, "eip155", &address).await?;
+    assert!(deposit > 0);
     // A signature by another wallet is refused.
     let wrong = format!("0x{}", hex::encode(personal_sign(&secp_key(21), &message)));
-    fails_with(link("eip155", &address, wrong).await?, "invalid wallet signature");
-    // The address may come in any case.
+    fails_with(link("eip155", &address, wrong, deposit).await?, "invalid wallet signature");
+    // One yoctoNEAR short is refused, and so is no deposit at all.
+    fails_with(link("eip155", &address, signature.clone(), deposit - 1).await?, "attach at least");
+    fails_with(link("eip155", &address, signature.clone(), 0).await?, "attach at least");
+    // The address may come in any case. The caller pays: the verdicts contract's storage balance
+    // at the attestations contract does not shrink.
+    let before = verdicts_storage(&env).await?;
     let mixed = format!("0x{}", address[2..].to_uppercase());
-    let linked = ok(link("eip155", &mixed, signature.clone()).await?);
+    let linked = ok(link("eip155", &mixed, signature.clone(), deposit).await?);
+    let after = verdicts_storage(&env).await?;
+    assert!(after.1 >= before.1, "the verdicts storage balance went from {before:?} to {after:?}");
     let outcome: Value = linked.clone().json()?;
     assert_eq!(outcome["status"], "created");
     let e = event(&linked, "wallet_linked");
@@ -211,7 +237,7 @@ async fn wallet_links() -> anyhow::Result<()> {
     let nonce: u64 = env.view(&env.verdicts, "link_nonce", json!({ "account_id": bob.id() })).await?;
     assert_eq!(nonce, 1);
     // The nonce moved on, so the same signature cannot link again.
-    fails_with(link("eip155", &address, signature).await?, "invalid wallet signature");
+    fails_with(link("eip155", &address, signature, deposit).await?, "invalid wallet signature");
 
     // Solana: a raw ed25519 signature over the message.
     let sol = ed_key(22);
@@ -225,7 +251,8 @@ async fn wallet_links() -> anyhow::Result<()> {
         .await?;
     assert!(message.ends_with("Nonce: 1"));
     let signature = hex::encode(sol.sign(message.as_bytes()).to_bytes());
-    let linked = ok(link("solana", &sol_address, signature).await?);
+    let deposit = link_deposit(&env, "solana", &sol_address).await?;
+    let linked = ok(link("solana", &sol_address, signature, deposit).await?);
     assert_eq!(linked.json::<Value>()?["status"], "created");
     let sol_caip10 = format!("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:{sol_address}");
     let account: Option<String> =
@@ -267,13 +294,16 @@ async fn foreign_events() -> anyhow::Result<()> {
     let respond = |response: Option<Value>| {
         env.owner.call(env.mpc.id(), "set_response").args_json(json!({ "response": response })).transact()
     };
-    let request = |claim: Value| {
+    let request = |claim: Value, deposit: u128| {
         env.relayer
             .call(env.verdicts.id(), "attest_foreign_event")
             .args_json(json!({ "claim": claim }))
+            .deposit(yocto(deposit))
             .gas(TX_GAS)
             .transact()
     };
+    let deposit = event_deposit(&env, claim(&log, None)).await?;
+    assert!(deposit > 0);
     let count = env.attestation_count().await?;
 
     // Failures end as `failed` with no attestation: no answer, a wrong key, a wrong hash.
@@ -295,8 +325,12 @@ async fn foreign_events() -> anyhow::Result<()> {
     ];
     for (response, reason) in cases {
         let _ = ok(respond(response).await?);
-        let result = request(claim(&log, None)).await?;
+        let start = env.balance(&env.relayer).await?;
+        let result = request(claim(&log, None), deposit).await?;
         assert!(result.is_success(), "{:#?}", result.failures());
+        // The whole deposit came back: the relayer paid only gas.
+        let burnt: u128 = result.outcomes().iter().map(|o| o.tokens_burnt.as_yoctonear()).sum();
+        assert_eq!(start - env.balance(&env.relayer).await?, burnt, "{reason}");
         assert_eq!(result.clone().json::<Value>()?, json!({ "uid": hex::encode(hash), "status": "failed" }));
         assert_eq!(event(&result, "foreign_tx_requested")["payload_hash"], hex::encode(hash));
         assert_eq!(event(&result, "foreign_tx_failed")["reason"], reason);
@@ -313,7 +347,11 @@ async fn foreign_events() -> anyhow::Result<()> {
         json!({ "payload_hash": hex::encode(hash), "signature": mpc_signature(&env.keys.mpc, &hash) }),
     ))
     .await?);
-    let result = ok(request(claim(&log, None)).await?);
+    fails_with(request(claim(&log, None), deposit - 1).await?, "attach at least");
+    let before = env.storage(&env.attestations, env.verdicts.id()).await?.expect("registered");
+    let result = ok(request(claim(&log, None), deposit).await?);
+    let after = env.storage(&env.attestations, env.verdicts.id()).await?.expect("registered");
+    assert!(after.1 >= before.1, "the verdicts storage balance went from {before:?} to {after:?}");
     let outcome: Value = result.clone().json()?;
     assert_eq!(outcome["status"], "created");
     let subject = format!("eip155:8453:0x{}", hex::encode(log.address));
@@ -347,11 +385,11 @@ async fn foreign_events() -> anyhow::Result<()> {
             "expected_payload_hash": hex::encode(hash),
         })
     );
-    let deposit: String = env.view(&env.mpc, "last_deposit", json!({})).await?;
-    assert_eq!(deposit, "1");
+    let mpc_deposit: String = env.view(&env.mpc, "last_deposit", json!({})).await?;
+    assert_eq!(mpc_deposit, "1");
 
     // Each event is attested once.
-    fails_with(request(claim(&log, None)).await?, "this event was already attested");
+    fails_with(request(claim(&log, None), deposit).await?, "this event was already attested");
 
     // Another log of the same transaction, attested to a chosen subject.
     let mut second = log.clone();
@@ -361,7 +399,8 @@ async fn foreign_events() -> anyhow::Result<()> {
         json!({ "payload_hash": hex::encode(hash2), "signature": mpc_signature(&env.keys.mpc, &hash2) }),
     ))
     .await?);
-    let result = ok(request(claim(&second, Some("bob.test.near"))).await?);
+    let second_deposit = event_deposit(&env, claim(&second, Some("bob.test.near"))).await?;
+    let result = ok(request(claim(&second, Some("bob.test.near")), second_deposit).await?);
     let outcome: Value = result.json()?;
     assert_eq!(outcome["status"], "created");
     let a = env.attestation(outcome["uid"].as_str().expect("uid")).await?.expect("stored");

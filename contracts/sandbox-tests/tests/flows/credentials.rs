@@ -177,3 +177,46 @@ async fn scheduled_revocation() -> anyhow::Result<()> {
     fails_with(finalize().await?, "already revoked");
     Ok(())
 }
+
+/// A revocation sent while a mint is on its way: whichever lands first, no credential survives
+/// for a revoked attestation. The mint and the revocation are sent at a few offsets so some runs
+/// reach the window where the mint already read the attestation as active.
+#[tokio::test]
+async fn revocation_during_a_mint() -> anyhow::Result<()> {
+    let env = Env::new().await?;
+    let (alice, bob) = (&env.alice, &env.bob);
+    let schema = env.schema(alice, "string race", None, true).await?;
+    let mut reasons = Vec::new();
+    for delay_ms in [0u64, 100, 200, 400, 800] {
+        let data = format!("race {delay_ms}");
+        let (outcome, _) = env.attest_ok(alice, &schema, bob.id().as_str(), data.as_bytes()).await?;
+        let uid = outcome["uid"].as_str().expect("uid").to_string();
+        let mint = bob
+            .call(env.credentials.id(), "mint")
+            .args_json(json!({ "attestation_uid": uid }))
+            .deposit(millinear(100))
+            .gas(TX_GAS)
+            .transact_async()
+            .await?;
+        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        let revoke = alice
+            .call(env.attestations.id(), "revoke")
+            .args_json(json!({ "uid": uid }))
+            .gas(TX_GAS)
+            .transact_async()
+            .await?;
+        let (minted, revoked) = (mint.await?, ok(revoke.await?));
+        assert!(minted.is_success(), "{:#?}", minted.failures());
+        assert_eq!(revoked.json::<Value>()?["status"], "revoked");
+        let reason = minted
+            .logs()
+            .iter()
+            .find_map(|l| l.strip_prefix("credential not minted: ").map(str::to_string))
+            .unwrap_or_else(|| "minted, then burned".to_string());
+        assert!(credential(&env, &uid).await?.is_none(), "a credential survived ({reason})");
+        reasons.push(reason);
+    }
+    println!("mint and revoke outcomes: {reasons:?}");
+    assert_eq!(supply(&env).await?, "0");
+    Ok(())
+}

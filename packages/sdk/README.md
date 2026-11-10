@@ -37,7 +37,7 @@ Every method returns `{ success, data?, error?: { type, message }, txHash? }` an
 - `SchemaEncoder`: Borsh encoding for schema definitions such as `string name, u8 level, account_id issuer`.
 - `computeSchemaUid`, `computeAttestationUid`: the same UIDs the contracts compute.
 - `client.proveAttestation(uid)` and `proveReceipt`: prove an event is in a final block, checked against validator stake.
-- `openAITools()` and `runTool()`: Attestra as tools for any OpenAI-compatible agent; `@attestra/sdk/ai` for LangChain.
+- `openAITools()` and `runTool()`: Attestra as tools for any OpenAI-compatible agent; `@attestra/sdk/ai` for LangChain (install the optional peers `@langchain/core` and `zod`).
 - x402 helpers for paying for and serving verification on NEAR.
 
 `network: 'mainnet'` switches every contract id, endpoint and token.

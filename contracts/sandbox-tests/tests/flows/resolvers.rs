@@ -136,6 +136,33 @@ async fn fee_resolver() -> anyhow::Result<()> {
     .await?;
     let view: Value = env.view(&env.fee, "get_fee", json!({ "schema_uid": ft_schema })).await?;
     assert_eq!(view, json!({ "token": token, "amount": tokens(20) }));
+    // Only tokens the owner accepted: setting a fee in another one is refused, and an account
+    // posing as a token gets its "transfer" back with nothing credited.
+    let accepted: Vec<AccountId> = env.view(&env.fee, "fee_tokens", json!({})).await?;
+    assert_eq!(accepted, vec![token.clone()]);
+    let unlisted = dave
+        .call(env.fee.id(), "set_fee")
+        .args_json(json!({ "schema_uid": ft_schema, "token": env.staking.id(), "amount": tokens(1) }))
+        .deposit(millinear(50))
+        .gas(TX_GAS)
+        .transact()
+        .await?;
+    attestra_sandbox_tests::util::fails_with(unlisted, "is not an accepted fee token");
+    let posing = ok(bob
+        .call(env.fee.id(), "ft_on_transfer")
+        .args_json(json!({ "sender_id": carol.id(), "amount": tokens(5), "msg": "deposit" }))
+        .gas(TX_GAS)
+        .transact()
+        .await?);
+    assert_eq!(u128_of(&posing.json::<Value>()?), 5 * TOKEN);
+    assert_eq!(fee_balance(&env, carol.id(), Some(bob.id())).await?, 0);
+    let not_owner = dave
+        .call(env.fee.id(), "add_fee_token")
+        .args_json(json!({ "token": bob.id() }))
+        .deposit(yocto(1))
+        .transact()
+        .await?;
+    attestra_sandbox_tests::util::fails_with(not_owner, "only the owner");
     for who in [bob, carol] {
         deposit_storage(&env, who).await?;
     }
