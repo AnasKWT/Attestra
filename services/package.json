@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@attestra/sdk": "workspace:*",
-    "@hono/node-server": "1.19.18",
+    "@hono/node-server": "2.1.6",
     "hono": "4.13.17",
     "near-kit": "0.20.2",
     "tsx": "4.21.0"
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@types/node": "22.19.1",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "vitest": "4.1.12"
   },
   "engines": {
     "node": ">=22"

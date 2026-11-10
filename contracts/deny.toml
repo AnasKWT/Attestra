@@ -1,0 +1,25 @@
+# cargo-deny policy for the contracts (run by `pnpm security`): it checks the dependency graph of the
+# wasm the chain runs, without dev-dependencies or the test crates.
+
+[graph]
+targets = ["wasm32-unknown-unknown"]
+exclude-dev = true
+exclude = ["attestra-sandbox-tests"]
+
+[advisories]
+ignore = [
+  # Unmaintained, with no known vulnerability: near-sdk's wasm allocator. Each contract call starts with
+  # fresh memory and ends with the call, so its known leak cannot build up.
+  { id = "RUSTSEC-2022-0054", reason = "near-sdk's default wasm allocator; memory lives for one call" },
+]
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Unicode-DFS-2016", "CC0-1.0", "Zlib", "MPL-2.0", "CDLA-Permissive-2.0"]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

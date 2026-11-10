@@ -128,8 +128,8 @@ async function main() {
       return null;
     }
   };
-  const call = async (signer: string, contract: string, method: string, args: object, deposit = '0', gas = '100 Tgas') => {
-    const out = await nearClient.transaction(signer).functionCall(contract, method, args, { gas, attachedDeposit: `${deposit} yocto` }).send();
+  const call = async (signer: string, contract: string, method: string, args: object, deposit = '0', gas: `${number} Tgas` = '100 Tgas') => {
+    const out = await nearClient.transaction(signer).functionCall(contract, method, args, { gas, attachedDeposit: `${deposit} yocto` as never }).send();
     return (out as { transaction: { hash: string } }).transaction.hash;
   };
 

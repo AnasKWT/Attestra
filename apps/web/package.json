@@ -26,7 +26,6 @@
     "next": "16.4.6",
     "react": "19.2.9",
     "react-dom": "19.2.9",
-    "zod": "3.25.76",
     "@attestra/mcp": "workspace:*"
   },
   "devDependencies": {
@@ -43,6 +42,6 @@
     "jsdom": "26.1.0",
     "tailwindcss": "4.2.4",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "vitest": "4.1.12"
   }
 }

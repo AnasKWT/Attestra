@@ -16,7 +16,7 @@
   "dependencies": {
     "@attestra/mcp": "workspace:*",
     "@attestra/sdk": "workspace:*",
-    "@hono/node-server": "1.19.18",
+    "@hono/node-server": "2.1.6",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.0.1",
     "hono": "4.13.17",
@@ -26,6 +26,6 @@
   "devDependencies": {
     "@types/node": "22.19.1",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "vitest": "4.1.12"
   }
 }

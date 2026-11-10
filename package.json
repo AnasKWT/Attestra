@@ -13,7 +13,7 @@
   "scripts": {
     "build": "pnpm --filter @attestra/sdk build && pnpm --filter @attestra/mcp build && pnpm --filter @attestra/cli build",
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "pnpm -r --if-present typecheck && tsc -p scripts",
     "lint": "pnpm -r --if-present lint",
     "test:contracts": "cd contracts && cargo test --workspace --exclude attestra-sandbox-tests",
     "test:sandbox": "cd contracts && cargo test -p attestra-sandbox-tests -- --test-threads=1",
@@ -30,6 +30,7 @@
     "typescript": "5.9.3",
     "@attestra/sdk": "workspace:*",
     "near-kit": "0.20.2",
-    "@types/node": "22.19.1"
+    "@types/node": "22.19.1",
+    "@noble/curves": "2.2.0"
   }
 }
