@@ -1,6 +1,5 @@
 'use client';
 
-import { BadgeCheck, FileCheck2 } from 'lucide-react';
 import Link from 'next/link';
 import { SchemaEncoder } from '@attestra/sdk';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
@@ -38,7 +37,7 @@ export function AttestationDetail({ uid }: { uid: string }) {
         <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <div className="space-y-6">
             <Panel>
-              <PanelHeader icon={<FileCheck2 className="size-4" />} title="Record" subtitle="Read live from the attestations contract" right={<StatusBadge status={chain.data.a.status} />} />
+              <PanelHeader title="Record" subtitle="Read live from the attestations contract" right={<StatusBadge status={chain.data.a.status} />} />
               <dl className="px-5 py-2">
                 <KeyValue label="Schema">
                   <UidLink uid={chain.data.a.schema_uid} kind="schemas" />
@@ -81,11 +80,11 @@ export function AttestationDetail({ uid }: { uid: string }) {
           <div className="space-y-6">
             <ProofPanel uid={uid} revoked={chain.data.a.revoked} />
             <Panel>
-              <PanelHeader icon={<BadgeCheck className="size-4" />} title="Credential" subtitle="Non-transferable NEP-171 token linked to this attestation" />
+              <PanelHeader title="Credential" subtitle="Non-transferable NEP-171 token linked to this attestation" />
               <div className="p-5 text-[13.5px]">
                 {chain.data.credential ? (
                   <div className="space-y-2">
-                    <Badge tone="ok" dot>minted to {chain.data.credential.owner_id}</Badge>
+                    <Badge tone="ok">minted to {chain.data.credential.owner_id}</Badge>
                     <p className="text-mute">It burns automatically when the attestation is revoked.</p>
                   </div>
                 ) : (

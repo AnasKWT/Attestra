@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, KeyRound, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import Link from 'next/link';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
@@ -32,7 +32,7 @@ export function AgentDetail({ account }: { account: string }) {
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
           <div className="space-y-6">
             <Panel>
-              <PanelHeader icon={<Bot className="size-4" />} title="Identity" subtitle="Attested by the owner under the agent identity schema" right={data.identity ? <StatusBadge status={data.identity.status} /> : <Badge tone="warn">no identity</Badge>} />
+              <PanelHeader title="Identity" subtitle="Attested by the owner under the agent identity schema" right={data.identity ? <StatusBadge status={data.identity.status} /> : <Badge tone="warn">no identity</Badge>} />
               {data.identity ? (
                 <dl className="px-5 py-2">
                   <KeyValue label="Owner"><AccountLink id={String(f.owner)} /></KeyValue>
@@ -48,7 +48,7 @@ export function AgentDetail({ account }: { account: string }) {
               )}
             </Panel>
             <Panel>
-              <PanelHeader icon={<KeyRound className="size-4" />} title="Delegations held" subtitle="What this agent may attest, for whom, until when" />
+              <PanelHeader title="Delegations held" subtitle="What this agent may attest, for whom, until when" />
               {data.delegations.length === 0 ? (
                 <Empty title="No delegations" />
               ) : (
@@ -69,7 +69,7 @@ export function AgentDetail({ account }: { account: string }) {
           </div>
           <Panel>
             <PanelHeader
-              icon={<Star className="size-4" />}
+             
               title="Reputation"
               subtitle="Reviews from people and agents who hired it"
               right={data.average_score !== null && <span className="flex items-center gap-2 text-[13px] font-semibold text-fg"><Stars n={data.average_score} />{data.average_score.toFixed(2)} from {data.review_count}</span>}

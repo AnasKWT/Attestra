@@ -1,6 +1,6 @@
 'use client';
 
-import { Landmark, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import Link from 'next/link';
 import type { IndexedAttestation } from '@attestra/sdk';
 import { Hash } from '../ui/Copy';
@@ -43,7 +43,7 @@ export function AccountView({ id, title }: { id: string; title?: string }) {
       <div className="space-y-8">
         {p.data?.authority && (
           <Panel>
-            <PanelHeader icon={<Landmark className="size-4" />} title="Registered authority" subtitle={p.data.authority.metadata} right={<Link className="text-[13px] text-accent hover:underline" href={`/authorities/${encodeURIComponent(id)}`}>Authority page</Link>} />
+            <PanelHeader title="Registered authority" subtitle={p.data.authority.metadata} right={<Link className="text-[13px] text-accent hover:underline" href={`/authorities/${encodeURIComponent(id)}`}>Authority page</Link>} />
             <div className="flex flex-wrap gap-2 px-5 py-3">
               <Badge>{p.data.authority.kind}</Badge>
               {p.data.authority.verified && <Badge tone="ok">verified</Badge>}

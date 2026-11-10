@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeCheck, Fingerprint, Wallet } from 'lucide-react';
+import { Fingerprint, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { AccountView } from '@/components/explorer/AccountView';
 import { Badge, Button, Empty, Panel, PanelHeader } from '@/components/ui/primitives';
@@ -30,7 +30,7 @@ export default function Profile() {
     <div>
       <div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6">
         <Panel>
-          <PanelHeader icon={<BadgeCheck className="size-4" />} title="Credentials" subtitle="Non-transferable NEP-171 tokens held by this account. Each burns if its attestation is revoked." right={<Badge>{w.kind === 'passkey' ? 'passkey account' : 'wallet'}</Badge>} />
+          <PanelHeader title="Credentials" subtitle="Non-transferable NEP-171 tokens held by this account. Each burns if its attestation is revoked." right={<Badge>{w.kind === 'passkey' ? 'passkey account' : 'wallet'}</Badge>} />
           {creds.data && creds.data.length === 0 ? (
             <Empty title="No credentials yet">Mint one for an attestation about you with the <Link className="text-accent hover:underline" href="/sandbox/app/nft-credential">credential tool</Link>.</Empty>
           ) : (

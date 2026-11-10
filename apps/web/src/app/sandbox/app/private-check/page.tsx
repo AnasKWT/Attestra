@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, Lock, ShieldCheck } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { CheckerModeBadge } from '@/components/marketing/CheckerMode';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
@@ -44,7 +44,7 @@ export default function PrivateCheck() {
       }
       aside={
         <Panel>
-          <PanelHeader icon={<ShieldCheck className="size-4" />} title="Verify the model yourself" />
+          <PanelHeader title="Verify the model yourself" />
           <div className="space-y-2 px-5 py-4 text-[13px] text-soft">
             <p>Every answer has a NEAR AI signature you can check at the NEAR AI verification center.</p>
             <a href="https://cloud.near.ai/verify" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
@@ -55,7 +55,7 @@ export default function PrivateCheck() {
       }
     >
       <ActionCard
-        icon={<Lock className="size-4" />}
+       
         title="Check a private fact"
         subtitle="A pass becomes an attestation under the private AI check schema"
         label="Encrypt and check"

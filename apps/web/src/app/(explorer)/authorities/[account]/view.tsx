@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeCheck, Landmark, Users } from 'lucide-react';
+import { BadgeCheck } from 'lucide-react';
 import type { DelegateRecord } from '@attestra/sdk';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink } from '@/components/explorer/Links';
@@ -27,7 +27,7 @@ export function AuthorityDetail({ account }: { account: string }) {
       {a.data && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Panel>
-            <PanelHeader icon={<Landmark className="size-4" />} title="Authority" right={a.data.auth.verified ? <Badge tone="ok"><BadgeCheck className="size-3" />verified by governance</Badge> : <Badge>not verified</Badge>} />
+            <PanelHeader title="Authority" right={a.data.auth.verified ? <Badge tone="ok"><BadgeCheck className="size-3" />verified by governance</Badge> : <Badge>not verified</Badge>} />
             <dl className="px-5 py-2">
               <KeyValue label="About">{a.data.auth.metadata}</KeyValue>
               <KeyValue label="Kind">{a.data.auth.kind}</KeyValue>
@@ -50,7 +50,7 @@ export function AuthorityDetail({ account }: { account: string }) {
             )}
           </Panel>
           <Panel>
-            <PanelHeader icon={<Users className="size-4" />} title="Delegates" subtitle="Employees, agents and systems that may attest for this authority" />
+            <PanelHeader title="Delegates" subtitle="Employees, agents and systems that may attest for this authority" />
             {a.data.delegates.length === 0 ? (
               <Empty title="No delegates" />
             ) : (
@@ -64,7 +64,7 @@ export function AuthorityDetail({ account }: { account: string }) {
                         {d.can_revoke ? ' · may revoke' : ''}
                       </p>
                     </div>
-                    <Badge tone={d.active ? 'ok' : 'neutral'} dot>{d.active ? 'active' : 'inactive'}</Badge>
+                    <Badge tone={d.active ? 'ok' : 'neutral'}>{d.active ? 'active' : 'inactive'}</Badge>
                   </li>
                 ))}
               </ul>

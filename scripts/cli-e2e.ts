@@ -65,7 +65,7 @@ async function testnet() {
   const secret = (await new FileKeyStore(join(homedir(), '.near-credentials'), 'testnet').get(root))?.secretKey;
   if (!secret) throw new Error(`no key for ${root} in ~/.near-credentials/testnet`);
   try {
-    await scenario({ rpcUrl, root, rootSecret: secret, networkId: 'testnet', prefix: `${tag}-`, fund: '1.5 NEAR' });
+    await scenario({ rpcUrl, root, rootSecret: secret, networkId: 'testnet', prefix: `${tag}-`, fund: (process.env.CLI_E2E_FUND ?? '1.5 NEAR') as `${number} NEAR` });
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

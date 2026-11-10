@@ -3,6 +3,36 @@
 This page maps each judging criterion to the evidence: the code (with line links), the tests and a live testnet transaction.
 Every contract is deployed on testnet under `attestra.testnet` from a reproducible build; the README's "Live on testnet" table links a transaction for each flow.
 
+## At a glance
+
+| NEAR technology | Where it is used | Live on testnet |
+|---|---|---|
+| NEAR AI Cloud (private inference in a TEE, signed answers) | private checks with evidence encrypted in the browser; agent chat with verified signatures | `pnpm cli:e2e testnet` runs a check; `pnpm verify` checks the model's TDX and GPU attestation |
+| NEAR OutLayer (TEE worker, key bound to the build) | `checker/`, the only key the verdicts contract accepts | [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1) |
+| Chain Signatures (`verify_foreign_transaction`) | facts about Solana and EVM chains with no oracle | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) (Base Sepolia); Solana devnet in every testnet run |
+| Asynchronous cross-contract calls with rollback | the resolver gate: pending, ask, commit or remove and refund | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
+| Function-call access keys | an agent key that can only attest, revoke and schedule revocations | `pnpm cli:e2e testnet` |
+| NEP-413 signed messages and meta-transactions | gasless issuing through the relayer; passkey accounts with no wallet | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
+| NEAR Connect wallets | sign-in on the site (Meteor, Intear, Ledger, Nightly, NEAR CLI and more) | [9jAv1M46](https://testnet.nearblocks.io/txns/9jAv1M46gvTbg4TQC2HVSFnuU1Zwax7CwT2Ed6JdbUYH) |
+| x402 on NEAR | paid verification settled with a signed `ft_transfer` before the answer | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
+| Light client proofs | finality checked in the browser, the SDK and the CLI | `pnpm verify` |
+| NEP-171 and NEP-141 | non-transferable credentials burned on revoke; token rewards and staking tiers | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [52Z5Sgmq](https://testnet.nearblocks.io/txns/52Z5Sgmq8fbqhHu9QVxu1KbUQ3892ybziaa8ekGvStkF) |
+| NEP-330 reproducible builds | every contract, built in SourceScan's pinned image | `pnpm verify` compares the deployed hashes |
+
+| Suite | Result |
+|---|---|
+| Contract unit and property tests (`pnpm test:contracts`) | 323 passed |
+| near-workspaces flows on a local node (`pnpm test:sandbox`) | 20 passed |
+| OutLayer checker (`pnpm test:checker`) | 24 passed |
+| TypeScript suites (`pnpm test`) | 182 passed |
+| CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
+| CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
+| Playwright on a production build (`pnpm e2e`) | 223 passed |
+| Playwright live on testnet with a passkey account (`e2e:live`) | 17 tests |
+| `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
+
+Every network call retries transient failures with exponential backoff and full jitter, and writes retry only on answers that prove nothing was processed ([retry.ts](packages/sdk/src/retry.ts)).
+
 ## Five-minute check
 
 ```bash

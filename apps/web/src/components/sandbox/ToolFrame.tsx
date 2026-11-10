@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, ExternalLink, Info, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { classifyError, errorMessage, type ServiceResponse } from '@attestra/sdk';
@@ -39,7 +39,7 @@ export function ToolFrame({ slug, children, notes, aside }: { slug: string; chil
         <div className="space-y-6">
           {notes && (
             <Panel>
-              <PanelHeader icon={<Info className="size-4" />} title="How it works" />
+              <PanelHeader title="How it works" />
               <div className="space-y-2.5 px-5 py-4 text-[13px] leading-relaxed text-soft [&_code]:rounded [&_code]:bg-soft [&_code]:px-1 [&_code]:font-mono [&_code]:text-[12px] [&_code]:text-fg">{notes}</div>
             </Panel>
           )}
@@ -59,7 +59,6 @@ export function ActionCard<T>({
   label,
   disabled,
   render,
-  icon,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -68,13 +67,12 @@ export function ActionCard<T>({
   label: string;
   disabled?: boolean;
   render?: (data: T) => ReactNode;
-  icon?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<ServiceResponse<T> | null>(null);
   return (
     <Panel>
-      <PanelHeader title={title} subtitle={subtitle} icon={icon} />
+      <PanelHeader title={title} subtitle={subtitle} />
       <form
         aria-label={title}
         className="space-y-4 p-5"

@@ -43,15 +43,12 @@ export function Panel({ className = '', children }: { className?: string; childr
   return <div className={`rounded-xl border border-line bg-panel shadow-panel ${className}`}>{children}</div>;
 }
 
-export function PanelHeader({ title, subtitle, right, icon }: { title: ReactNode; subtitle?: ReactNode; right?: ReactNode; icon?: ReactNode }) {
+export function PanelHeader({ title, subtitle, right }: { title: ReactNode; subtitle?: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
-      <div className="flex min-w-0 items-start gap-3">
-        {icon && <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-soft text-soft">{icon}</span>}
-        <div className="min-w-0">
-          <h3 className="font-display text-[15px] font-semibold text-fg">{title}</h3>
-          {subtitle && <p className="mt-0.5 text-[13px] text-mute">{subtitle}</p>}
-        </div>
+      <div className="min-w-0">
+        <h3 className="font-display text-[15px] font-semibold text-fg">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-[13px] text-mute">{subtitle}</p>}
       </div>
       {right}
     </div>
@@ -68,10 +65,9 @@ const TONES = {
 } as const;
 export type Tone = keyof typeof TONES;
 
-export function Badge({ tone = 'neutral', children, className = '', dot = false }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean }) {
+export function Badge({ tone = 'neutral', children, className = '' }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-px text-[11.5px] font-medium leading-[18px] ${TONES[tone]} ${className}`}>
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
   );
@@ -81,7 +77,7 @@ const STATUS_TONE: Record<string, Tone> = { active: 'ok', pending: 'warn', revok
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge tone={STATUS_TONE[status] ?? 'neutral'} dot>
+    <Badge tone={STATUS_TONE[status] ?? 'neutral'}>
       {status}
     </Badge>
   );

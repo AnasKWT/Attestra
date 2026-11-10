@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, CheckCircle2, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { Alert, Badge, Panel, PanelHeader, Skeleton } from '@/components/ui/primitives';
 import { AGENT_URL, INDEXER_URL, KEEPER_URL, NETWORK, RELAYER_URL, TOPUP_URL } from '@/lib/config';
 import { useAsync } from '@/lib/useFetch';
@@ -87,7 +87,7 @@ export default function Status() {
       </div>
       <Panel className="mt-8">
         <PanelHeader
-          icon={<Wallet className="size-4" />}
+         
           title="Service wallets"
           subtitle={bal.data ? `Refilled from the treasury within a daily cap: ${bal.data.daily.used_near} of ${bal.data.daily.cap_near} NEAR used today` : 'Refilled from the treasury within a daily cap'}
           right={bal.data && (bal.data.treasury_low ? <Badge tone="bad"><AlertTriangle className="size-3" />treasury low</Badge> : <Badge tone="ok">treasury ok</Badge>)} />

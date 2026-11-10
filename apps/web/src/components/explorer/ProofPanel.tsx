@@ -27,7 +27,7 @@ export function ProofPanel({ uid, revoked = false }: { uid: string; revoked?: bo
   return (
     <Panel>
       <PanelHeader
-        icon={<ShieldCheck className="size-4" />}
+       
         title="Light client proof"
         subtitle="Checked here in your browser: validator approvals of a final head, then merkle paths from the receipt to that head. No trust in the indexer."
         right={

@@ -1,6 +1,5 @@
 'use client';
 
-import { Layers } from 'lucide-react';
 import Link from 'next/link';
 import { parseSchema, type IndexedAttestation } from '@attestra/sdk';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
@@ -39,7 +38,7 @@ export function SchemaDetail({ uid }: { uid: string }) {
         <div className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
             <Panel>
-              <PanelHeader icon={<Layers className="size-4" />} title="Definition" subtitle={chain.data.blob_hash ? 'Stored as an on-chain blob (large schema)' : 'Stored inline'} right={<StatusBadge status={chain.data.status} />} />
+              <PanelHeader title="Definition" subtitle={chain.data.blob_hash ? 'Stored as an on-chain blob (large schema)' : 'Stored inline'} right={<StatusBadge status={chain.data.status} />} />
               <div className="p-5">
                 <div className="overflow-hidden rounded-xl border border-line">
                   <table className="w-full text-left text-[13px]">

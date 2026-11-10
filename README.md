@@ -31,6 +31,10 @@ On NEAR it goes past a registry:
 | For agents | [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md), `/llms.txt` and `/mcp` on the site |
 | For judges | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
 
+<img src="assets/readme/site-home.png" alt="The Attestra site's landing page: the headline, the two calls to action and a real testnet attestation from a private check decided in NEAR OutLayer's TEE, with its schema, subject, evidence hash, issue and expiry times and block height" width="960">
+
+<img src="assets/readme/site-attestation.png" alt="An attestation in the Attestra explorer: the record read live from the attestations contract, with its schema, attester, subject, issue and expiry times, nonce and transaction, beside the light client proof panel" width="960">
+
 ## Try it
 
 Two minutes, against the live testnet contracts.
@@ -78,6 +82,7 @@ The test runs create their own accounts and delete them afterwards, returning th
 
 | Flow | Transaction |
 |---|---|
+| A private check decided in NEAR OutLayer's TEE: the evidence was encrypted to the NEAR AI model, and the verdicts contract checked the model's and the checker's signatures before attesting | [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1) |
 | A passkey account (Chrome's authenticator, no wallet, no NEAR) issuing a membership through the relayer with a NEP-413 signed request | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
 | Signing in with a NEAR wallet through NEAR Connect (the NEAR CLI wallet) and issuing an attestation it signed | [9jAv1M46](https://testnet.nearblocks.io/txns/9jAv1M46gvTbg4TQC2HVSFnuU1Zwax7CwT2Ed6JdbUYH) |
 | A Base Sepolia event verified by the NEAR MPC network (`verify_foreign_transaction`) and attested by the verdicts contract | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
@@ -123,7 +128,7 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (175 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (182 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit and property test (323)
 pnpm test:checker         # the OutLayer checker (24)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
