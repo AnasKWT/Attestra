@@ -1,0 +1,7 @@
+# Its own workspace root: this package needs Node 24 (the SDK's engines field), so it stays out of
+# the repository's workspace, which runs on Node 22. Install it with Node 24: `pnpm install` here.
+packages: []
+peerDependencyRules:
+  allowedVersions:
+    # The SDK's sigstore dependency ships @noble/curves 2 to a helper that declares ^1.6 (only used for image provenance, which this tool does not check).
+    "@freedomofpress/crypto-browser>@noble/curves": "2"

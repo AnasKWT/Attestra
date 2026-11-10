@@ -27,6 +27,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     priceClaim: env.X402_PRICE_CLAIM ?? (network === 'mainnet' ? '10000' : '1000000000000000000'),
     priceAgent: env.X402_PRICE_AGENT ?? (network === 'mainnet' ? '20000' : '2000000000000000000'),
     githubToken: env.GITHUB_TOKEN || undefined,
+    /** The Agent Market listing's `aat_` token; without it the market worker stays off. */
+    marketToken: env.MARKET_AGENT_TOKEN || undefined,
+    marketUrl: env.MARKET_URL || 'https://market.near.ai',
   };
 }
 

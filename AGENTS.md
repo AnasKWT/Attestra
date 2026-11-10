@@ -38,6 +38,8 @@ pnpm security                       # Clippy -D warnings, cargo audit, cargo den
 pnpm dev                            # indexer, agent, services and the site against testnet
 docker compose up --build           # the same stack in containers (site with --profile site)
 pnpm verify                         # a live deployment and its stack (code hashes, proofs, verdicts, services), PASS or FAIL
+pnpm --dir tools/nearai-verify install && pnpm --dir tools/nearai-verify build && pnpm --dir tools/nearai-verify test   # with Node 24 (`nvm use 24`)
+node tools/nearai-verify/dist/index.js [--probe] [--json]   # NEAR AI Gateway and model TEE attestations and the trusted model key, with @nearai/inference-sdk (NEARAI_API_KEY)
 pnpm e2e                            # Playwright on a production build of the site, no deployment needed (E2E_PORT, default 3100)
 contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's pinned image
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
@@ -51,6 +53,7 @@ SCALE=0.5 pnpm accounts testnet     # the service accounts at half the plan, whe
 
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
 - Services and the agent run read-only without keys and say what is off on `/health`.
+- `tools/nearai-verify` is its own pnpm workspace because `@nearai/inference-sdk` needs Node >= 24.22.1: the root `pnpm -r` scripts skip it, `pnpm verify` runs it with Node 24 (this node, `NODE24` or nvm's newest), and `--chat-id` needs the exact request and response bytes (`--request-file`, `--response-file`), not their hashes.
 
 ## Where each NEAR primitive lives
 

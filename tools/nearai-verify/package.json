@@ -1,0 +1,31 @@
+{
+  "name": "@attestra/nearai-verify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent check of NEAR AI Cloud evidence with the official @nearai/inference-sdk: the Gateway and model TEE attestations, the model signing key a verdicts contract trusts, and chat response signatures.",
+  "author": "Attestra contributors",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "attestra-nearai-verify": "./dist/index.js"
+  },
+  "engines": {
+    "node": ">=24.22.1"
+  },
+  "packageManager": "pnpm@10.7.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nearai/inference-sdk": "0.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}

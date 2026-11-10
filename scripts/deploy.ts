@@ -143,13 +143,32 @@ async function main() {
 
   const ids = contractIdsFor(root);
   const accountOf = (name: string) => `${name}.${root}`;
+  // Retries a throttled or failed answer (the free RPC tier allows about 60 requests a minute), so
+  // a transient failure never reads as "this account or contract does not exist".
   const rpc = async <T>(method: string, params: unknown): Promise<T> => {
-    const res = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-    const j = (await res.json()) as { result?: T; error?: unknown };
-    if (j.error) throw Object.assign(new Error(JSON.stringify(j.error)), { rpcError: j.error });
-    return j.result as T;
+    for (let attempt = 0; ; attempt++) {
+      let transient: string;
+      try {
+        const res = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+        if (res.ok) {
+          const j = (await res.json()) as { result?: T; error?: { cause?: { name?: string } } };
+          if (j.error && !/TOO_MANY_REQUESTS|TIMEOUT_ERROR|INTERNAL_ERROR/.test(j.error.cause?.name ?? '')) throw Object.assign(new Error(JSON.stringify(j.error)), { rpcError: j.error });
+          if (!j.error && j.result !== undefined) return j.result;
+          transient = JSON.stringify(j.error ?? 'empty answer');
+        } else transient = `HTTP ${res.status}`;
+      } catch (e) {
+        if ((e as { rpcError?: unknown }).rpcError) throw e;
+        transient = (e as Error).message;
+      }
+      if (attempt >= 5) throw new Error(`RPC ${method} kept failing: ${transient}`);
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** attempt));
+    }
   };
-  const account = (id: string) => rpc<{ code_hash: string; amount: string }>('query', { request_type: 'view_account', finality: 'optimistic', account_id: id }).catch(() => null);
+  const account = (id: string) =>
+    rpc<{ code_hash: string; amount: string }>('query', { request_type: 'view_account', finality: 'optimistic', account_id: id }).catch((e) => {
+      if (/UNKNOWN_ACCOUNT/.test((e as Error).message)) return null;
+      throw e;
+    });
   const view = async <T>(id: string, method: string, args: object = {}): Promise<T | null> => {
     try {
       const r = await rpc<{ result: number[] }>('query', {
@@ -162,6 +181,22 @@ async function main() {
       return JSON.parse(Buffer.from(r.result).toString('utf8')) as T;
     } catch {
       return null;
+    }
+  };
+  // Says "not initialized" only when the contract says so; any other failure is retried, then fatal,
+  // so a slow RPC never makes the script re-initialize a live contract.
+  const isInitialized = async (id: string, method: string): Promise<boolean> => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const r = await rpc<{ result?: number[]; error?: string }>('query', { request_type: 'call_function', finality: 'optimistic', account_id: id, method_name: method, args_base64: Buffer.from('{}').toString('base64') });
+        if (r.result) return true;
+        if (/not initialized|CodeDoesNotExist|MethodNotFound|Cannot deserialize the contract state/i.test(r.error ?? '')) return false;
+        throw new Error(r.error ?? `${id}.${method} returned nothing`);
+      } catch (e) {
+        if (/not initialized|CodeDoesNotExist|MethodNotFound|Cannot deserialize the contract state/i.test((e as Error).message)) return false;
+        if (attempt >= 4) throw e;
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      }
     }
   };
   const call = async (signer: string, contract: string, method: string, args: object, deposit = '0', gas: `${number} Tgas` = '100 Tgas') => {
@@ -207,7 +242,7 @@ async function main() {
       log(`created ${id} with ${balance} NEAR (${(out as { transaction: { hash: string } }).transaction.hash})`);
     }
     const now = await account(id);
-    const initialized = (await view(id, p.probe)) !== null;
+    const initialized = await isInitialized(id, p.probe);
     if (!now || now.code_hash === '11111111111111111111111111111111' || !initialized) {
       const out = await nearClient
         .transaction(id)

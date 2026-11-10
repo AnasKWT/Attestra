@@ -65,7 +65,7 @@ async function testnet() {
   const secret = (await new FileKeyStore(join(homedir(), '.near-credentials'), 'testnet').get(root))?.secretKey;
   if (!secret) throw new Error(`no key for ${root} in ~/.near-credentials/testnet`);
   try {
-    await scenario({ rpcUrl, root, rootSecret: secret, networkId: 'testnet', prefix: `${tag}-`, fund: '3 NEAR' });
+    await scenario({ rpcUrl, root, rootSecret: secret, networkId: 'testnet', prefix: `${tag}-`, fund: '1.5 NEAR' });
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
@@ -107,10 +107,17 @@ async function steps(env: Env, keys: Record<string, string>, alice: string, bob:
     token: `token.${env.root}`,
   };
 
-  const run = (args: string[], as?: string): Json => {
+  // On testnet the groups that read the indexer or call the agent run too, against the local stack.
+  const services = env.networkId === 'testnet';
+  const run = (args: string[], as?: string, key?: string): Json => {
     const r = spawnSync('node', [cli, '--json', '--rpc', env.rpcUrl, '--root', env.root, ...(as ? ['-a', as] : []), ...args], {
       encoding: 'utf8',
-      env: { ...process.env, ATTESTRA_PRIVATE_KEY: as ? keys[as] : '', ATTESTRA_INDEXER_URL: 'http://127.0.0.1:9' },
+      env: {
+        ...process.env,
+        ATTESTRA_PRIVATE_KEY: key ?? (as ? keys[as] : ''),
+        ATTESTRA_INDEXER_URL: services ? INDEXER : 'http://127.0.0.1:9',
+        ATTESTRA_AGENT_URL: services ? AGENT : 'http://127.0.0.1:9',
+      },
     });
     try {
       return JSON.parse(r.stdout || r.stderr) as Json;
@@ -258,9 +265,64 @@ async function steps(env: Env, keys: Record<string, string>, alice: string, bob:
   step('agent delegate', run(['agent', 'delegate', agentAcct, '--max-uses', '3'], carol));
   step('agent rate', run(['agent', 'rate', agentAcct, '5', '--comment', 'fast and correct'], alice));
 
+  // an agent's function-call key: attest as the account, then lose the power when it is revoked
+  const agentKey = generateKey();
+  const agentPub = agentKey.publicKey.toString();
+  step('agent grant-key', run(['agent', 'grant-key', agentPub, '--allowance', '0.5'], alice), (d) => d.publicKey === agentPub && d.methodNames.includes('attest'));
+  step('agent keys', run(['agent', 'keys', alice]), (d) => JSON.stringify(d).includes(agentPub));
+  step('the agent attests with its key', run(['attestation', 'create', '-s', s, '--subject', carol, '-v', V({ name: 'Carol', level: 4 })], alice, agentKey.secretKey), (d) => d.status === 'created');
+  step('agent revoke-key', run(['agent', 'revoke-key', agentPub], alice));
+  refused('the revoked key no longer signs', run(['attestation', 'create', '-s', s, '--subject', carol, '-v', V({ name: 'Carol', level: 5 })], alice, agentKey.secretKey));
+
+  if (services) await serviceSteps(run, step, refused, { alice, a1, s, agent: agentAcct });
+
   // data helpers
   const enc = step('encode', run(['encode', def, '{"name":"Dan","level":7}']), (d) => typeof (d.data ?? d) === 'string');
   step('decode round-trips', run(['decode', def, enc.data ?? enc]), (d) => JSON.stringify(d).includes('Dan'));
+}
+
+const INDEXER = process.env.INDEXER_URL ?? 'http://localhost:5100';
+const AGENT = process.env.AGENT_URL ?? 'http://localhost:5300';
+
+type Run = (args: string[], as?: string, key?: string) => Json;
+
+/** The groups that need the indexer, the agent or NEAR AI, against the stack running on testnet (`pnpm dev`). */
+async function serviceSteps(
+  run: Run,
+  step: (name: string, res: Json, check?: (d: any) => boolean) => any,
+  refused: (name: string, res: Json, type?: string) => void,
+  t: { alice: string; a1: string; s: string; agent: string },
+) {
+  await waitFor(() => JSON.stringify(run(['attestation', 'list', '--attester', t.alice]).data ?? '').includes(t.a1), 'the indexer has the run', 120_000);
+  step('attestation list', run(['attestation', 'list', '--attester', t.alice]), (d) => JSON.stringify(d).includes(t.a1));
+  step('schema list', run(['schema', 'list', '--authority', t.alice]), (d) => JSON.stringify(d).includes(t.s));
+  step('events list', run(['events', 'list', '--uid', t.a1]), (d) => JSON.stringify(d).includes('attestation_created'));
+  step('events prove', run(['events', 'prove', t.a1]), (d) => d.verified === true);
+  step('profile', run(['profile', t.alice]), (d) => JSON.stringify(d).includes(t.a1));
+  step('agent profile', run(['agent', 'profile', t.agent]), (d) => JSON.stringify(d).includes(t.agent));
+  step('check rules', run(['check', 'rules']), (d) => JSON.stringify(d).includes('age_over_18'));
+  step('check run (NEAR AI, encrypted evidence)', run(['check', 'run', 'age_over_18', '--subject', t.alice, '--evidence', 'State ID card. Name: Test Person. Date of birth: 1990-04-12.']), (d) => d.outcome?.status === 'created' && d.verdict?.result === true);
+  step('pay verify-claim (x402)', run(['pay', 'verify-claim', t.a1], t.alice), (d) => d.settlement?.success === true && d.result?.valid === true);
+  step('pay verify-agent (x402)', run(['pay', 'verify-agent', t.agent], t.alice), (d) => d.settlement?.success === true);
+  step('ai (NEAR AI chat with tools)', run(['ai', `Is attestation ${t.a1} valid? Answer yes or no.`]), (d) => typeof (d.reply ?? d) === 'string');
+  refused('check run with an unknown rule', run(['check', 'run', 'no_such_rule', '--subject', t.alice, '--evidence', 'x']));
+  const sol = await solanaInstruction();
+  if (sol) step('chain attest-solana (MPC)', run(['chain', 'attest-solana', '--tx', sol.signature, '--instruction', String(sol.index), '--inner', '0'], t.alice), (d) => d.status === 'created');
+  else results.push({ step: 'chain attest-solana (MPC)', ok: false, detail: 'no finalized devnet transaction with inner instructions found' });
+}
+
+/** A recent finalized devnet transaction of the associated token account program, which always makes inner calls. */
+async function solanaInstruction(): Promise<{ signature: string; index: number } | null> {
+  const call = async (method: string, params: unknown[]) =>
+    ((await (await fetch('https://api.devnet.solana.com', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as { result: any }).result;
+  const sigs = (await call('getSignaturesForAddress', ['ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL', { limit: 20, commitment: 'finalized' }])) as Array<{ signature: string; err: unknown }>;
+  for (const s of sigs ?? []) {
+    if (s.err) continue;
+    const tx = await call('getTransaction', [s.signature, { commitment: 'finalized', encoding: 'json', maxSupportedTransactionVersion: 0 }]);
+    const g = tx?.meta?.innerInstructions?.[0];
+    if (g?.instructions?.length) return { signature: s.signature, index: g.index };
+  }
+  return null;
 }
 
 async function waitFor(fn: () => boolean, name: string, timeoutMs = 30_000) {

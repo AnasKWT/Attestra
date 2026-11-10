@@ -50,12 +50,17 @@ The near-workspaces flows separately found a gas-budget bug (G-1).
 
 ## Accepted by design
 
-- **Schema UIDs do not include the authority**, so they can be computed before registering; whoever registers a definition first administers its resolver settings. Register important schemas early.
-- **Fee changes take effect immediately**: a schema admin can raise a fee between an attester's transaction and its resolver call. Keep prepaid balances small; a maximum-fee field is a planned interface change.
+- **Schema UIDs do not include the authority**, so they can be computed before registering; whoever registers a definition first administers its resolver settings.
+  Register important schemas early.
+- **Fee changes take effect immediately**: a schema admin can raise a fee between an attester's transaction and its resolver call.
+  Keep prepaid balances small; a maximum-fee field is a planned interface change.
 - **Reward payouts attach 0.00125 NEAR** of token storage from the resolver; a malicious reward token can keep it, at a larger cost to the attacker.
 - **Contract-paid bookkeeping** (schema order list, multisig approvals, resolver admins, fee holds and tallies, staking entries) costs its trigger at least as much as the contract; contract balances are watched by the top-up service and the status page.
 - **Tier pushes and credential burns are sent once**; tiers only feed views, and a failed burn leaves a credential whose attestation reads as revoked.
-- **Trust in the verdicts contract's keys**: enclave keys, NEAR AI model keys and the MPC key are set by the owner. See the trust model in [README.md](README.md#trust-and-privacy-model).
+- **Trust in the verdicts contract's keys**: enclave keys, NEAR AI model keys and the MPC key are set by the owner.
+  See the trust model in [README.md](README.md#trust-and-privacy-model).
+- **Agent function-call keys** can attest and revoke as the account that granted them, within their gas allowance, until revoked; they cannot attach deposits, move NEAR or change delegates, keys or authority settings, and `revokeAgentKey` refuses to delete any other kind of key.
+- **Solana facts** are inner instructions read by the MPC network at `finalized` commitment; the contract checks the MPC signature over the payload it recomputes, and it never interprets the instruction data, so what a program call means (for example the amount of a token transfer) is for the reader to decode.
 
 ## Reporting a vulnerability
 

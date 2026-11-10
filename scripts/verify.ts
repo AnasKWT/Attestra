@@ -10,11 +10,14 @@
  * Env: SITE_URL (http://localhost:3100), INDEXER_URL (:5100), AGENT_URL (:5300), RELAYER_URL (:5200),
  * KEEPER_URL (:5400), TOPUP_URL (:5500), NEAR_NETWORK (testnet). Run the local stack first
  * (`pnpm dev` or `docker compose up`), or point the URLs at the hosted one.
+ * The NEAR AI attestation check runs tools/nearai-verify with Node >= 24.22.1 (this node, NODE24, or
+ * nvm's newest 24+) and needs NEARAI_API_KEY.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ed25519 } from '@noble/curves/ed25519.js';
@@ -79,6 +82,33 @@ function must(cond: unknown, msg: string): asserts cond {
 
 function b58sha256(bytes: Buffer) {
   return base58Encode(createHash('sha256').update(bytes).digest());
+}
+
+/** The SDK's engines field: `@nearai/inference-sdk` needs Node >= 24.22.1. */
+const NODE_MIN = [24, 22, 1];
+const atLeastMin = (v: string) => {
+  const p = v.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((p[i] ?? 0) !== NODE_MIN[i]) return (p[i] ?? 0) > NODE_MIN[i];
+  return true;
+};
+
+/** A node binary new enough for the SDK: this one, NODE24, or the newest one nvm installed. */
+function node24(): string | undefined {
+  if (atLeastMin(process.versions.node)) return process.execPath;
+  const env = process.env.NODE24;
+  if (env) {
+    const v = spawnSync(env, ['--version'], { encoding: 'utf8' });
+    return v.status === 0 && atLeastMin(v.stdout.trim()) ? env : undefined;
+  }
+  const dir = join(process.env.NVM_DIR ?? join(homedir(), '.nvm'), 'versions/node');
+  if (!existsSync(dir)) return undefined;
+  const best = readdirSync(dir)
+    .filter((v) => /^v\d+\.\d+\.\d+$/.test(v) && atLeastMin(v))
+    .sort((a, b) => {
+      const [x, y] = [a, b].map((v) => v.slice(1).split('.').map(Number));
+      return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+    })[0];
+  return best && existsSync(join(dir, best, 'bin/node')) ? join(dir, best, 'bin/node') : undefined;
 }
 
 async function txArgs(hash: string, signer: string): Promise<Record<string, unknown>> {
@@ -165,6 +195,31 @@ async function main() {
     }
     must(args.nearai.text.includes(args.verdict.evidence_hash), 'the model signed a different request');
     return `${args.verdict.rule_id} for ${args.verdict.subject} by ${args.verdict.model}; enclave ${args.enclave_key.slice(0, 16)}...`;
+  });
+
+  await check('The NEAR AI model key the verdicts contract trusts is attested by its TEE (verified with @nearai/inference-sdk)', async () => {
+    const dir = join(root, 'tools/nearai-verify');
+    const setup = 'with Node 24 run `pnpm install && pnpm build` in tools/nearai-verify';
+    const node = node24();
+    must(node, `@nearai/inference-sdk needs Node >= ${NODE_MIN.join('.')}: install it (\`nvm install 24\`) or set NODE24 to a node 24 binary`);
+    must(existsSync(join(dir, 'node_modules/@nearai/inference-sdk')) && existsSync(join(dir, 'dist/index.js')), `the verifier is not installed: ${setup}`);
+    must(process.env.NEARAI_API_KEY, 'NEARAI_API_KEY is not set: the SDK fetches model reports with a NEAR AI Cloud key (the agent\'s, from apps/agent/.env)');
+    const r = spawnSync(node, [join(dir, 'dist/index.js'), '--contract', c.contracts.verdicts, '--rpc', c.config.rpcUrls[0], '--json'], { cwd: dir, encoding: 'utf8', timeout: 180_000 });
+    let out: { ok: boolean; sdk?: string; error?: { message: string }; reports?: Array<{ model: string; ok: boolean; error?: { message: string; code?: string }; gateway?: { tcbStatus: string; tlsBinding: string }; signers: Array<{ key: string; tcbStatus: string; gpuEvidence: string }>; trusted?: { key: string; attested: boolean } }> };
+    try {
+      out = JSON.parse(r.stdout);
+    } catch {
+      throw new Error(`the verifier did not answer with JSON (status ${r.status ?? r.signal}): ${(r.stderr || r.stdout).trim().split('\n').slice(-3).join(' ')}`);
+    }
+    const reports = out.reports ?? [];
+    const failed = reports.find((x) => !x.ok);
+    must(out.ok && reports.length, out.error?.message ?? (failed ? `${failed.model}: ${failed.error?.message ?? 'not verified'}` : 'no model signer checked'));
+    return reports
+      .map((x) => {
+        const s = x.signers.find((y) => y.key === x.trusted?.key) ?? x.signers[0];
+        return `${x.model}: key ${x.trusted!.key.slice(0, 16)}... in a TDX report (TCB ${s.tcbStatus}), GPU evidence ${s.gpuEvidence}; Gateway TCB ${x.gateway?.tcbStatus}, TLS ${x.gateway?.tlsBinding.split(':')[0]}; SDK ${out.sdk ?? '?'}`;
+      })
+      .join('; ');
   });
 
   await check('A cross-chain attestation was verified by the MPC network and its event is final', async () => {

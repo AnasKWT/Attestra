@@ -18,7 +18,7 @@ This is the plan for doing it, and the one switch that moves every part of Attes
 | Test token with a faucet (`token.`) | deployed | not deployed |
 | x402 and fee payments | the test token | native USDC (`17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`) |
 | Staking token | the test token | a real NEP-141, set with `STAKING_TOKEN` |
-| Foreign chains | Base Sepolia, Arbitrum Sepolia, Polygon Amoy, BNB testnet, Avalanche Fuji | Ethereum, Base, Arbitrum, Polygon, BNB, Avalanche |
+| Foreign chains | Base Sepolia, Arbitrum Sepolia, Polygon Amoy, BNB testnet, Avalanche Fuji, Solana devnet (the testnet MPC network does not serve Ethereum) | Ethereum, Base, Arbitrum, Polygon, BNB, Avalanche, Solana |
 | Contract builds | local or reproducible | reproducible only (the deploy script refuses anything else) |
 
 ## Before starting
@@ -41,12 +41,15 @@ Decisions and accounts the owner provides:
    ```
 
 2. Rehearse the whole mainnet deploy on a local node from the same build: reproducible wasm only, no faucet token, a stand-in NEP-141 for USDC and staking.
+   The rehearsal runs the mainnet code paths of the deploy script against stand-ins, not mainnet's own contract code: USDC and the staking token are a local NEP-141, and the MPC is the sandbox double.
+   It was last run on 2026-11-10 and deployed, wired and registered every contract and schema.
 
    ```bash
    REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox
    ```
 
-3. Deploy. The script refuses unless `ATTESTRA_MAINNET_GO` names the root, so it cannot run by accident:
+3. Deploy.
+   The script refuses unless `ATTESTRA_MAINNET_GO` names the root, so it cannot run by accident:
 
    ```bash
    ATTESTRA_MAINNET_GO=attestra.near BUILD=<commit> STAKING_TOKEN=<nep141> GOVERNANCE=<account> \
@@ -70,5 +73,6 @@ Decisions and accounts the owner provides:
 ## Keys and upgrades
 
 - The contracts have no upgrade method: code changes are deployed with each contract account's full-access key (`UPGRADE=1` in the deploy script), and state is kept.
-- Those keys live in `~/.near-credentials/mainnet/` on the machine that deployed. Move them to a hardware wallet or a multisig after the deploy, or delete them to make a contract immutable.
+- Those keys live in `~/.near-credentials/mainnet/` on the machine that deployed.
+  Move them to a hardware wallet or a multisig after the deploy, or delete them to make a contract immutable.
 - Contract owners can change allowlisted keys and resolver settings; give ownership to a multisig before real value depends on it.

@@ -5,6 +5,7 @@ import { AttestraClient } from '@attestra/sdk';
 import { Near } from 'near-kit';
 import { createApp } from './app';
 import { loadConfig } from './config';
+import { startMarketWorker } from './market';
 import { NearAi } from './nearai';
 
 const config = loadConfig();
@@ -15,3 +16,8 @@ const client = new AttestraClient({ network: config.network, root: config.net.ro
 const app = createApp({ config, ai: new NearAi(config.nearAiKey), client, near, startedAt: Date.now() });
 
 serve({ fetch: app.fetch, port: config.port }, () => console.log(`${new Date().toISOString()} agent listening on :${config.port} (${config.network}, ${config.accountId})`));
+
+if (config.marketToken) {
+  startMarketWorker({ client, token: config.marketToken, base: config.marketUrl });
+  console.log(`${new Date().toISOString()} agent market worker polling ${config.marketUrl}`);
+}
