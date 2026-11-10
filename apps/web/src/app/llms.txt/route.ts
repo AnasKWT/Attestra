@@ -7,12 +7,12 @@ export function GET() {
   const site = SITE_URL || '';
   const body = `# Attestra
 
-> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by a NEAR AI Cloud verifiable model in a TEE and signed by a checker (an OutLayer TEE component, or a local key while the deployment bootstraps), facts about other chains are verified by NEAR's MPC network without an oracle, agents get identity, delegation and reputation, and any event can be proven final with a light client proof.
+> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by a NEAR AI Cloud verifiable model in a TEE and signed by a checker (an OutLayer TEE component, or a local key while the deployment bootstraps), facts about EVM chains and Solana are verified by NEAR's MPC network without an oracle, agents get identity, delegation, scoped function-call keys and reputation, and any event can be proven final with a light client proof.
 
 Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 - schemas: ${CONTRACTS.schemas}
 - attestations: ${CONTRACTS.attestations}
-- verdicts (AI-checked facts, cross-chain facts, wallet links): ${CONTRACTS.verdicts}
+- verdicts (AI-checked facts, EVM and Solana facts, wallet links): ${CONTRACTS.verdicts}
 - credentials (NEP-171, non-transferable): ${CONTRACTS.credentials}
 - staking (NEP-141 tiers): ${CONTRACTS.staking}
 - resolvers: ${Object.values(CONTRACTS.resolvers).join(', ')}
@@ -36,7 +36,7 @@ Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 - addDelegate, attestOnBehalf, signDelegatedAttestation (NEP-413), relaySigned
 - mintCredential, scheduleRevocation, createMultisigAuthority, stake
 - proveAttestation (light client proof, checked locally)
-- requestPrivateCheck, attestForeignEvent, linkWallet, registerAgent, rateAgent, paidVerify (x402)
+- requestPrivateCheck, attestForeignEvent (EVM logs), attestForeignInstruction (Solana instructions), linkWallet, registerAgent, rateAgent, grantAgentKey and revokeAgentKey (function-call access keys), paidVerify (x402)
 - Every method returns { success, data?, error?, txHash? } and never throws.
 
 ## CLI (@attestra/cli)

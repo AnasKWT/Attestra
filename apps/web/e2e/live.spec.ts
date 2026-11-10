@@ -155,6 +155,20 @@ async function eventually(fn: () => Promise<void>, timeout = 120_000) {
 // ──────────────────────────────────────────────────────────── passkey key, funding, cleanup
 
 /** Asks the authenticator for the PRF output again (as passkey.ts does) to hold the account key in this process. */
+/** A recent finalized devnet transaction of the associated token account program, which always makes inner calls. */
+async function solanaInstruction(): Promise<{ signature: string; index: number }> {
+  const call = async <T>(method: string, params: unknown[]): Promise<T> =>
+    ((await (await fetch('https://api.devnet.solana.com', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json()) as { result: T }).result;
+  const sigs = await call<Array<{ signature: string; err: unknown }>>('getSignaturesForAddress', ['ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL', { limit: 20, commitment: 'finalized' }]);
+  for (const s of sigs) {
+    if (s.err) continue;
+    const tx = await call<{ meta?: { innerInstructions?: Array<{ index: number; instructions: unknown[] }> } } | null>('getTransaction', [s.signature, { commitment: 'finalized', encoding: 'json', maxSupportedTransactionVersion: 0 }]);
+    const g = tx?.meta?.innerInstructions?.[0];
+    if (g?.instructions?.length) return { signature: s.signature, index: g.index };
+  }
+  throw new Error('no finalized devnet transaction with inner instructions found');
+}
+
 async function derivePasskey(): Promise<PasskeyAccount> {
   const { id, prf } = await page.evaluate(async (salt) => {
     const id = localStorage.getItem('attestra.passkey');
@@ -543,6 +557,25 @@ test.describe('live on testnet with one passkey account', () => {
     expect(att.data?.schema_uid).toBe(knownSchemaUid('foreignEvent'));
     const fields = new SchemaEncoder(KNOWN_SCHEMAS.foreignEvent.definition).decode(att.data!.data);
     expect(fields).toMatchObject({ chain: 'base', log_index: String(logIndex) });
+  });
+
+  test('a Solana instruction is verified by the MPC network and attested', async () => {
+    test.setTimeout(600_000);
+    const { signature, index } = await solanaInstruction();
+    run.tx.solana_source = signature;
+    await open('/sandbox/app/cross-chain');
+    await page.locator('#ch').selectOption('solana');
+    await page.locator('#tx').fill(signature);
+    await page.locator('#li').fill(String(index));
+    await page.locator('#ii').fill('0');
+    await submit('1. Read the event on its chain', 'Fetch the instruction');
+    const r = await submit('2. Verify with Chain Signatures and attest', 'Verify and attest', { timeout: 420_000 });
+    if (r.tx) run.tx.solana = r.tx;
+    const uid = await uidIn(r.card);
+    const att = await reader.getAttestation(uid);
+    expect(att.data?.schema_uid).toBe(knownSchemaUid('foreignInstruction'));
+    const fields = new SchemaEncoder(KNOWN_SCHEMAS.foreignInstruction.definition).decode(att.data!.data);
+    expect(fields).toMatchObject({ chain: 'solana', instruction_index: String(index), inner_instruction_index: '0' });
   });
 
   test('an agent is registered by its owner and rated by a client, and its profile shows both', async () => {

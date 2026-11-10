@@ -1,3 +1,4 @@
+import { TOOLS } from '@attestra/sdk';
 import { DocsNav } from '@/components/docs/DocsNav';
 import { CodeWindow, InlineCode } from '@/components/ui/Code';
 import { Alert, Badge } from '@/components/ui/primitives';
@@ -25,7 +26,7 @@ const SDK_GROUPS: Array<[string, Array<[string, string]>]> = [
   ['Delegation', [['addDelegate(delegate, scope)', 'Grant with schemas, expiry, max uses, revoke right'], ['removeDelegate(delegate)', 'Remove a grant'], ['isDelegate(authority, delegate)', 'Active grant?'], ['getDelegates(authority)', 'All grants'], ['attestOnBehalf(params)', 'Attest as a delegate'], ['revokeOnBehalf(uid)', 'Revoke as a delegate'], ['addSignerKey(publicKey)', 'Key that may sign requests'], ['signDelegatedAttestation(params, signer)', 'NEP-413 request, off chain'], ['signDelegatedRevocation(params, signer)', 'NEP-413 revocation'], ['submitSigned(request)', 'Submit yourself'], ['relaySigned(request)', 'Relayer submits and pays']]],
   ['Resolvers', [['whitelistAdd / whitelistRemove / whitelistCheck', 'Per schema'], ['feeSetFee / feeGetFee / feeDeposit / feeGetBalance / feeCollected / feeWithdraw / feeWithdrawBalance', 'NEAR or NEP-141'], ['tokenGatedSetConfig / tokenGatedGetConfig', 'Minimum NEP-141 balance'], ['tokenRewardSetConfig / tokenRewardFund / tokenRewardGetConfig / tokenRewardGetDistributed', 'Pay subjects'], ['pipelineSetResolvers / pipelineGetResolvers', 'Chain resolvers'], ['resolverInfo(resolver) / schemaAdmin(resolver, uid)', 'Inspect']]],
   ['NEAR native', [['mintCredential(uid) / getCredential(uid) / listCredentials(owner)', 'NEP-171 credentials'], ['scheduleRevocation(uid, at) / getScheduledRevocation(uid) / finalizeRevocation(uid)', 'Scheduled revocation'], ['createMultisigAuthority / proposeMultisig / approveMultisig / executeMultisig / cancelMultisig / getMultisig / getProposal', 'k-of-n authorities'], ['stake / unstake / getStake / getTiers', 'Staking tiers'], ['faucet() / tokenBalance(account)', 'Test token'], ['listEvents(q) / proveAttestation(uid) / proveReceipt(id, receiver)', 'Audit trail and light client proofs']]],
-  ['Only on NEAR', [['requestPrivateCheck({ ruleId, subject, evidence })', 'Private AI check'], ['attestForeignEvent({ chain, txId, logIndex, log })', 'Chain Signatures foreign tx'], ['linkWalletMessage / linkWallet / linkedAccount', 'Wallets on other chains'], ['registerAgent / delegateToAgent / rateAgent / getAgentProfile', 'Know Your Agent'], ['paidVerify(kind, target)', 'x402 paid verification']]],
+  ['Only on NEAR', [['requestPrivateCheck({ ruleId, subject, evidence })', 'Private AI check'], ['attestForeignEvent({ chain, txId, logIndex, log })', 'Chain Signatures: an EVM log'], ['attestForeignInstruction({ txId, instructionIndex, innerInstructionIndex })', 'Chain Signatures: a Solana instruction'], ['linkWalletMessage / linkWallet / linkedAccount', 'Wallets on other chains'], ['registerAgent / delegateToAgent / rateAgent / getAgentProfile', 'Know Your Agent'], ['grantAgentKey / revokeAgentKey / agentKeys', 'Function-call keys for agents'], ['paidVerify(kind, target)', 'x402 paid verification']]],
 ];
 
 const CLI: Array<[string, string]> = [
@@ -55,15 +56,10 @@ const CLI: Array<[string, string]> = [
   ['ai', 'ask in natural language (NEAR AI Cloud)'],
 ];
 
+// From the SDK's own tool list, so the table always matches what the MCP server serves.
 const MCP_TOOLS: Array<[string, string]> = [
-  ['get_schema, list_schemas, well_known_schemas', 'read'],
-  ['get_attestation, verify_attestation, list_attestations', 'read'],
-  ['get_authority, get_delegates', 'read'],
-  ['get_agent_reputation', 'read'],
-  ['prove_attestation', 'read (light client proof)'],
-  ['decode_data, compute_schema_uid', 'offline'],
-  ['register_schema, create_attestation, revoke_attestation, rate_agent', 'write, capped per tool and per day'],
-  ['request_private_check', 'write, capped'],
+  [TOOLS.filter((t) => !t.write).map((t) => t.name).join(', '), 'read'],
+  [TOOLS.filter((t) => t.write).map((t) => t.name).join(', '), 'write: capped per tool and per day, deposits and payments capped per call'],
 ];
 
 const API: Array<[string, string]> = [

@@ -146,8 +146,8 @@ const MCP = `// Claude Code, Codex or Claude Desktop
     }
   }
 }
-// tools: get_attestation, verify_attestation, get_agent_reputation,
-// prove_attestation, register_schema, create_attestation, ...`;
+// tools: verify_attestation, prove_attestation, get_agent_reputation,
+// create_attestation, attest_foreign_instruction, paid_verify, ...`;
 
 export default function Home() {
   return (
