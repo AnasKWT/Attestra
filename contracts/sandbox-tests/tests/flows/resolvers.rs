@@ -1,6 +1,6 @@
 //! Each resolver kind on its own, then pipelines that abort a charged fee.
 
-use attestra_sandbox_tests::crypto::attestation_uid;
+use attestra_sandbox_tests::crypto::{attestation_uid, b64};
 use attestra_sandbox_tests::util::{event, events, millinear, ok, tokens, u128_of, yocto, TOKEN, TX_GAS};
 use attestra_sandbox_tests::Env;
 use near_workspaces::result::ExecutionFinalResult;
@@ -97,7 +97,7 @@ async fn whitelist_resolver() -> anyhow::Result<()> {
     // Not whitelisted: removed and the storage it took is back in carol's available balance.
     deposit_storage(&env, carol).await?;
     let plain = env.schema(carol, "string plain", None, true).await?;
-    attest(&env, carol, &plain, bob.id().as_str(), b"first").await?;
+    let _ = attest(&env, carol, &plain, bob.id().as_str(), b"first").await?;
     let before = env.storage(&env.attestations, carol.id()).await?.expect("registered");
     let count = env.attestation_count().await?;
     let (outcome, result) = attest(&env, carol, &schema, bob.id().as_str(), b"\x01\x00\x00\x00c").await?;
@@ -153,7 +153,7 @@ async fn fee_resolver() -> anyhow::Result<()> {
     assert_eq!(fee_balance(&env, bob.id(), None).await?, millinear(70).as_yoctonear());
     // Collected once the attestation is committed.
     assert_eq!(collected(&env, &near_schema, None).await?, fee);
-    attest(&env, bob, &near_schema, carol.id().as_str(), b"n2").await?;
+    let _ = attest(&env, bob, &near_schema, carol.id().as_str(), b"n2").await?;
     assert_eq!(fee_balance(&env, bob.id(), None).await?, millinear(20).as_yoctonear());
     // 0.02 NEAR left is below the fee.
     let (outcome, result) = attest(&env, bob, &near_schema, carol.id().as_str(), b"n3").await?;
@@ -273,7 +273,7 @@ async fn token_gated_and_reward_resolvers() -> anyhow::Result<()> {
     assert_eq!(u128_of(&reward["distributed_total"]), 10 * TOKEN);
 
     // A second reward to the same, now registered, subject.
-    attest(&env, carol, &rewarded, dave.id().as_str(), b"r2").await?;
+    let _ = attest(&env, carol, &rewarded, dave.id().as_str(), b"r2").await?;
     assert_eq!(env.ft_balance(dave.id()).await?, 20 * TOKEN);
     // A CAIP-10 subject gets no reward and the pool is untouched.
     let (outcome, result) =
@@ -381,5 +381,111 @@ async fn pipelines_abort_charged_fees() -> anyhow::Result<()> {
     assert_eq!(outcome["status"], "created");
     assert_eq!(collected(&env, &second, None).await?, fee);
     assert_eq!(fee_balance(&env, bob.id(), None).await?, millinear(100).as_yoctonear());
+    Ok(())
+}
+
+/// The setup the reward resolver recommends: a whitelist in front of it, and every kind at once.
+#[tokio::test]
+async fn pipelines_with_rewards() -> anyhow::Result<()> {
+    let env = Env::new().await?;
+    let (alice, bob, carol, eve) = (&env.alice, &env.bob, &env.carol, &env.eve);
+    let token = env.token.id();
+    for who in [bob, carol] {
+        deposit_storage(&env, who).await?;
+    }
+    env.faucet(alice).await?;
+    env.faucet(bob).await?;
+
+    // Whitelist, then reward.
+    let members = env.schema(alice, "string member", Some(env.pipeline.id()), true).await?;
+    let set = admin(
+        alice,
+        env.pipeline.id(),
+        "set_pipeline",
+        json!({ "schema_uid": members, "resolvers": [env.whitelist.id(), env.reward.id()] }),
+    )
+    .await?;
+    assert_eq!(set, json!(true));
+    admin(
+        alice,
+        env.whitelist.id(),
+        "whitelist_add",
+        json!({ "schema_uid": members, "account_id": bob.id() }),
+    )
+    .await?;
+    admin(
+        alice,
+        env.reward.id(),
+        "set_reward",
+        json!({ "schema_uid": members, "token": token, "amount": tokens(10) }),
+    )
+    .await?;
+    let _ = ok(env
+        .ft_transfer_call(alice, env.reward.id(), 100 * TOKEN, &json!({ "fund": members }).to_string())
+        .await?);
+
+    let (outcome, result) = attest(&env, bob, &members, eve.id().as_str(), b"m1").await?;
+    assert_eq!(outcome["status"], "created");
+    assert_eq!(event(&result, "reward_paid")["account_id"], eve.id().as_str());
+    assert_eq!(env.ft_balance(eve.id()).await?, 10 * TOKEN);
+    let (outcome, result) = attest(&env, carol, &members, eve.id().as_str(), b"m2").await?;
+    assert_rejected(&env, &outcome, &result).await?;
+    assert!(events(&result, "reward_paid").is_empty());
+    assert_eq!(env.ft_balance(eve.id()).await?, 10 * TOKEN);
+
+    // Four resolvers: whitelist, token gated, fee and reward.
+    let full = env.schema(alice, "string full_pipeline", Some(env.pipeline.id()), true).await?;
+    let resolvers = [env.whitelist.id(), env.gated.id(), env.fee.id(), env.reward.id()];
+    let set = admin(
+        alice,
+        env.pipeline.id(),
+        "set_pipeline",
+        json!({ "schema_uid": full, "resolvers": resolvers }),
+    )
+    .await?;
+    assert_eq!(set, json!(true));
+    admin(alice, env.whitelist.id(), "whitelist_add", json!({ "schema_uid": full, "account_id": bob.id() }))
+        .await?;
+    admin(
+        alice,
+        env.gated.id(),
+        "set_gate",
+        json!({ "schema_uid": full, "token": token, "min_balance": tokens(100) }),
+    )
+    .await?;
+    let fee = millinear(10).as_yoctonear();
+    admin(
+        alice,
+        env.fee.id(),
+        "set_fee",
+        json!({ "schema_uid": full, "token": null, "amount": fee.to_string() }),
+    )
+    .await?;
+    admin(
+        alice,
+        env.reward.id(),
+        "set_reward",
+        json!({ "schema_uid": full, "token": token, "amount": tokens(5) }),
+    )
+    .await?;
+    let _ = ok(env
+        .ft_transfer_call(alice, env.reward.id(), 50 * TOKEN, &json!({ "fund": full }).to_string())
+        .await?);
+    let _ = ok(bob.call(env.fee.id(), "deposit").deposit(millinear(100)).transact().await?);
+
+    // The payout runs in on_committed, forwarded by the pipeline to all four resolvers; with this
+    // many hooks it needs more than 300 TGas, so the caller attaches up to 1 PGas.
+    let result = ok(bob
+        .call(env.attestations.id(), "attest")
+        .args_json(json!({ "schema_uid": full, "subject": eve.id(), "data": b64(b"f1"), "expiration_time": null, "ref_uid": null }))
+        .max_gas()
+        .transact()
+        .await?);
+    let outcome: Value = result.clone().json()?;
+    assert_eq!(outcome["status"], "created", "logs: {:#?}", result.logs());
+    assert_eq!(event(&result, "fee_charged")["payer"], bob.id().as_str());
+    assert_eq!(event(&result, "reward_paid")["account_id"], eve.id().as_str());
+    assert_eq!(collected(&env, &full, None).await?, fee);
+    assert_eq!(env.ft_balance(eve.id()).await?, 15 * TOKEN);
     Ok(())
 }

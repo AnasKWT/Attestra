@@ -1,0 +1,30 @@
+# TLS in front of the services on the VM. API_HOST is the API hostname (for example api.example.com);
+# its DNS A record points at the VM. Caddy gets and renews certificates itself.
+{$API_HOST} {
+	encode zstd gzip
+	handle_path /indexer/* {
+		reverse_proxy indexer:5100
+	}
+	handle_path /relayer/* {
+		reverse_proxy relayer:5200
+	}
+	handle_path /agent/* {
+		reverse_proxy agent:5300
+	}
+	handle_path /keeper/* {
+		reverse_proxy keeper:5400
+	}
+	handle_path /topup/* {
+		reverse_proxy topup:5500
+	}
+	handle /.well-known/agent-card.json {
+		reverse_proxy agent:5300
+	}
+	handle /mcp {
+		reverse_proxy agent:5300
+	}
+	handle /api/* {
+		reverse_proxy indexer:5100
+	}
+	respond / "Attestra API: /api (indexer), /indexer, /relayer, /agent, /keeper, /topup, /mcp" 200
+}

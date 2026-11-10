@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.next
+**/.data
+**/.env
+**/.env.*
+!**/.env.example
+contracts/target
+internal
+CLAUDE.local.md
+.git

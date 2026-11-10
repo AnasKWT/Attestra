@@ -1,0 +1,25 @@
+{
+  "network": "mainnet",
+  "status": "planned",
+  "root": "attestra.near",
+  "note": "Nothing is deployed on mainnet. scripts/deploy.ts mainnet writes the live file after the owner's go-ahead (see MAINNET.md).",
+  "contracts": {
+    "schemas": "schemas.attestra.near",
+    "attestations": "attestations.attestra.near",
+    "verdicts": "verdicts.attestra.near",
+    "credentials": "credentials.attestra.near",
+    "staking": "staking.attestra.near",
+    "whitelist": "whitelist.attestra.near",
+    "fee": "fee.attestra.near",
+    "gated": "gated.attestra.near",
+    "reward": "reward.attestra.near",
+    "pipeline": "pipeline.attestra.near"
+  },
+  "external": {
+    "mpc": "v1.signer",
+    "payment_token": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "wrap_near": "wrap.near",
+    "outlayer": "outlayer.near",
+    "near_ai": "https://cloud-api.near.ai/v1"
+  }
+}

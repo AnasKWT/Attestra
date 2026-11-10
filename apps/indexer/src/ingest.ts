@@ -15,6 +15,8 @@ import type { TxApi } from './txapi';
 const OVERLAP = 30;
 /** Largest height window read per account per pass. */
 const WINDOW = 50_000;
+/** Blocks below the head an empty database starts from when no deployment height is configured. */
+const FRESH_START = 2_000;
 
 export interface IngestDeps {
   config: IndexerConfig;
@@ -53,9 +55,12 @@ export async function ingestOnce(deps: IngestDeps): Promise<number> {
   const head = (await deps.api.head()) - deps.config.lagBlocks;
   const contracts = new Set(deps.config.accounts);
   let total = 0;
+  // With no recorded deployment height, an empty database starts near the head instead of at genesis.
+  const start = deps.config.startHeight > 0 ? deps.config.startHeight : Math.max(0, head - FRESH_START);
+  let lowest = Number.POSITIVE_INFINITY;
   for (const account of deps.config.accounts) {
     const cursor = await db.getCursor(deps.db, account);
-    const from = cursor === null ? deps.config.startHeight : Math.max(deps.config.startHeight, cursor - OVERLAP);
+    const from = cursor === null ? start : Math.max(deps.config.startHeight, cursor - OVERLAP);
     if (from > head) continue;
     const to = Math.min(head, from + WINDOW);
     const txs = await deps.api.accountTxs(account, from, to);
@@ -68,9 +73,10 @@ export async function ingestOnce(deps: IngestDeps): Promise<number> {
     for (const row of fresh) await refresh(deps, row);
     total += fresh.length;
     await db.setCursor(deps.db, account, to);
+    lowest = Math.min(lowest, to);
     if (fresh.length) deps.log?.(`${account}: ${fresh.length} new events up to ${to}`);
   }
-  await db.setMeta(deps.db, 'last_block', String(head));
+  if (Number.isFinite(lowest)) await db.setMeta(deps.db, 'last_block', String(lowest));
   await db.setMeta(deps.db, 'last_pass', String(Date.now()));
   return total;
 }

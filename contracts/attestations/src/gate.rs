@@ -12,6 +12,13 @@ const GAS_RESOLVER: Gas = Gas::from_tgas(20);
 /// The callback's own work plus the post-commit hook and a credential burn it may start.
 const GAS_VERDICT: Gas = Gas::from_tgas(95);
 const GAS_COMMITTED_HOOK: Gas = Gas::from_tgas(60);
+/// The most the resolver call can use: a pipeline of four resolvers needs 35 + 40 * 4 Tgas.
+/// Gas attached beyond this (and the verdict) goes to the verdict, so a pipeline forwarding
+/// `on_committed` to several resolvers (a reward payout among them) gets enough when the caller
+/// attaches more.
+const GAS_RESOLVER_CAP: Gas = Gas::from_tgas(200);
+/// What `gate` and the rest of its call may still burn after measuring the gas left.
+const GAS_GATE_RESERVE: Gas = Gas::from_tgas(30);
 
 #[near(serializers = [borsh])]
 #[derive(Clone, Debug)]
@@ -36,9 +43,12 @@ impl Contract {
                 .with_unused_gas_weight(1)
                 .on_revoke(call),
         };
+        let left = env::prepaid_gas().saturating_sub(env::used_gas());
+        let extra = left
+            .saturating_sub(GAS_RESOLVER_CAP.saturating_add(GAS_VERDICT).saturating_add(GAS_GATE_RESERVE));
         ask.then(
             Self::ext(env::current_account_id())
-                .with_static_gas(GAS_VERDICT)
+                .with_static_gas(GAS_VERDICT.saturating_add(extra))
                 .with_unused_gas_weight(0)
                 .on_resolver_verdict(id),
         )

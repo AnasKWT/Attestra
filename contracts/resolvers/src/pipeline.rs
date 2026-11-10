@@ -7,6 +7,9 @@
 //!
 //! Gas: an attestation through a pipeline of n resolvers needs about 35 + 40n Tgas (25 Tgas per
 //! hook call plus 15 Tgas per step), and the leftover is shared between the hooks and steps.
+//! `on_committed` is forwarded to every resolver at once, so a token reward behind two or more
+//! other resolvers needs more than 300 Tgas to pay out (about 400 Tgas with three resolvers); the
+//! attestations contract passes gas beyond what the resolver calls can use on to that hook.
 
 use crate::*;
 use attestra_common::promise_bool;

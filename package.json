@@ -11,16 +11,19 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "pnpm -r --if-present build",
+    "build": "pnpm --filter @attestra/sdk build && pnpm --filter @attestra/mcp build && pnpm --filter @attestra/cli build",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
     "test:contracts": "cd contracts && cargo test --workspace --exclude attestra-sandbox-tests",
     "test:sandbox": "cd contracts && cargo test -p attestra-sandbox-tests -- --test-threads=1",
     "build:contracts": "contracts/scripts/build.sh",
-    "security": "node scripts/security.mjs",
-    "verify": "node --experimental-strip-types scripts/verify.ts",
-    "dev": "node --experimental-strip-types scripts/dev.ts"
+    "security": "tsx scripts/security.ts",
+    "verify": "tsx scripts/verify.ts",
+    "dev": "tsx scripts/dev.ts",
+    "build:web": "pnpm --filter @attestra/web build",
+    "deploy:testnet": "tsx scripts/deploy.ts testnet",
+    "deploy:sandbox": "tsx scripts/deploy.ts sandbox"
   },
   "devDependencies": {
     "tsx": "4.21.0",

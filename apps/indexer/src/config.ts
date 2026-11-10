@@ -1,6 +1,18 @@
 /** Indexer settings from the environment; every value has a working public testnet default. */
 
+import { existsSync, readFileSync } from 'node:fs';
 import { contractIdsFor, resolveNetwork, type Network } from '@attestra/sdk';
+
+/** The deployment's first block, from deployments/<network>.json when it is present. */
+function deploymentHeight(network: string): number {
+  const file = new URL(`../../../deployments/${network}.json`, import.meta.url);
+  if (!existsSync(file)) return 0;
+  try {
+    return Number((JSON.parse(readFileSync(file, 'utf8')) as { start_height?: number }).start_height ?? 0);
+  } catch {
+    return 0;
+  }
+}
 
 export interface IndexerConfig {
   network: Network;
@@ -29,7 +41,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig 
     txApiUrl: (env.TX_API_URL ?? net.txApiUrl).replace(/\/+$/, ''),
     rpcUrl: env.RPC_URL ?? net.rpcUrls[0],
     port: Number(env.PORT ?? 5100),
-    startHeight: Number(env.START_HEIGHT ?? 0),
+    startHeight: Number(env.START_HEIGHT || deploymentHeight(network)),
     pollMs: Number(env.POLL_MS ?? 4000),
     lagBlocks: Number(env.LAG_BLOCKS ?? 3),
     fastnearKey: env.FASTNEAR_API_KEY || undefined,

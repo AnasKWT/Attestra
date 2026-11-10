@@ -190,6 +190,36 @@ fn resolver_approves_and_rejects() {
     assert!(c.get_attestation(uid3).is_none());
 }
 
+/// Up to what the resolver call can use, the verdict callback gets a fixed 95 Tgas; gas attached
+/// beyond that goes to the verdict, which passes it on to `on_committed`.
+#[test]
+fn extra_gas_goes_to_the_verdict() {
+    use near_sdk::mock::MockAction;
+    let mut c = setup();
+    let mut verdict_tgas = |prepaid_tgas: u64| -> u64 {
+        testing_env!(ctx("alice.testnet", NearToken::from_millinear(50), T0)
+            .prepaid_gas(near_sdk::Gas::from_tgas(prepaid_tgas))
+            .build());
+        drop(c.attest(schema(2), "bob.testnet".into(), Base64VecU8(vec![1]), None, None));
+        near_sdk::test_utils::get_created_receipts()
+            .iter()
+            .flat_map(|r| r.actions.iter())
+            .find_map(|a| match a {
+                MockAction::FunctionCallWeight { method_name, prepaid_gas, .. }
+                    if method_name == b"on_resolver_verdict" =>
+                {
+                    Some(prepaid_gas.as_tgas())
+                }
+                _ => None,
+            })
+            .expect("the verdict callback")
+    };
+    assert_eq!(verdict_tgas(300), 95);
+    assert_eq!(verdict_tgas(320), 95);
+    let at_one_pgas = verdict_tgas(1_000);
+    assert!(at_one_pgas > 600 && at_one_pgas < 1_000 - 200, "{at_one_pgas}");
+}
+
 #[test]
 fn revoke_rules() {
     let mut c = setup();

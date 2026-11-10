@@ -144,6 +144,10 @@ async function main() {
     external: { mpc },
   };
   const contracts = record.contracts as Record<string, Record<string, unknown>>;
+  // The indexer starts here on an empty database: the first deploy's block, kept across reruns.
+  const previousFile = join(repo, `deployments/${NET}.json`);
+  const previousStart = existsSync(previousFile) ? (JSON.parse(readFileSync(previousFile, 'utf8')).start_height as number | undefined) : undefined;
+  record.start_height = previousStart ?? (await rpc<{ header: { height: number } }>('block', { finality: 'final' })).header.height - 10;
 
   // 1. accounts and code
   for (const p of PLAN) {
