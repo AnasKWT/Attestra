@@ -51,16 +51,16 @@ export function LiveStats({ className = '' }: { className?: string }) {
   ];
   return (
     <div className={className}>
-      <dl className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-panel shadow-panel sm:grid-cols-4">
+      <dl className="grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-panel shadow-panel sm:grid-cols-4">
         {items.map(([label, v], i) => (
           // Two by two on phones, one row from sm: every cell but the row's last gets a right border.
-          <div key={label} className={`border-line px-5 py-4 ${i < 2 ? 'border-b sm:border-b-0' : ''} ${i % 2 === 0 ? 'border-r' : ''} ${i < 3 ? 'sm:border-r' : ''}`}>
-            <dt className="font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-mute">{label}</dt>
-            <dd className="mt-1 font-display text-2xl font-semibold tabular-nums text-fg">{s === null ? <span className="skeleton inline-block h-7 w-12 rounded-md align-middle" /> : v === null || v === undefined ? 'n/a' : formatCount(v)}</dd>
+          <div key={label} className={`border-line px-5 py-5 ${i < 2 ? 'border-b sm:border-b-0' : ''} ${i % 2 === 0 ? 'border-r' : ''} ${i < 3 ? 'sm:border-r' : ''}`}>
+            <dt className="text-[13px] text-mute">{label}</dt>
+            <dd className="mt-1.5 font-display text-[1.6rem] font-semibold leading-8 tabular-nums text-fg">{s === null ? <span className="skeleton inline-block h-6 w-12 rounded align-middle" /> : v === null || v === undefined ? <span className="text-mute">n/a</span> : formatCount(v)}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-2 text-right text-[11.5px] text-mute">{source === 'indexer' ? 'Live from the indexer' : source === 'chain' ? 'Read from the contracts (indexer offline)' : s === null ? `Reading NEAR ${NETWORK}` : 'Unavailable: the indexer and the contracts did not answer'}</p>
+      <p className="mt-2.5 text-right text-[12px] text-mute">{source === 'indexer' ? 'Live from the indexer' : source === 'chain' ? 'Read from the contracts (indexer offline)' : s === null ? `Reading NEAR ${NETWORK}` : 'Unavailable: the indexer and the contracts did not answer'}</p>
     </div>
   );
 }

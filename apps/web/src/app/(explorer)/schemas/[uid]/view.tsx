@@ -44,7 +44,7 @@ export function SchemaDetail({ uid }: { uid: string }) {
                 <div className="overflow-hidden rounded-xl border border-line">
                   <table className="w-full text-left text-[13px]">
                     <thead>
-                      <tr className="border-b border-line bg-panel-2 font-mono text-[10.5px] uppercase tracking-wider text-mute">
+                      <tr className="border-b border-line bg-panel-2 text-[12px] font-medium text-mute">
                         <th className="px-3 py-2">Field</th>
                         <th className="px-3 py-2">Type</th>
                       </tr>

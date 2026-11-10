@@ -1,7 +1,7 @@
 import { TOOLS } from '@attestra/sdk';
 import { DocsNav } from '@/components/docs/DocsNav';
 import { CodeWindow, InlineCode } from '@/components/ui/Code';
-import { Alert, Badge } from '@/components/ui/primitives';
+import { Alert, Eyebrow } from '@/components/ui/primitives';
 import { CONTRACTS, NET } from '@/lib/config';
 
 export const metadata = { title: 'Docs' };
@@ -90,7 +90,7 @@ function Table({ head, rows, mono = true }: { head: [string, string]; rows: Read
     <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-panel">
       <table className="w-full text-left text-[13px]">
         <thead>
-          <tr className="border-b border-line bg-panel-2 font-mono text-[10.5px] uppercase tracking-wider text-mute">
+          <tr className="border-b border-line bg-panel-2 text-[12px] font-medium text-mute">
             <th className="px-4 py-2.5">{head[0]}</th>
             <th className="px-4 py-2.5">{head[1]}</th>
           </tr>
@@ -110,14 +110,13 @@ function Table({ head, rows, mono = true }: { head: [string, string]; rows: Read
 
 export default function Docs() {
   return (
-    <div className="relative">
-      <div className="spotlight pointer-events-none absolute inset-x-0 top-0 h-72 opacity-60" />
-      <div className="relative mx-auto flex max-w-7xl gap-10 px-4 py-12 sm:px-6">
+    <div>
+      <div className="mx-auto flex max-w-7xl gap-10 px-4 py-12 sm:px-6">
         <DocsNav sections={SECTIONS} />
         <article className="min-w-0 max-w-3xl flex-1 space-y-14">
           <header>
-            <Badge tone="brand">Documentation</Badge>
-            <h1 className="mt-4 text-4xl font-semibold text-fg">Build with Attestra</h1>
+            <Eyebrow>Documentation</Eyebrow>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-fg">Build with Attestra</h1>
             <p className="mt-3 text-[15.5px] leading-relaxed text-soft">The SDK, the CLI, the MCP server, the contracts and the REST API. Everything here runs against NEAR testnet; one setting switches to mainnet.</p>
           </header>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Activity, AlertTriangle, CheckCircle2, Server, Wallet, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Wallet, XCircle } from 'lucide-react';
 import { Alert, Badge, Panel, PanelHeader, Skeleton } from '@/components/ui/primitives';
 import { AGENT_URL, INDEXER_URL, KEEPER_URL, NETWORK, RELAYER_URL, TOPUP_URL } from '@/lib/config';
 import { useAsync } from '@/lib/useFetch';
@@ -65,7 +65,7 @@ export default function Status() {
   }, []);
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-      <h1 className="text-3xl font-semibold text-fg">Status</h1>
+      <h1 className="text-[1.75rem] font-semibold tracking-tight text-fg sm:text-[2.1rem]">Status</h1>
       <p className="mt-2 text-[14.5px] text-soft">Live health of every Attestra service on NEAR {NETWORK}, and the balances the top-up service keeps funded.</p>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {SERVICES.map(([name], i) => {
@@ -73,8 +73,8 @@ export default function Status() {
           return (
             <Panel key={name} className="p-4">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-[14px] font-semibold text-fg"><Server className="size-4 text-mute" />{name}</span>
-                {!h ? <Skeleton className="h-4 w-4 rounded-full" /> : h.ok ? <CheckCircle2 className="size-4 text-emerald-500" /> : <XCircle className="size-4 text-red-500" />}
+                <span className="text-[14px] font-semibold text-fg">{name}</span>
+                {!h ? <Skeleton className="h-4 w-4 rounded-full" /> : h.ok ? <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" /> : <XCircle className="size-4 text-red-600 dark:text-red-400" aria-hidden="true" />}
               </div>
               <p className="mt-2 line-clamp-2 text-[12px] text-mute">{h ? (h.ok ? 'healthy' : String(h.body.reason ?? h.body.error ?? 'unhealthy')) : 'checking'}</p>
               {typeof h?.body.lag_blocks === 'number' && <p className="mt-1 text-[12px] text-soft">lag {String(h.body.lag_blocks)} blocks</p>}
@@ -104,7 +104,7 @@ export default function Status() {
           </ul>
         )}
       </Panel>
-      <p className="mt-4 flex items-center gap-2 text-[12px] text-mute"><Activity className="size-3.5" />Each service also answers /live for liveness probes.</p>
+      <p className="mt-4 text-[12.5px] text-mute">Each service also answers /live for liveness probes.</p>
     </div>
   );
 }

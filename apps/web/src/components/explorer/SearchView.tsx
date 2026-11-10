@@ -29,14 +29,14 @@ export function SearchView({ initial = '' }: { initial?: string }) {
   const shown = q.trim().length < 2 ? null : results;
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 shadow-panel focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10">
+      <div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 shadow-panel focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10">
         <Search className="size-5 text-mute" />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Attestation or schema UID, account id, or schema fields" aria-label="Search" className="h-14 w-full bg-transparent text-[15px] text-fg outline-none placeholder:text-mute" />
       </div>
       {err && q.trim().length >= 2 && <Alert tone="warn" title="The indexer did not answer">{err}</Alert>}
       {shown && shown.length === 0 && <Empty title="No matches" />}
       {shown && shown.length > 0 && (
-        <ul className="overflow-hidden rounded-2xl border border-line bg-panel shadow-panel">
+        <ul className="overflow-hidden rounded-xl border border-line bg-panel shadow-panel">
           {shown.map((r) => {
             const I = ICON[r.type];
             return (

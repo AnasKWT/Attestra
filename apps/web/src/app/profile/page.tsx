@@ -29,14 +29,14 @@ export default function Profile() {
   return (
     <div>
       <div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6">
-        <Panel glow>
+        <Panel>
           <PanelHeader icon={<BadgeCheck className="size-4" />} title="Credentials" subtitle="Non-transferable NEP-171 tokens held by this account. Each burns if its attestation is revoked." right={<Badge>{w.kind === 'passkey' ? 'passkey account' : 'wallet'}</Badge>} />
           {creds.data && creds.data.length === 0 ? (
             <Empty title="No credentials yet">Mint one for an attestation about you with the <Link className="text-accent hover:underline" href="/sandbox/app/nft-credential">credential tool</Link>.</Empty>
           ) : (
             <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
               {(creds.data ?? []).map((c) => (
-                <Link key={c.token_id} href={`/attestations/${c.token_id}`} className="group relative overflow-hidden rounded-xl border border-line bg-gradient-to-br from-brand-500/10 via-transparent to-transparent p-4 transition hover:border-brand-400/60">
+                <Link key={c.token_id} href={`/attestations/${c.token_id}`} className="group rounded-lg border border-line bg-panel-2 p-4 transition-colors hover:border-line-strong">
                   <p className="font-display text-[15px] font-semibold text-fg">{c.metadata?.title ?? 'Credential'}</p>
                   <p className="mt-1 line-clamp-2 text-[12.5px] text-soft">{c.metadata?.description}</p>
                   <p className="mt-3 font-mono text-[11px] text-mute">{c.token_id.slice(0, 16)}...</p>

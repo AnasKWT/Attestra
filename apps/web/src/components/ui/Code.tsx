@@ -28,44 +28,57 @@ export function highlight(code: string): ReactNode[] {
   return out;
 }
 
+const WINDOW = 'overflow-hidden rounded-xl border border-ink-800 bg-[#100e0c] shadow-float dark:border-line';
+const BAR = 'flex h-11 items-center justify-between gap-3 border-b border-white/[0.07] px-4';
+
+function Body({ code }: { code: string }) {
+  return (
+    <pre className="overflow-x-auto p-4 text-[12.5px] leading-[1.7] text-stone-200">
+      <code>{highlight(code)}</code>
+    </pre>
+  );
+}
+
 export function CodeWindow({ title, code, className = '', footer }: { title?: string; code: string; className?: string; footer?: ReactNode }) {
   return (
-    <div className={`overflow-hidden rounded-2xl border border-white/10 bg-[#0f0d0b] shadow-float ${className}`}>
-      <div className="flex items-center justify-between border-b border-white/[0.07] bg-white/[0.02] px-4 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-[#ff5f57]/90" />
-          <span className="size-2.5 rounded-full bg-[#febc2e]/90" />
-          <span className="size-2.5 rounded-full bg-[#28c840]/90" />
-          {title && <span className="ml-3 font-mono text-[11.5px] text-stone-400">{title}</span>}
-        </div>
+    <div className={`${WINDOW} ${className}`}>
+      <div className={BAR}>
+        <span className="truncate font-mono text-[12px] text-stone-400">{title}</span>
         <CopyButton value={code} className="text-stone-400 hover:bg-white/10 hover:text-white" />
       </div>
-      <pre className="overflow-x-auto p-4 text-[12.5px] leading-[1.7] text-stone-200">
-        <code>{highlight(code)}</code>
-      </pre>
+      <Body code={code} />
       {footer}
     </div>
   );
 }
 
+/** One code window with a tab per snippet in its title bar. */
 export function CodeTabs({ tabs, className = '' }: { tabs: Array<{ label: string; title?: string; code: string }>; className?: string }) {
   const [active, setActive] = useState(0);
+  const tab = tabs[active];
   return (
-    <div className={className}>
-      <div role="tablist" className="mb-3 inline-flex rounded-xl border border-line bg-panel p-1 shadow-panel">
-        {tabs.map((t, i) => (
-          <button
-            key={t.label}
-            role="tab"
-            aria-selected={i === active}
-            onClick={() => setActive(i)}
-            className={`rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition ${i === active ? 'bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow' : 'text-soft hover:text-fg'}`}
-          >
-            {t.label}
-          </button>
-        ))}
+    <div className={`${WINDOW} ${className}`}>
+      <div className={`${BAR} pl-2`}>
+        <div role="tablist" className="flex h-full items-stretch">
+          {tabs.map((t, i) => (
+            <button
+              key={t.label}
+              role="tab"
+              aria-selected={i === active}
+              onClick={() => setActive(i)}
+              className={`relative px-3 text-[12.5px] font-medium transition-colors ${i === active ? 'text-white' : 'text-stone-400 hover:text-stone-200'}`}
+            >
+              {t.label}
+              {i === active && <span className="absolute inset-x-3 -bottom-px h-px bg-brand-400" />}
+            </button>
+          ))}
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          {tab.title && <span className="truncate font-mono text-[12px] text-stone-500">{tab.title}</span>}
+          <CopyButton value={tab.code} className="text-stone-400 hover:bg-white/10 hover:text-white" />
+        </div>
       </div>
-      <CodeWindow title={tabs[active].title} code={tabs[active].code} />
+      <Body code={tab.code} />
     </div>
   );
 }

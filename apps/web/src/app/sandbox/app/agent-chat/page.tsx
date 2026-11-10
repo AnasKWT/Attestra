@@ -60,12 +60,11 @@ export default function AgentChat() {
           {msgs.length === 0 && (
             <div className="grid h-full place-items-center">
               <div className="max-w-md text-center">
-                <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-gradient-to-b from-brand-400 to-brand-600 text-white shadow-float"><Bot className="size-6" /></span>
-                <p className="mt-4 font-display text-lg font-semibold text-fg">Ask Attestra</p>
+                <p className="font-display text-lg font-semibold text-fg">Ask Attestra</p>
                 <p className="mt-1 text-[13.5px] text-mute">Natural language over the whole protocol, answered by a verifiable model.</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {STARTERS.map((s) => (
-                    <button key={s} onClick={() => setInput(s)} className="rounded-full border border-line bg-panel-2 px-3 py-1.5 text-[12.5px] text-soft hover:border-brand-400 hover:text-accent">{s}</button>
+                    <button key={s} onClick={() => setInput(s)} className="rounded-lg border border-line bg-panel px-3 py-1.5 text-[12.5px] text-soft transition-colors hover:border-line-strong hover:text-fg">{s}</button>
                   ))}
                 </div>
               </div>
@@ -73,8 +72,8 @@ export default function AgentChat() {
           )}
           {msgs.map((m, i) => (
             <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}>
-              {m.role === 'assistant' && <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"><Bot className="size-4" /></span>}
-              <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${m.role === 'user' ? 'bg-gradient-to-b from-brand-400 to-brand-600 text-white' : 'border border-line bg-panel-2 text-fg'}`}>
+              {m.role === 'assistant' && <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-soft text-soft"><Bot className="size-4" /></span>}
+              <div className={`max-w-[80%] rounded-xl px-4 py-3 text-[14px] leading-relaxed ${m.role === 'user' ? 'bg-ink-900 text-white dark:bg-ink-200 dark:text-ink-950' : 'border border-line bg-panel-2 text-fg'}`}>
                 <p className="whitespace-pre-wrap break-words">{m.content}</p>
                 {m.tools && m.tools.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -96,8 +95,8 @@ export default function AgentChat() {
           <div ref={end} />
         </div>
         <form onSubmit={(e) => (e.preventDefault(), void send(input))} className="flex items-end gap-2 border-t border-line bg-panel p-3">
-          <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); } }} rows={1} placeholder="Ask about schemas, attestations, agents..." aria-label="Message" className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line-strong bg-panel-2 px-3.5 py-2.5 text-[14px] text-fg outline-none focus:border-brand-500" />
-          <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="grid size-11 place-items-center rounded-xl bg-gradient-to-b from-brand-400 to-brand-600 text-white disabled:opacity-40"><ArrowUp className="size-5" /></button>
+          <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input); } }} rows={1} placeholder="Ask about schemas, attestations, agents..." aria-label="Message" className="max-h-32 min-h-11 flex-1 resize-none rounded-lg border border-line-strong bg-panel-2 px-3.5 py-2.5 text-[14px] text-fg outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15" />
+          <button type="submit" disabled={busy || !input.trim()} aria-label="Send" className="grid size-11 place-items-center rounded-lg bg-brand-600 text-white transition-colors hover:bg-brand-700 disabled:opacity-40"><ArrowUp className="size-5" /></button>
         </form>
       </Panel>
     </ToolFrame>

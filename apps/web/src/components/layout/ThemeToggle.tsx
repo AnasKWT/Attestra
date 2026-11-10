@@ -27,7 +27,7 @@ export function ThemeToggle() {
           // storage blocked: the theme still switches for this page
         }
       }}
-      className="grid size-9 place-items-center rounded-lg border border-line bg-panel text-soft transition hover:border-brand-400/50 hover:text-accent"
+      className="grid size-9 place-items-center rounded-lg border border-line bg-panel text-soft transition-colors hover:border-line-strong hover:text-fg"
     >
       {theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </button>

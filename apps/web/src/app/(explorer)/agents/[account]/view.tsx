@@ -31,7 +31,7 @@ export function AgentDetail({ account }: { account: string }) {
       {data && (
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
           <div className="space-y-6">
-            <Panel glow>
+            <Panel>
               <PanelHeader icon={<Bot className="size-4" />} title="Identity" subtitle="Attested by the owner under the agent identity schema" right={data.identity ? <StatusBadge status={data.identity.status} /> : <Badge tone="warn">no identity</Badge>} />
               {data.identity ? (
                 <dl className="px-5 py-2">

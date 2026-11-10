@@ -28,18 +28,18 @@ export default function AgentsPage() {
           {data.data.map((a) => {
             const f = a.identity_fields ?? {};
             return (
-              <Link key={a.account_id} href={`/agents/${encodeURIComponent(a.account_id)}`} className="group rounded-2xl border border-line bg-panel p-5 shadow-panel transition hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-float">
+              <Link key={a.account_id} href={`/agents/${encodeURIComponent(a.account_id)}`} className="group rounded-xl border border-line bg-panel p-5 shadow-panel transition-colors hover:border-line-strong hover:bg-panel-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 text-white shadow"><Bot className="size-5" /></span>
+                    <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-line bg-soft text-soft"><Bot className="size-5" /></span>
                     <div className="min-w-0">
                       <p className="truncate font-display text-[16px] font-semibold text-fg">{String(f.name ?? shortAccount(a.account_id))}</p>
                       <p className="truncate font-mono text-[11.5px] text-mute">{shortAccount(a.account_id)}</p>
                     </div>
                   </div>
                   {a.average_score !== null && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[12px] font-semibold text-amber-600 dark:text-amber-400">
-                      <Star className="size-3 fill-current" />
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold tabular-nums text-fg" title="Average review score out of 5">
+                      <Star className="size-3.5 fill-amber-500 text-amber-500" aria-hidden="true" />
                       {a.average_score.toFixed(1)}
                     </span>
                   )}

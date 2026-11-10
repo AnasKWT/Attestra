@@ -29,7 +29,7 @@ export function CheckerModeBadge() {
   if (m.loading) return <Badge>checking the agent</Badge>;
   if (!m.data) return <Badge tone="warn">checker mode unknown: the agent did not answer</Badge>;
   return (
-    <Badge tone={m.data === 'outlayer' ? 'ok' : 'warn'} dot>
+    <Badge tone={m.data === 'outlayer' ? 'ok' : 'warn'}>
       {LABEL[m.data]}
     </Badge>
   );

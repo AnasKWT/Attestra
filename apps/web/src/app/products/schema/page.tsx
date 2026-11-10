@@ -1,7 +1,6 @@
-import { ArrowRight, Binary, Database, Fingerprint, Layers, Puzzle, ShieldCheck } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { FeatureRow, PageHero } from '@/components/marketing/PageHero';
 import { CodeWindow } from '@/components/ui/Code';
-import { Reveal } from '@/components/ui/Reveal';
 import { ButtonLink, SectionHeading } from '@/components/ui/primitives';
 
 export const metadata = { title: 'Schemas' };
@@ -21,26 +20,26 @@ const data = new SchemaEncoder(definition).encode({
 export default function SchemaProduct() {
   return (
     <>
-      <PageHero eyebrow="Schemas" title={<>Define a claim once. <span className="text-gradient">Read it everywhere.</span></>} intro="A schema names the fields of a claim, an optional resolver that adds rules, and whether attestations under it can be revoked. Its UID is derived from those inputs, so every app agrees on it.">
+      <PageHero eyebrow="Schemas" title={<>Define a claim once. <span className="text-mute">Read it everywhere.</span></>} intro="A schema names the fields of a claim, an optional resolver that adds rules, and whether attestations under it can be revoked. Its UID is derived from those inputs, so every app agrees on it.">
         <ButtonLink href="/sandbox/app/schema-builder" size="lg">Build a schema <ArrowRight className="size-4" /></ButtonLink>
         <ButtonLink href="/schemas" size="lg" variant="secondary">Browse schemas</ButtonLink>
       </PageHero>
       <section className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
-        <Reveal className="space-y-4">
-          <FeatureRow icon={<Fingerprint className="size-5" />} title="Deterministic UIDs" body="The same definition, resolver and revocability always give the same UID, computed off chain byte for byte like the contract." />
-          <FeatureRow icon={<Binary className="size-5" />} title="Borsh-encoded data" body="bool, u8 to u128, i8 to i128, string, account_id, bytes, bytes32 and lists. Compact on chain, decodable in Rust and TypeScript." />
-          <FeatureRow icon={<Puzzle className="size-5" />} title="Resolvers that add rules" body="Whitelist, fee, token gate, token reward, or a pipeline of them. The resolver accepts the schema first, and you administer its settings." />
-          <FeatureRow icon={<Database className="size-5" />} title="Large definitions on chain" body="Definitions up to 256 KB are stored once as a content-addressed blob with NEP-145 storage, then registered by hash." />
-          <FeatureRow icon={<ShieldCheck className="size-5" />} title="All or nothing" body="Registration is a promise chain: resolver check, then sync to the attestations contract. If either refuses, the schema is removed and its storage refunded." />
-        </Reveal>
-        <Reveal delay={120}>
+        <div className="space-y-3">
+          <FeatureRow title="Deterministic UIDs" body="The same definition, resolver and revocability always give the same UID, computed off chain byte for byte like the contract." />
+          <FeatureRow title="Borsh-encoded data" body="bool, u8 to u128, i8 to i128, string, account_id, bytes, bytes32 and lists. Compact on chain, decodable in Rust and TypeScript." />
+          <FeatureRow title="Resolvers that add rules" body="Whitelist, fee, token gate, token reward, or a pipeline of them. The resolver accepts the schema first, and you administer its settings." />
+          <FeatureRow title="Large definitions on chain" body="Definitions up to 256 KB are stored once as a content-addressed blob with NEP-145 storage, then registered by hash." />
+          <FeatureRow title="All or nothing" body="Registration is a promise chain: resolver check, then sync to the attestations contract. If either refuses, the schema is removed and its storage refunded." />
+        </div>
+        <div>
           <CodeWindow title="schema.ts" code={CODE} />
-        </Reveal>
+        </div>
       </section>
       <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
-        <Reveal>
+        <div>
           <SectionHeading eyebrow="Well-known schemas" title="Every deployment registers these." />
-        </Reveal>
+        </div>
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             ['Agent identity', 'string name, account_id owner, string model, string[] capabilities, string endpoint, string description'],
@@ -50,12 +49,12 @@ export default function SchemaProduct() {
             ['Wallet link', 'string chain, string address, string caip10'],
             ['Membership', 'string organization, string role, u64 since'],
           ].map(([n, d]) => (
-            <Reveal key={n}>
-              <div className="h-full rounded-xl border border-line bg-panel p-4 shadow-panel">
-                <p className="flex items-center gap-2 font-display text-[15px] font-semibold text-fg"><Layers className="size-4 text-accent" />{n}</p>
+            <div key={n}>
+              <div className="h-full rounded-xl border border-line bg-panel p-4">
+                <p className="font-display text-[15px] font-semibold text-fg">{n}</p>
                 <p className="mt-2 font-mono text-[11.5px] leading-relaxed text-soft">{d}</p>
               </div>
-            </Reveal>
+            </div>
           ))}
         </div>
       </section>

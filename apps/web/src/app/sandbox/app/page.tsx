@@ -30,14 +30,13 @@ export default function SandboxHome() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {TOOLS.filter((t) => t.group === g).map((t) => (
-                <Link key={t.slug} href={`/sandbox/app/${t.slug}`} className={`group relative overflow-hidden rounded-xl border bg-panel p-4 shadow-panel transition hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-float ${g === 'Only on NEAR' ? 'border-brand-500/30' : 'border-line'}`}>
-                  {g === 'Only on NEAR' && <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-500 to-transparent" />}
+                <Link key={t.slug} href={`/sandbox/app/${t.slug}`} className="group rounded-xl border border-line bg-panel p-4 shadow-panel transition-colors hover:border-line-strong hover:bg-panel-2">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-display text-[15px] font-semibold text-fg">{t.title}</p>
-                    <ArrowRight className="size-4 text-mute transition group-hover:translate-x-0.5 group-hover:text-accent" />
+                    <ArrowRight className="size-4 text-mute transition-transform group-hover:translate-x-0.5" />
                   </div>
                   <p className="mt-1 text-[13px] leading-relaxed text-soft">{t.blurb}</p>
-                  <div className="mt-3">{t.write ? <Badge tone="warn">writes</Badge> : <Badge tone="ok">read only</Badge>}</div>
+                  <div className="mt-3">{t.write ? <Badge tone="warn">writes</Badge> : <Badge>read only</Badge>}</div>
                 </Link>
               ))}
             </div>

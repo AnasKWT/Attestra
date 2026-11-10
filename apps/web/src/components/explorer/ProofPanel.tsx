@@ -25,7 +25,7 @@ export function ProofPanel({ uid, revoked = false }: { uid: string; revoked?: bo
   };
 
   return (
-    <Panel glow>
+    <Panel>
       <PanelHeader
         icon={<ShieldCheck className="size-4" />}
         title="Light client proof"

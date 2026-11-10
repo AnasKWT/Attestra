@@ -20,13 +20,13 @@ export function DataTable<T>({ columns, rows, loading, error, empty, onRow }: { 
     );
   }
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-panel shadow-panel">
+    <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-panel">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left">
           <thead>
             <tr className="border-b border-line bg-panel-2">
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={`px-4 py-3 font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-mute ${c.className ?? ''}`}>
+                <th key={c.key} scope="col" className={`px-4 py-2.5 text-[12px] font-medium text-mute ${c.className ?? ''}`}>
                   {c.header}
                 </th>
               ))}

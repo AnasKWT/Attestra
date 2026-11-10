@@ -31,7 +31,7 @@ export function ConnectButton({ compact = false }: { compact?: boolean }) {
     return (
       <div ref={ref} className="relative">
         <button onClick={toggle} className={buttonClass('secondary', 'sm', 'max-w-[220px]')} aria-haspopup="menu" aria-expanded={open}>
-          <span className="size-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
+          <User className="size-3.5 shrink-0 text-mute" aria-hidden="true" />
           <span className="truncate font-mono text-[12.5px]">{shortAccount(w.accountId)}</span>
           <ChevronDown className="size-3.5 shrink-0 text-mute" />
         </button>
