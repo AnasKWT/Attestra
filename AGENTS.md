@@ -42,6 +42,7 @@ contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
 pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
+pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to internal/secrets/
 ```
 
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.

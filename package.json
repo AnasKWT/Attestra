@@ -23,9 +23,11 @@
     "verify": "tsx scripts/verify.ts",
     "dev": "tsx scripts/dev.ts",
     "build:web": "pnpm --filter @attestra/web build",
+    "e2e": "pnpm --filter @attestra/web e2e",
     "deploy:testnet": "tsx scripts/deploy.ts testnet",
     "deploy:sandbox": "tsx scripts/deploy.ts sandbox",
-    "cli:e2e": "tsx scripts/cli-e2e.ts"
+    "cli:e2e": "tsx scripts/cli-e2e.ts",
+    "accounts": "tsx scripts/accounts.ts"
   },
   "devDependencies": {
     "@attestra/sdk": "workspace:*",
