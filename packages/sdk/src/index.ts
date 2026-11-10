@@ -31,3 +31,4 @@ export { TOOLS, READ_TOOLS, WRITE_TOOLS, openAITools, runTool, defaultToolLimits
 export type { ToolSpec, ToolLimits } from './tools';
 export { classifyError, errorMessage } from './errors';
 export { BorshWriter, BorshReader, bytesToHex, hexToBytes, bytesToBase64, base64ToBytes, base58Encode, base58Decode } from './borsh';
+export { PREFERRED_MODELS, verifiableModels, pickVerifiableModel } from './models';

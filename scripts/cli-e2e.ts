@@ -304,7 +304,7 @@ async function serviceSteps(
   step('check run (NEAR AI, encrypted evidence)', run(['check', 'run', 'age_over_18', '--subject', t.alice, '--evidence', 'State ID card. Name: Test Person. Date of birth: 1990-04-12.']), (d) => d.outcome?.status === 'created' && d.verdict?.result === true);
   step('pay verify-claim (x402)', run(['pay', 'verify-claim', t.a1], t.alice), (d) => d.settlement?.success === true && d.result?.valid === true);
   step('pay verify-agent (x402)', run(['pay', 'verify-agent', t.agent], t.alice), (d) => d.settlement?.success === true);
-  step('ai (NEAR AI chat with tools)', run(['ai', `Is attestation ${t.a1} valid? Answer yes or no.`]), (d) => typeof (d.reply ?? d) === 'string');
+  step('ai (NEAR AI chat with tools)', run(['ai', `Is attestation ${t.a1} valid? Answer yes or no.`]), (d) => typeof d.answer === 'string' && typeof d.model === 'string');
   refused('check run with an unknown rule', run(['check', 'run', 'no_such_rule', '--subject', t.alice, '--evidence', 'x']));
   const sol = await solanaInstruction();
   if (sol) step('chain attest-solana (MPC)', run(['chain', 'attest-solana', '--tx', sol.signature, '--instruction', String(sol.index), '--inner', '0'], t.alice), (d) => d.status === 'created');

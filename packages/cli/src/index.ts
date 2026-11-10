@@ -23,6 +23,7 @@ import {
   keySigner,
   knownSchemas,
   openAITools,
+  pickVerifiableModel,
   runTool,
   type MultisigAction,
   type ServiceResponse,
@@ -459,13 +460,14 @@ program
 program
   .command('ai <question...>')
   .description('ask the Attestra agent tools in natural language (NEAR AI Cloud, needs NEARAI_API_KEY)')
-  .option('--model <model>', 'a verifiable model id', process.env.NEARAI_MODEL)
+  .option('--model <model>', 'a verifiable model id (default: the first preferred one that is live)', process.env.NEARAI_MODEL)
   .option('--writes', 'allow tools that send transactions', false)
   .action(
     wrap(async (words: string[], o) => {
       const key = process.env.NEARAI_API_KEY;
       if (!key) throw new Error('set NEARAI_API_KEY (NEAR AI Cloud)');
-      if (!o.model) throw new Error('set --model or NEARAI_MODEL to a verifiable model id from https://cloud-api.near.ai/v1/models');
+      // Only verifiable models (they run inside a TEE); without --model, the first preferred one that is live.
+      o.model = await pickVerifiableModel(o.model);
       const messages: Array<Record<string, unknown>> = [
         { role: 'system', content: 'You answer questions about Attestra attestations on NEAR using the tools. Be brief and factual.' },
         { role: 'user', content: words.join(' ') },

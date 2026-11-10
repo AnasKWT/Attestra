@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AttestraClient } from '../src/client';
+import { pickVerifiableModel } from '../src/models';
 import { fetchEvmLog, fetchSolanaInstruction } from '../src/verdicts';
 
 const respond = (body: unknown) => vi.fn(async () => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
@@ -108,5 +109,14 @@ describe('fetchSolanaInstruction', () => {
     await expect(fetchSolanaInstruction('testnet', 'Sig1', 1, 0)).rejects.toThrow('the Solana transaction failed');
     vi.stubGlobal('fetch', respond({ jsonrpc: '2.0', id: 1, result: tx }));
     await expect(fetchSolanaInstruction('testnet', 'Sig1', 0, 0)).rejects.toThrow('it has 1:0-0');
+  });
+});
+
+describe('pickVerifiableModel', () => {
+  const list = respond({ models: [{ modelId: 'some/other', metadata: { verifiable: false } }, { modelId: 'BAAI/bge-embedding', metadata: { verifiable: true } }, { modelId: 'z-ai/glm-5.3-flash', metadata: { verifiable: true } }] });
+
+  it('picks the first preferred verifiable model that is live, and refuses an unverifiable one', async () => {
+    expect(await pickVerifiableModel(undefined, list as unknown as typeof fetch)).toBe('z-ai/glm-5.3-flash');
+    await expect(pickVerifiableModel('some/other', list as unknown as typeof fetch)).rejects.toThrow('not a verifiable model');
   });
 });
