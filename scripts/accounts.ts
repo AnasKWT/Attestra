@@ -49,10 +49,10 @@ async function main() {
     keyStore = new InMemoryKeyStore({ [root]: env.rootSecret });
     near = new Near({ network: { rpcUrl, networkId: 'sandbox' }, keyStore });
   } else {
-    if (NET === 'mainnet' && process.env.ATTESTRA_MAINNET_GO !== (process.env.ROOT ?? DEFAULT_ROOTS.mainnet)) {
+    if (NET === 'mainnet' && process.env.ATTESTRA_MAINNET_GO !== ((process.env.ATTESTRA_ROOT ?? process.env.ROOT) ?? DEFAULT_ROOTS.mainnet)) {
       throw new Error('#mainnet: refusing without ATTESTRA_MAINNET_GO set to the root account (the owner must approve)');
     }
-    const net = resolveNetwork(NET, { root: process.env.ROOT });
+    const net = resolveNetwork(NET, { root: (process.env.ATTESTRA_ROOT ?? process.env.ROOT) });
     root = net.root;
     rpcUrl = process.env.RPC_URL ?? net.rpcUrls[0];
     keyStore = new FileKeyStore(join(homedir(), '.near-credentials'), NET);

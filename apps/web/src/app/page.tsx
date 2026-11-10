@@ -182,7 +182,7 @@ export default function Home() {
             </div>
             <div className="mt-10 grid max-w-xl animate-fade-up grid-cols-3 gap-4 [animation-delay:320ms]">
               {[
-                ['8', 'Rust contracts'],
+                ['7', 'Rust contracts'],
                 ['31', 'sandbox tools'],
                 ['0', 'oracles to trust'],
               ].map(([n, l]) => (

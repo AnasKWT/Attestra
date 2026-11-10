@@ -60,7 +60,7 @@ function report() {
 }
 
 async function testnet() {
-  const root = process.env.ROOT ?? 'attestra.testnet';
+  const root = (process.env.ATTESTRA_ROOT ?? process.env.ROOT) ?? 'attestra.testnet';
   const rpcUrl = process.env.RPC_URL ?? 'https://rpc.testnet.fastnear.com';
   const secret = (await new FileKeyStore(join(homedir(), '.near-credentials'), 'testnet').get(root))?.secretKey;
   if (!secret) throw new Error(`no key for ${root} in ~/.near-credentials/testnet`);

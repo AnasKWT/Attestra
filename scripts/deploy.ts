@@ -13,7 +13,7 @@
  *
  * Keys: the root account's key comes from the NEAR CLI keychain (~/.near-credentials/<network>/<root>.json);
  * every sub-account gets a fresh full-access key saved there too.
- * Optional env: ROOT, RPC_URL, ENCLAVE_PUBLIC_KEY (ed25519:...), MODEL_SIGNERS (JSON list), GOVERNANCE.
+ * Optional env: ATTESTRA_ROOT (or ROOT), RPC_URL, ENCLAVE_PUBLIC_KEY (ed25519:...), MODEL_SIGNERS (JSON list), GOVERNANCE.
  * HOLD=<file> (sandbox only): keep the node running after the deploy and write its RPC URL and the root's
  * test key to <file> for other scripts (scripts/cli-e2e.ts); stops on SIGTERM or SIGINT.
  */
@@ -128,10 +128,10 @@ async function main() {
       log(`rehearsing mainnet: ${standIn} stands in for USDC and the staking token`);
     }
   } else {
-    if (NET === 'mainnet' && process.env.ATTESTRA_MAINNET_GO !== (process.env.ROOT ?? DEFAULT_ROOTS.mainnet)) {
+    if (NET === 'mainnet' && process.env.ATTESTRA_MAINNET_GO !== ((process.env.ATTESTRA_ROOT ?? process.env.ROOT) ?? DEFAULT_ROOTS.mainnet)) {
       throw new Error('#mainnet: refusing without ATTESTRA_MAINNET_GO set to the root account (the owner must approve)');
     }
-    const net = resolveNetwork(NET, { root: process.env.ROOT });
+    const net = resolveNetwork(NET, { root: (process.env.ATTESTRA_ROOT ?? process.env.ROOT) });
     root = net.root;
     rpcUrl = process.env.RPC_URL ?? net.rpcUrls[0];
     mpc = net.mpc;

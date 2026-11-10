@@ -78,6 +78,9 @@ export default function Status() {
               </div>
               <p className="mt-2 line-clamp-2 text-[12px] text-mute">{h ? (h.ok ? 'healthy' : String(h.body.reason ?? h.body.error ?? 'unhealthy')) : 'checking'}</p>
               {typeof h?.body.lag_blocks === 'number' && <p className="mt-1 text-[12px] text-soft">lag {String(h.body.lag_blocks)} blocks</p>}
+              {typeof (h?.body.checker as { mode?: string } | undefined)?.mode === 'string' && (
+                <p className="mt-1 text-[12px] text-soft">checker: {(h!.body.checker as { mode: string }).mode === 'outlayer' ? 'OutLayer TEE' : 'local key'}</p>
+              )}
             </Panel>
           );
         })}

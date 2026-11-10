@@ -15,7 +15,17 @@ const config = loadConfig();
 const db = connect(config.databaseUrl);
 const log = (m: string) => console.log(`${new Date().toISOString()} indexer ${m}`);
 
-await migrate(db);
+try {
+  await migrate(db);
+} catch (e) {
+  const err = e as { code?: string; errors?: Array<{ code?: string }>; message?: string };
+  const reason = err.code ?? err.errors?.[0]?.code ?? err.message ?? String(e);
+  console.error(
+    `indexer: cannot reach Postgres at ${config.databaseUrl.replace(/\/\/[^@]*@/, '//')} (${reason}).\n` +
+      'Start Postgres and create the database (for example `createdb attestra`), or set DATABASE_URL; `docker compose up postgres` runs one.',
+  );
+  process.exit(1);
+}
 if (process.argv.includes('--resync')) {
   await reset(db);
   log(`resync: cleared, reindexing from ${config.startHeight}`);

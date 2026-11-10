@@ -126,3 +126,13 @@ run('ingest and API (Postgres)', () => {
     expect((await app.request('/live')).status).toBe(200);
   });
 });
+
+describe('start height', () => {
+  it('starts at the deployment height when START_HEIGHT is empty or 0, as .env.example ships it', () => {
+    const deployed = loadConfig({}).startHeight;
+    expect(deployed).toBeGreaterThan(0);
+    expect(loadConfig({ START_HEIGHT: '0' }).startHeight).toBe(deployed);
+    expect(loadConfig({ START_HEIGHT: '' }).startHeight).toBe(deployed);
+    expect(loadConfig({ START_HEIGHT: '123' }).startHeight).toBe(123);
+  });
+});

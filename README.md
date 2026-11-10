@@ -33,15 +33,17 @@ On NEAR it goes past a registry:
 
 ## Try it
 
-Two minutes, against the live testnet contracts, with no keys:
+Two minutes, against the live testnet contracts.
+Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them in `apps/<app>/.env` for `pnpm dev`, or in the root `.env` for Docker Compose; each `.env.example` lists them).
 
-1. Run `pnpm install && pnpm build && pnpm dev` (or `docker compose up --build`); the site opens on http://localhost:3100.
+1. Start Postgres (`docker compose up -d postgres`, or a local one with `createdb attestra`), then run `pnpm install && pnpm build && pnpm dev`; the site opens on http://localhost:3100 and the indexer fills from the deployment's first block.
+   Or run everything in containers: `cp .env.example .env && docker compose --profile site up --build`.
 2. Open **Explorer**, then any attestation: you see its schema, attester, subject and decoded data, and its status computed on read.
-3. Open **Sandbox**, then **Light Client Proof**, and paste that attestation's UID: the light client proof runs in your browser and shows each check (block approvals over 2/3 of stake, the merkle path, the event in the logs).
-4. Open **Sandbox**, then **Gasless Issuing**, sign in with **Create a passkey account**, and issue a membership: you see its UID and "The relayer paid", with a NearBlocks link to the transaction.
-5. Open **Sandbox**, then **Agent Chat**, and ask "Which well-known schemas does Attestra have?": the answer shows the tool it called and "signature verified by" its NEAR AI model, linked to the verification centre (needs `NEARAI_API_KEY` for the agent).
+3. Open **Sandbox**, then **Light Client Proof**, paste that attestation's UID and press **Load**, then **Prove it**: the proof runs in your browser and shows each check (block approvals over 2/3 of stake, the merkle path, the event in the logs).
+4. Open **Sandbox**, then **Gasless Issuing**, sign in with **New here? Create a passkey account**, and issue a membership: you see its UID and "The relayer paid", with a NearBlocks link to the transaction (the relayer needs `RELAYER_ACCOUNT_ID` and `RELAYER_PRIVATE_KEY`, a funded testnet account).
+5. Open **Sandbox**, then **Agent Chat**, and ask "Which well-known schemas does Attestra have?": the answer shows the tool it called and "signature verified by" its NEAR AI model, linked to the verification centre (the agent needs `NEARAI_API_KEY`).
 6. Run `node packages/cli/dist/index.js attestation verify <uid> --json`: the same answer from the CLI.
-7. Run `pnpm verify`: PASS or FAIL for every claim in this README.
+7. Run `pnpm verify`: PASS or FAIL for every claim in this README (see [Verify it yourself](#verify-it-yourself) for what it needs).
 
 ## How it works
 
@@ -60,7 +62,7 @@ Two minutes, against the live testnet contracts, with no keys:
 | Facts about EVM chains | Chain Signatures `verify_foreign_transaction` on an EVM log, answer checked with `env::ecrecover` | [foreign.rs](contracts/verdicts/src/foreign.rs), [mpc.rs](contracts/verdicts/src/mpc.rs) | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
 | Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3q5wPWqX](https://testnet.nearblocks.io/txns/3q5wPWqXMDTVxLdBkKpxJZetHHRQVARiNVZTKhTB2Fta) |
 | Wallet links | EIP-191 and ed25519 signatures verified on chain | [wallet.rs](contracts/verdicts/src/wallet.rs) | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
-| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts) | [FDi8Mdmw](https://testnet.nearblocks.io/txns/FDi8MdmWYyfbthdJqZAFtBStP7vpfufxAUBP3WuzWx4z), [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
+| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts) | `agent.attestra.testnet`: identity [4BBKBgVK](https://testnet.nearblocks.io/txns/4BBKBgVKNfNYGCgm5RkV95v5XqWWearzuR8mDXPYYNhy), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), function-call key [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
 | Paid verification | x402 on NEAR: a signed delegate action carrying `ft_transfer`, settled on chain before the answer | [x402.ts](packages/sdk/src/x402.ts), [paid.ts](apps/agent/src/paid.ts) | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
 | Gasless issuing | NEP-413 signed requests and NEP-366 meta transactions through the relayer | [relayer](services/src/relayer/app.ts), [ops.rs](contracts/attestations/src/ops.rs) | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
 | Passkey accounts | WebAuthn PRF to an ed25519 implicit account | [passkey.ts](apps/web/src/lib/passkey.ts) | the same transaction, signed by a passkey account |
@@ -72,6 +74,7 @@ Two minutes, against the live testnet contracts, with no keys:
 ## Live on testnet
 
 Every flow below ran against the deployed contracts; each link is the transaction.
+The test runs create their own accounts and delete them afterwards, returning the NEAR to the root, so several signers no longer exist; their transactions and attestations stay on chain.
 
 | Flow | Transaction |
 |---|---|
@@ -85,14 +88,14 @@ Every flow below ran against the deployed contracts; each link is the transactio
 | A scheduled revocation | [ETjb9aGT](https://testnet.nearblocks.io/txns/ETjb9aGTawxQiNi6TWjQsgGtvm2Mm9caw8WHc7HGfMCm) |
 | A token reward paid by a resolver | [2Pdm1UN8](https://testnet.nearblocks.io/txns/2Pdm1UN8s7hL9k736nZGX5i1CDvHJW33d6bA68Svw4Ak) |
 | A paid verification over x402: the agent settles the payer's signed `ft_transfer` on chain, then answers with the claim and its light client proof | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
-| Staking for an authority tier | [F8JEGaGy](https://testnet.nearblocks.io/txns/F8JEGaGyc3XmdVxRyF8s4Q81yKhskAGiB5KnGSk2jMYk) |
+| Staking for an authority tier (100 tokens, Bronze) | [52Z5Sgmq](https://testnet.nearblocks.io/txns/52Z5Sgmq8fbqhHu9QVxu1KbUQ3892ybziaa8ekGvStkF) |
 
 `pnpm cli:e2e testnet` repeats every CLI group against the deployment, `pnpm --filter @attestra/web e2e:live` repeats the sandbox tools in a real browser with a passkey account, and `pnpm verify` proves a recent attestation final with a light client proof checked locally.
 
 ## Deployed contracts
 
 Every contract runs the reproducible build of the commit recorded in [deployments/testnet.json](deployments/testnet.json), with its code hash and deploy transaction.
-Verification status: reproducible build, verifiable with `near contract verify`; the NearBlocks (SourceScan) verification follows once the repository is public.
+Verification status: reproducible build, verifiable with `near contract verify` once the repository is public; the NearBlocks (SourceScan) verification follows then.
 
 | Contract | Account | Role |
 |---|---|---|
@@ -107,25 +110,27 @@ Verification status: reproducible build, verifiable with `near contract verify`;
 ## Quickstart
 
 Requirements:
-- Node 22 and pnpm 10.
+- Node 22 and pnpm 10; Node 24.22 or newer as well for `pnpm verify`'s NEAR AI attestation check (`tools/nearai-verify`, which `@nearai/inference-sdk` requires).
+- Postgres for the indexer (`pnpm dev`) and its database tests (see `apps/indexer/README.md`; the tests are skipped without it).
+- The NEAR CLI (`near`, near-cli-rs) for `near contract verify`.
 - Rust through rustup; the contracts pin their toolchain in `contracts/rust-toolchain.toml` (installed on first use), and the checker needs `rustup target add wasm32-wasip2` (its published build uses OutLayer's pinned compiler image, so it carries no toolchain file).
 - `cargo install cargo-near --version 0.22.0` for the contract builds; `cargo-audit` and `cargo-deny` for `pnpm security`.
-- Docker for the reproducible builds; Postgres only for the indexer's database tests (see `apps/indexer/README.md`; they are skipped without it).
+- Docker for the reproducible builds and for `docker compose`.
 - Playwright's Chromium for `pnpm e2e` (`pnpm --filter @attestra/web exec playwright install chromium`).
 
 Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (172 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (175 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit and property test (323)
 pnpm test:checker         # the OutLayer checker (24)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
 pnpm cli:e2e              # 95 CLI steps against a fresh local deployment
-pnpm e2e                  # 221 Playwright tests on a production build of the site
+pnpm e2e                  # 223 Playwright tests on a production build of the site (E2E_PORT=3102 when pnpm dev holds 3100)
 ```
 
-`pnpm dev` starts the site on :3100 with the indexer, agent and services against testnet; `docker compose up --build` runs the same stack in containers.
+`pnpm dev` starts the site on :3100 with the indexer, agent and services against testnet; `docker compose --profile site up --build` runs the same stack in containers (without `--profile site`, everything but the site).
 With no keys every service runs read-only and says so on `/health`.
 
 Read an attestation from code:
@@ -171,17 +176,24 @@ node packages/cli/dist/index.js attestation verify <uid> --json
 
 The local runs in the Quickstart exercise every feature: resolvers, delegation, gasless and signed requests, credentials, scheduled revocation, multisig, staking, wallet links and cross-chain facts (against an MPC double that signs real secp256k1 answers).
 
-Against a live deployment, `pnpm verify` prints PASS or FAIL for: the test suites, the deployed code against the recorded hashes and a local reproducible build of the recorded commit (`contracts/scripts/build.sh --reproducible <commit>` first, with the commit from `deployments/testnet.json`), the well-known schemas, a light client proof of a recent attestation, an AI-checked attestation's signatures, a cross-chain attestation, an agent's reputation, the indexer's lag, every hosted MCP tool with live data, and the site and service health (start them with `pnpm dev`, or set `SITE_URL` and the service URLs to a hosted stack).
+Against a live deployment, `pnpm verify` prints PASS or FAIL for: the test suites, the deployed code against the recorded hashes and a local reproducible build of the recorded commit (`contracts/scripts/build.sh --reproducible <commit>` first, with the commit from `deployments/testnet.json`), the well-known schemas, a light client proof of a recent attestation, an AI-checked attestation's signatures, the NEAR AI model's TEE attestation, a cross-chain attestation, an agent's reputation, the indexer's lag, every hosted MCP tool with live data, and the site and service health.
+
+What it needs:
+- the stack running (`pnpm dev`), or `SITE_URL` and the service URLs pointed at a hosted stack;
+- the reproducible build of the recorded commit: `contracts/scripts/build.sh --reproducible <commit>` with the commit from `deployments/testnet.json` (Docker, a few minutes);
+- for the TEE attestation check: Node 24.22 or newer, `pnpm --dir tools/nearai-verify install && pnpm --dir tools/nearai-verify build`, and `NEARAI_API_KEY` in the environment (the check reads the attestation report and spends no credits).
 
 ```bash
 pnpm verify
 ```
 
-By hand, for any contract:
+By hand, for any contract, once the repository is public (the NEP-330 metadata names the repository and commit it was built from, and the command clones it):
 
 ```bash
 near contract verify deployed-at attestations.attestra.testnet network-config testnet now
 ```
+
+Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same wasm locally and `pnpm verify` compares every code hash.
 
 ## Trust and privacy model
 
@@ -193,7 +205,7 @@ near contract verify deployed-at attestations.attestra.testnet network-config te
   The model's answer travels encrypted, so the chain cannot see it: the checker verifies that the signature covers the answer, and the contract relies on the checker's signature for the result.
 - **How to check that model key yourself:** `tools/nearai-verify` uses the official `@nearai/inference-sdk`, independently of the agent's code, to verify the Gateway's and the model's TEE attestations (Intel TDX quote, NVIDIA GPU evidence, a fresh nonce), that an attested report binds the key the verdicts contract allowlists, and response signatures over their exact bytes; `pnpm verify` runs it.
 - **Where the checker runs:** `checker/` is a WASI component for NEAR OutLayer whose signing key is derived inside the TEE from the hash of its own build, so no one, the operators included, can make other code sign with it.
-  The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`, the mode on testnet today); the status page says which mode is live.
+  The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`, the mode on testnet today); the status page, the private check tool and the Only on NEAR page say which mode is live.
 - **Whom you trust for a foreign event:** the NEAR MPC network's key; the contract recomputes the signed payload hash itself.
   For Solana the attested fact is the instruction as the program recorded it; what its data means (an amount, a recipient) is for the reader to decode.
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself: more than 2/3 of stake approved the block, and the outcome's merkle path leads to it.
@@ -215,7 +227,7 @@ near contract verify deployed-at attestations.attestra.testnet network-config te
 
 ## Status
 
-- Deployed on testnet from a reproducible build; with the stack running locally, `pnpm verify` passes every check.
+- Deployed on testnet from a reproducible build; with the stack running locally, the reproducible build and a NEAR AI key, `pnpm verify` passes every check.
 - The site and services run locally against testnet; they are not hosted publicly yet.
 - Mainnet is one switch away and not deployed: see [MAINNET.md](MAINNET.md).
 - The npm packages are packed and tested from a clean install but not published; every command above runs from the repository.

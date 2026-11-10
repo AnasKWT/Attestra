@@ -53,6 +53,6 @@ export function isUid(value: string): boolean {
 
 /** Normalizes a UID to 64 lowercase hex characters. */
 export function normalizeUid(value: string): string {
-  if (!isUid(value)) throw new Error(`not a UID: ${value}`);
+  if (!isUid(value)) throw Object.assign(new Error(`not a UID: ${value} (expected 64 hex characters)`), { validation: true });
   return value.replace(/^0x/, '').toLowerCase();
 }

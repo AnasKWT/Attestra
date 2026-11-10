@@ -50,3 +50,12 @@ describe('transaction and rate-limit errors', () => {
     expect(classifyError(e)).toBe(AttestraErrorType.INSUFFICIENT_STORAGE);
   });
 });
+
+describe('bad input', () => {
+  it('reports a malformed UID as a validation error', async () => {
+    const { AttestraClient } = await import('../src/client');
+    const r = await new AttestraClient({ network: 'testnet' }).isValid('zz');
+    expect(r.error?.type).toBe(AttestraErrorType.VALIDATION_ERROR);
+    expect(r.error?.message).toContain('expected 64 hex characters');
+  });
+});

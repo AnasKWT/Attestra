@@ -7,7 +7,7 @@ This is the plan for doing it, and the one switch that moves every part of Attes
 
 - Services, CLI, MCP and the agent: `NEAR_NETWORK=mainnet`.
 - The site: `NEXT_PUBLIC_NEAR_NETWORK=mainnet`.
-- Contract ids derive from the root `attestra.near` (`schemas.attestra.near`, `attestations.attestra.near`, and so on); `ROOT` overrides it.
+- Contract ids derive from the root `attestra.near` (`schemas.attestra.near`, `attestations.attestra.near`, and so on); `ATTESTRA_ROOT` (or `ROOT`) overrides it, the same variable the services read.
 - Everything else follows from `packages/sdk/src/config.ts`: RPC endpoints, the MPC signer `v1.signer`, native USDC as the payment token, `wrap.near`, OutLayer, the FastNEAR mainnet transactions API and the explorer.
 - Code that differs between the networks is marked `#mainnet`; `grep -rn '#mainnet'` lists every place.
 
@@ -25,7 +25,7 @@ This is the plan for doing it, and the one switch that moves every part of Attes
 
 Decisions and accounts the owner provides:
 
-1. The root account `attestra.near` (or another root, set with `ROOT`), with its key in `~/.near-credentials/mainnet/`.
+1. The root account `attestra.near` (or another root, set with `ATTESTRA_ROOT`), with its key in `~/.near-credentials/mainnet/`.
 2. A governance account that verifies authorities (`GOVERNANCE`; a multisig is recommended), and the staking token (`STAKING_TOKEN`).
 3. About 45 NEAR: about 30 for contract code storage (six wasm files, the resolver deployed five times, about 2.9 MB at 1 NEAR per 100 kB) plus working balances, and about 10 for the relayer, keeper, agent and top-up accounts.
 4. A NEAR AI Cloud key for the agent and the checker, and the checker's verdict key registered with OutLayer (see `checker/README.md`).

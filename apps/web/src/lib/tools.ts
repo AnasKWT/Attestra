@@ -45,3 +45,10 @@ export const TOOLS: ToolDef[] = [
 ];
 
 export const toolBySlug = (slug: string) => TOOLS.find((t) => t.slug === slug);
+
+/** The page title and description of a sandbox tool, for its folder's layout. */
+export function toolMetadata(slug: string): { title: string; description: string } {
+  const t = toolBySlug(slug);
+  if (!t) throw new Error(`unknown sandbox tool ${slug}`);
+  return { title: t.title, description: t.blurb };
+}

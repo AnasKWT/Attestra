@@ -41,7 +41,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig 
     txApiUrl: (env.TX_API_URL ?? net.txApiUrl).replace(/\/+$/, ''),
     rpcUrl: env.RPC_URL ?? net.rpcUrls[0],
     port: Number(env.PORT ?? 5100),
-    startHeight: Number(env.START_HEIGHT || deploymentHeight(network)),
+    // 0 or empty means "the deployment height": .env.example ships START_HEIGHT=0.
+    startHeight: Number(env.START_HEIGHT) || deploymentHeight(network),
     pollMs: Number(env.POLL_MS ?? 4000),
     lagBlocks: Number(env.LAG_BLOCKS ?? 3),
     fastnearKey: env.FASTNEAR_API_KEY || undefined,

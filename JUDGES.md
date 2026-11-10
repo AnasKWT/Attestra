@@ -28,7 +28,7 @@ Against the testnet deployment, with the stack running (`pnpm dev`):
 ```bash
 pnpm verify               # the deployment's code, schemas, proofs, verdicts, agents, indexer, MCP tools and services, PASS or FAIL
 pnpm cli:e2e testnet      # every CLI group on testnet, including the indexer, agent, NEAR AI and x402 ones (needs a funded root key)
-pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser with a passkey account, on testnet
+pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser with a passkey account, on testnet (funds it from the root key in ~/.near-credentials)
 ```
 
 ## By criterion
@@ -70,7 +70,7 @@ pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser wit
 ### Completeness
 
 - Seven contracts, an SDK, a CLI and an MCP server with every NEAR-only feature, an indexer, an agent, a relayer, a keeper, a top-up service, an OutLayer checker and the site.
-- `pnpm verify` ([verify.ts#L91](scripts/verify.ts#L91)) proves each README claim against the live deployment and prints PASS or FAIL per claim.
+- `pnpm verify` ([verify.ts#L122](scripts/verify.ts#L122)) proves each README claim against the live deployment and prints PASS or FAIL per claim.
 - What is not finished is listed at the end of this page.
 
 ## Claims
@@ -83,7 +83,7 @@ pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser wit
 | Multisig authorities, scheduled revocation, credentials burned on revoke, staking tiers, large schemas | [multisig.rs#L143](contracts/attestations/src/multisig.rs#L143), [credentials](contracts/credentials/src/lib.rs#L161), [staking](contracts/staking/src/lib.rs) | unit tests; sandbox flows incl. a mint and revoke race | `pnpm cli:e2e testnet` |
 | Private facts checked by verifiable AI; evidence never on chain | [ai.rs#L84](contracts/verdicts/src/ai.rs#L84), [checker](checker/src/check.rs#L228), [check.ts#L70](apps/agent/src/check.ts#L70), [e2ee.ts](packages/sdk/src/e2ee.ts) | verdicts unit tests (signatures, age, replay, model match); checker tests with vectors from the TypeScript side; agent tests with real E2EE and signatures | `pnpm verify` checks an AI-checked attestation's two signatures |
 | Facts about other chains with no oracle (EVM logs and Solana instructions) | [foreign.rs#L70](contracts/verdicts/src/foreign.rs#L70), [solana.rs#L83](contracts/verdicts/src/solana.rs#L83), [mpc.rs](contracts/verdicts/src/mpc.rs) | unit and property tests against the MPC's Borsh layout and its own vectors; sandbox flows with an MPC double signing real secp256k1 answers | `pnpm verify` checks a cross-chain attestation and its final event |
-| Wallet links for Ethereum and Solana wallets | [wallet.rs#L83](contracts/verdicts/src/wallet.rs#L83) | unit tests (EIP-191 recovery, ed25519); sandbox flows | `pnpm cli:e2e testnet` |
+| Wallet links for Ethereum and Solana wallets | [wallet.rs#L93](contracts/verdicts/src/wallet.rs#L93) | unit tests (EIP-191 recovery, ed25519); sandbox flows | `pnpm cli:e2e testnet` |
 | Know Your Agent: identity, delegation, function-call keys, reviews | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts#L11](packages/sdk/src/agent-keys.ts#L11), `getAgentProfile` in [client.ts](packages/sdk/src/client.ts) | SDK, CLI and MCP tests | `pnpm verify` reads an agent's reputation; `/agents` on the site |
 | Light client proofs checked locally | [lightclient.ts#L180](packages/sdk/src/lightclient.ts#L180) | a recorded testnet proof in [light-client.json](packages/sdk/test/fixtures/light-client.json) | `pnpm verify` proves a recent attestation final |
 | x402 paid verification on NEAR | [x402.ts#L129](packages/sdk/src/x402.ts#L129), [paid.ts#L30](apps/agent/src/paid.ts#L30) | SDK and agent tests (402, signed delegate action, settle, serve) | `pnpm cli:e2e testnet` pays for a claim and an agent check |

@@ -53,3 +53,18 @@ test('a select shows its dropdown chevron', async ({ page }) => {
   await expect(select).toBeVisible();
   expect(await select.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('data:image/svg+xml');
 });
+
+for (const width of [375, 672]) {
+  test(`the sign-in menu of a sandbox tool stays on screen at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/sandbox/app/create-attestation');
+    await settled(page);
+    await page.getByRole('main').getByRole('button', { name: 'Sign in' }).click();
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    await expect(menu.getByRole('button', { name: 'New here? Create a passkey account' })).toBeVisible();
+  });
+}

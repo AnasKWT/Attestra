@@ -25,6 +25,7 @@ import {
   AttestraClient,
   IndexerClient,
   KNOWN_SCHEMAS,
+  READ_TOOLS,
   SchemaEncoder,
   base58Decode,
   base58Encode,
@@ -284,7 +285,13 @@ async function main() {
       prove_attestation: { uid: att.uid },
       decode_data: { definition: 'string name, u8 level', data: 'AwAAAEJvYgM=' },
       compute_schema_uid: { definition: 'string name, u8 level', revocable: true },
+      linked_account: { caip10: `eip155:1:0x${'0'.repeat(40)}` },
+      wallet_link_message: { account_id: c.config.root, chain: 'eip155', address: `0x${'0'.repeat(40)}` },
+      list_agent_keys: { account_id: c.config.root },
     };
+    // Every read tool the SDK defines is called, so a new tool cannot slip past this check.
+    const missing = READ_TOOLS.filter((t) => !(t in args));
+    must(!missing.length, `no live arguments for ${missing.join(', ')}`);
     const failed: string[] = [];
     for (const [name, a] of Object.entries(args)) {
       const res = await get(`${SITE}/mcp`, {

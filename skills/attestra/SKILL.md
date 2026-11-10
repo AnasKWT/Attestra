@@ -12,11 +12,14 @@ Install this skill for Claude Code or Codex with `npx skills add ./skills/attest
 
 ## Fastest path for an agent: MCP
 
+From a clone (`pnpm install && pnpm build`), until the package is on npm:
+
 ```bash
-claude mcp add attestra -- npx -y @attestra/mcp       # Claude Code
+claude mcp add attestra -- node /path/to/attestra/packages/mcp/dist/cli.js   # Claude Code
+codex mcp add attestra -- node /path/to/attestra/packages/mcp/dist/cli.js    # Codex
 ```
 
-Codex: add to `~/.codex/config.toml`:
+After the npm release, `npx -y @attestra/mcp` replaces the path, for example in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.attestra]
@@ -24,7 +27,6 @@ command = "npx"
 args = ["-y", "@attestra/mcp"]
 ```
 
-Until the package is on npm, run it from a clone: `pnpm install && pnpm build && node packages/mcp/dist/cli.js`.
 Read tools need nothing.
 Write tools appear when `ATTESTRA_ACCOUNT_ID` and `ATTESTRA_PRIVATE_KEY` (a testnet account) are set, and are capped per tool and per day.
 A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
