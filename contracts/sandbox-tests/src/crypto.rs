@@ -324,3 +324,33 @@ pub fn foreign_attestation_data(chain: &str, log: &EvmLog) -> Vec<u8> {
         log.log_index,
     ))
 }
+
+/// The payload the MPC network signs for one inner instruction of a finalized Solana transaction,
+/// written out byte by byte: V1, `Solana` (index 2), the 64-byte signature, `Finalized` (1), one
+/// `InnerInstruction` extractor (1) and one `SvmExtractedValue::InnerInstruction` value (6, 0).
+pub fn instruction_payload_hash(
+    tx_id: &[u8; 64],
+    instruction_index: u64,
+    inner_instruction_index: u64,
+    program_id: &[u8; 32],
+    accounts: &[[u8; 32]],
+    data: &[u8],
+) -> [u8; 32] {
+    let mut b = vec![0u8, 2];
+    b.extend(tx_id);
+    b.push(1);
+    b.extend(1u32.to_le_bytes());
+    b.push(1);
+    b.extend(instruction_index.to_le_bytes());
+    b.extend(inner_instruction_index.to_le_bytes());
+    b.extend(1u32.to_le_bytes());
+    b.extend([6, 0]);
+    b.extend(program_id);
+    b.extend((accounts.len() as u32).to_le_bytes());
+    for a in accounts {
+        b.extend(a);
+    }
+    b.extend((data.len() as u32).to_le_bytes());
+    b.extend(data);
+    sha256(&b)
+}

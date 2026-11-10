@@ -1311,3 +1311,259 @@ fn foreign_event_without_a_deposit_is_rejected() {
     let mut c = setup();
     let _ = c.attest_foreign_event(claim());
 }
+
+// ---------------------------------------------------------------- Solana instructions
+
+fn b58(bytes: &[u8]) -> String {
+    near_sdk::bs58::encode(bytes).into_string()
+}
+
+fn ix_claim() -> ForeignInstructionClaim {
+    ForeignInstructionClaim {
+        tx_id: b58(&[0x11; 64]),
+        instruction_index: 2,
+        inner_instruction_index: 0,
+        program_id: b58(&[0x33; 32]),
+        accounts: vec![b58(&[0x44; 32]), b58(&[0x55; 32])],
+        data: b58(&[0xde, 0xad, 0xbe, 0xef]),
+        subject: None,
+    }
+}
+
+fn ix_hash(c: &ForeignInstructionClaim) -> mpc::Hash256 {
+    let ix = mpc::SvmInnerInstruction {
+        program_id: HexArray([0x33; 32]),
+        accounts: vec![HexArray([0x44; 32]), HexArray([0x55; 32])],
+        data: vec![0xde, 0xad, 0xbe, 0xef],
+    };
+    mpc::instruction_request(HexArray([0x11; 64]), c.instruction_index, c.inner_instruction_index, &ix).1
+}
+
+fn solana_setup() -> Contract {
+    let mut c = setup();
+    set(OWNER, 1);
+    c.set_instruction_schema(schema(4));
+    c
+}
+
+#[test]
+fn solana_payload_matches_the_mpc_vector() {
+    // near/mpc 3.18.0 foreign_tx_sign_payload_v1_solana__should_have_consistent_hash
+    let payload = mpc::ForeignTxSignPayload::V1 {
+        request: mpc::ForeignChainRpcRequest::Solana(mpc::SvmRpcRequest {
+            tx_id: HexArray([0x11; 64]),
+            finality: mpc::SvmFinality::Finalized,
+            extractors: vec![
+                mpc::SvmExtractor::InnerInstruction { instruction_index: 2, inner_instruction_index: 0 },
+                mpc::SvmExtractor::AccountState { pubkey: HexArray([0x22; 32]) },
+            ],
+        }),
+        values: vec![
+            mpc::ExtractedValue::SvmExtractedValue(mpc::SvmExtractedValue::InnerInstruction(
+                mpc::SvmInnerInstruction {
+                    program_id: HexArray([0x33; 32]),
+                    accounts: vec![HexArray([0x44; 32]), HexArray([0x55; 32])],
+                    data: vec![0xde, 0xad, 0xbe, 0xef],
+                },
+            )),
+            mpc::ExtractedValue::SvmExtractedValue(mpc::SvmExtractedValue::AccountState(mpc::SvmAccount {
+                owner: HexArray([0x66; 32]),
+                data: vec![0xca, 0xfe],
+            })),
+        ],
+    };
+    assert_eq!(
+        payload.msg_hash().to_hex(),
+        "f53a1a864fa9ce51d50349b2e5fe38ff23e45b25b20038d405c12316f9bf05b1"
+    );
+}
+
+#[test]
+fn solana_request_calls_the_mpc() {
+    let mut c = solana_setup();
+    set(RELAYER, FOREIGN_DEPOSIT);
+    let claim = ix_claim();
+    let hash = ix_hash(&claim);
+    drop(c.attest_foreign_instruction(claim.clone()));
+    let calls = calls();
+    let mpc_call = calls.iter().find(|c| c.method == "verify_foreign_transaction").unwrap();
+    assert_eq!(mpc_call.receiver, MPC);
+    let args: Value = serde_json::from_slice(&mpc_call.args).unwrap();
+    assert_eq!(
+        args,
+        json!({ "request": {
+            "request": { "Solana": {
+                "tx_id": "11".repeat(64),
+                "finality": "Finalized",
+                "extractors": [{ "InnerInstruction": { "instruction_index": 2, "inner_instruction_index": 0 } }],
+            }},
+            "domain_id": 3,
+            "payload_version": 1,
+            "expected_payload_hash": hash.to_hex(),
+        }})
+    );
+    let cb = calls.iter().find(|c| c.method == "on_instruction_verified").unwrap();
+    let cb_args: Value = serde_json::from_slice(&cb.args).unwrap();
+    let back: ForeignInstructionClaim = serde_json::from_value(cb_args["claim"].clone()).unwrap();
+    assert_eq!(back, claim);
+    let required = c.foreign_instruction_deposit(claim).0;
+    assert_eq!(transfers(), vec![(RELAYER.to_string(), FOREIGN_DEPOSIT - required)]);
+    let e = events("foreign_tx_requested");
+    assert_eq!(e[0]["chain"], json!("solana"));
+    assert_eq!(
+        e[0]["subject"],
+        json!(format!("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:{}", b58(&[0x33; 32])))
+    );
+}
+
+#[test]
+fn solana_verified_attests_once() {
+    let mut c = solana_setup();
+    let claim = ix_claim();
+    let hash = ix_hash(&claim);
+    set_result(mpc_response(hash, 4));
+    let o = c.on_instruction_verified(claim.clone(), acc(RELAYER), U128(FOREIGN_DEPOSIT));
+    let args = attest_call(o);
+    assert_eq!(args["schema_uid"], json!(schema(4).to_hex()));
+    let want = borsh::to_vec(&(
+        "solana",
+        vec![0x11_u8; 64],
+        2u64,
+        0u64,
+        [0x33_u8; 32],
+        vec![[0x44_u8; 32], [0x55_u8; 32]],
+        vec![0xde_u8, 0xad, 0xbe, 0xef],
+    ))
+    .unwrap();
+    assert_eq!(data_of(&args), want);
+    assert_eq!(events("foreign_tx_verified")[0]["program_id"], json!(b58(&[0x33; 32])));
+    assert!(c.is_event_attested(Uid(hash.0)));
+
+    set_result(mpc_response(hash, 4));
+    let o = value(c.on_instruction_verified(claim, acc(RELAYER), U128(FOREIGN_DEPOSIT)));
+    assert_eq!(o, Outcome::new(Uid(hash.0), "failed"));
+    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("this instruction was already attested"));
+}
+
+#[test]
+fn solana_wrong_signer_or_payload_fails_and_refunds() {
+    let mut c = solana_setup();
+    let claim = ix_claim();
+    let hash = ix_hash(&claim);
+    set_result(mpc_response(hash, 9));
+    let o = value(c.on_instruction_verified(claim.clone(), acc(RELAYER), U128(FOREIGN_DEPOSIT)));
+    assert_eq!(o.status, "failed");
+    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("invalid MPC signature"));
+    assert_eq!(transfers(), vec![(RELAYER.to_string(), FOREIGN_DEPOSIT)]);
+
+    set_result(mpc_response(HexArray([0x99; 32]), 4));
+    let o = value(c.on_instruction_verified(claim, acc(RELAYER), U128(FOREIGN_DEPOSIT)));
+    assert_eq!(o.status, "failed");
+    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("the MPC signed another payload hash"));
+}
+
+#[test]
+#[should_panic(expected = "tx_id must be a 64-byte transaction signature")]
+fn solana_bad_signature_length() {
+    let mut c = solana_setup();
+    set(RELAYER, FOREIGN_DEPOSIT);
+    drop(c.attest_foreign_instruction(ForeignInstructionClaim { tx_id: b58(&[1; 32]), ..ix_claim() }));
+}
+
+#[test]
+#[should_panic(expected = "accounts must be 32-byte Solana addresses")]
+fn solana_bad_account() {
+    let mut c = solana_setup();
+    set(RELAYER, FOREIGN_DEPOSIT);
+    drop(
+        c.attest_foreign_instruction(ForeignInstructionClaim { accounts: vec![b58(&[1; 31])], ..ix_claim() }),
+    );
+}
+
+#[test]
+#[should_panic(expected = "the foreignInstruction schema is not configured")]
+fn solana_needs_its_schema() {
+    let mut c = setup();
+    set(RELAYER, FOREIGN_DEPOSIT);
+    drop(c.attest_foreign_instruction(ix_claim()));
+}
+
+#[test]
+#[should_panic(expected = "only the owner")]
+fn solana_schema_is_owner_only() {
+    let mut c = setup();
+    set(RELAYER, 1);
+    c.set_instruction_schema(schema(4));
+}
+
+// ---------------------------------------------------------------- properties
+
+/// The Solana payload written out byte by byte, independently of the Borsh derives.
+fn manual_instruction_payload(
+    tx: &[u8; 64],
+    ix: u64,
+    inner: u64,
+    program: &[u8; 32],
+    accounts: &[[u8; 32]],
+    data: &[u8],
+) -> [u8; 32] {
+    let mut b = vec![0u8, 2];
+    b.extend(tx);
+    b.push(1);
+    b.extend(1u32.to_le_bytes());
+    b.push(1);
+    b.extend(ix.to_le_bytes());
+    b.extend(inner.to_le_bytes());
+    b.extend(1u32.to_le_bytes());
+    b.extend([6, 0]);
+    b.extend(program);
+    b.extend((accounts.len() as u32).to_le_bytes());
+    for a in accounts {
+        b.extend(a);
+    }
+    b.extend((data.len() as u32).to_le_bytes());
+    b.extend(data);
+    env::sha256_array(&b)
+}
+
+proptest::proptest! {
+    #[test]
+    fn instruction_payload_matches_the_byte_layout(
+        tx in proptest::collection::vec(proptest::prelude::any::<u8>(), 64),
+        ix in 0u64..16, inner in 0u64..16,
+        program in proptest::array::uniform32(proptest::prelude::any::<u8>()),
+        accounts in proptest::collection::vec(proptest::array::uniform32(proptest::prelude::any::<u8>()), 0..8),
+        data in proptest::collection::vec(proptest::prelude::any::<u8>(), 0..64),
+    ) {
+        let tx: [u8; 64] = tx.try_into().unwrap();
+        let instruction = mpc::SvmInnerInstruction {
+            program_id: HexArray(program),
+            accounts: accounts.iter().map(|a| HexArray(*a)).collect(),
+            data: data.clone(),
+        };
+        let (_, hash) = mpc::instruction_request(HexArray(tx), ix, inner, &instruction);
+        proptest::prop_assert_eq!(hash.0, manual_instruction_payload(&tx, ix, inner, &program, &accounts, &data));
+    }
+
+    /// A claim the contract accepts always names the instruction the MPC is asked about.
+    #[test]
+    fn prepared_instruction_hash_follows_the_claim(
+        ix in 0u64..16, inner in 0u64..16,
+        accounts in proptest::collection::vec(proptest::array::uniform32(proptest::prelude::any::<u8>()), 0..8),
+        data in proptest::collection::vec(proptest::prelude::any::<u8>(), 1..64),
+    ) {
+        let c = solana_setup();
+        let claim = ForeignInstructionClaim {
+            instruction_index: ix,
+            inner_instruction_index: inner,
+            accounts: accounts.iter().map(|a| b58(a)).collect(),
+            data: b58(&data),
+            ..ix_claim()
+        };
+        let deposit = c.foreign_instruction_deposit(claim.clone()).0;
+        proptest::prop_assert!(deposit > 0);
+        let want = manual_instruction_payload(&[0x11; 64], ix, inner, &[0x33; 32], &accounts, &data);
+        let p = c.prepare_instruction(&claim).unwrap();
+        proptest::prop_assert_eq!(p.payload_hash.0, want);
+    }
+}

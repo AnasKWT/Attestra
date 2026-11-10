@@ -43,12 +43,14 @@ mod ai;
 mod crypto;
 mod foreign;
 pub mod mpc;
+mod solana;
 #[cfg(test)]
 mod tests;
 mod wallet;
 
 pub use ai::{verdict_digest, AiVerdict, NearAiProof, VERDICT_TAG};
 pub use foreign::ForeignEventClaim;
+pub use solana::ForeignInstructionClaim;
 
 use attestra_common::uid::Uid;
 use near_sdk::json_types::{Base64VecU8, U128};
@@ -159,6 +161,8 @@ pub struct Config {
     pub enclave_keys: Vec<PublicKey>,
     pub model_signers: Vec<ModelSigner>,
     pub rules: Vec<Rule>,
+    /// The `foreignInstruction` schema Solana facts are attested under.
+    pub instruction_schema: Option<Uid>,
 }
 
 #[near(contract_state)]
@@ -280,6 +284,7 @@ impl Contract {
             enclave_keys: self.enclave_keys.clone(),
             model_signers: self.model_signers.clone(),
             rules: self.rules.clone(),
+            instruction_schema: self.instruction_schema(),
         }
     }
 

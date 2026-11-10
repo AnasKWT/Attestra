@@ -2,9 +2,9 @@
 //! events verified by an MPC double.
 
 use attestra_sandbox_tests::crypto::{
-    attestation_uid, b64, ed_key, eth_address, foreign_attestation_data, foreign_payload_hash, mpc_signature,
-    near_public_key, nearai_proof_ecdsa, nearai_proof_ed25519, personal_sign, secp_key, sha256, EvmLog,
-    Verdict,
+    attestation_uid, b64, ed_key, eth_address, foreign_attestation_data, foreign_payload_hash,
+    instruction_payload_hash, mpc_signature, near_public_key, nearai_proof_ecdsa, nearai_proof_ed25519,
+    personal_sign, secp_key, sha256, EvmLog, Verdict,
 };
 use attestra_sandbox_tests::setup::{CLAIM, MODEL, RULE};
 use attestra_sandbox_tests::util::{chain_secs, event, events, fails_with, ok, u128_of, yocto, TX_GAS};
@@ -406,5 +406,77 @@ async fn foreign_events() -> anyhow::Result<()> {
     let a = env.attestation(outcome["uid"].as_str().expect("uid")).await?.expect("stored");
     assert_eq!(a["subject"], "bob.test.near");
     assert_eq!(env.attestation_count().await?, count + 2);
+    Ok(())
+}
+
+const INSTRUCTION_SCHEMA: &str = "string chain, bytes tx_id, u64 instruction_index, u64 inner_instruction_index, bytes32 program_id, bytes32[] accounts, bytes data";
+
+#[tokio::test]
+async fn solana_instructions() -> anyhow::Result<()> {
+    let env = Env::new().await?;
+    let verdicts = env.verdicts.id().as_str();
+    let schema = env.schema(&env.owner, INSTRUCTION_SCHEMA, None, true).await?;
+    let _ = ok(env
+        .owner
+        .call(env.verdicts.id(), "set_instruction_schema")
+        .args_json(json!({ "uid": schema }))
+        .deposit(yocto(1))
+        .transact()
+        .await?);
+
+    let (tx, program, accounts, data) =
+        ([0x11u8; 64], [0x33u8; 32], vec![[0x44u8; 32], [0x55u8; 32]], vec![3u8, 1, 0, 0]);
+    let b58 = |b: &[u8]| bs58::encode(b).into_string();
+    let claim = json!({
+        "tx_id": b58(&tx), "instruction_index": 2, "inner_instruction_index": 0,
+        "program_id": b58(&program), "accounts": accounts.iter().map(|a| b58(a)).collect::<Vec<_>>(),
+        "data": b58(&data), "subject": null,
+    });
+    let hash = instruction_payload_hash(&tx, 2, 0, &program, &accounts, &data);
+    let _ = ok(env
+        .owner
+        .call(env.mpc.id(), "set_response")
+        .args_json(json!({ "response": { "payload_hash": hex::encode(hash), "signature": mpc_signature(&env.keys.mpc, &hash) } }))
+        .transact()
+        .await?);
+    let deposit: String =
+        env.view(&env.verdicts, "foreign_instruction_deposit", json!({ "claim": claim })).await?;
+    let result = ok(env
+        .relayer
+        .call(env.verdicts.id(), "attest_foreign_instruction")
+        .args_json(json!({ "claim": claim }))
+        .deposit(yocto(deposit.parse()?))
+        .gas(TX_GAS)
+        .transact()
+        .await?);
+    let outcome: Value = result.clone().json()?;
+    assert_eq!(outcome["status"], "created", "{outcome}");
+    // The sandbox MPC double is not a .testnet account, so the subject names Solana mainnet.
+    let subject = format!("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:{}", b58(&program));
+    assert_eq!(event(&result, "foreign_tx_verified")["subject"], subject);
+    let a = env.attestation(outcome["uid"].as_str().expect("uid")).await?.expect("stored");
+    assert_eq!(a["schema_uid"], schema);
+    assert_eq!(a["attester"], verdicts);
+    assert_eq!(a["subject"], subject);
+    let stored = borsh::to_vec(&("solana", tx.to_vec(), 2u64, 0u64, program, accounts.clone(), data.clone()));
+    assert_eq!(a["data"], b64(&stored?));
+
+    let asked: Value = env.view(&env.mpc, "last_request", json!({})).await?;
+    assert_eq!(asked["request"]["Solana"]["tx_id"], hex::encode(tx));
+    assert_eq!(
+        asked["request"]["Solana"]["extractors"],
+        json!([{ "InnerInstruction": { "instruction_index": 2, "inner_instruction_index": 0 } }])
+    );
+    assert_eq!(asked["expected_payload_hash"], hex::encode(hash));
+    fails_with(
+        env.relayer
+            .call(env.verdicts.id(), "attest_foreign_instruction")
+            .args_json(json!({ "claim": claim }))
+            .deposit(yocto(deposit.parse()?))
+            .gas(TX_GAS)
+            .transact()
+            .await?,
+        "this instruction was already attested",
+    );
     Ok(())
 }

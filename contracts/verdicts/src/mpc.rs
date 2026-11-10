@@ -1,7 +1,7 @@
 //! The parts of the NEAR MPC contract's foreign-transaction interface this contract uses.
 //!
 //! Types mirror `crates/near-mpc-contract-interface/src/types/foreign_chain.rs` and the signature
-//! types of `near-mpc-crypto-types` (github.com/near/mpc, tag 3.18.0) for the EVM chains only.
+//! types of `near-mpc-crypto-types` (github.com/near/mpc, tag 3.18.0) for the EVM chains and Solana.
 //! Borsh layouts are byte-identical to the MPC's: enum indexes are pinned with explicit
 //! discriminants, so `expected_payload_hash` here equals the hash the MPC network signs. JSON
 //! matches what the MPC contract accepts and returns: externally tagged enums, hex without `0x`
@@ -106,6 +106,7 @@ pub struct EvmLog {
 #[repr(u8)]
 pub enum ForeignChainRpcRequest {
     Ethereum(EvmRpcRequest) = 1,
+    Solana(SvmRpcRequest) = 2,
     Bnb(EvmRpcRequest) = 5,
     Base(EvmRpcRequest) = 6,
     Arbitrum(EvmRpcRequest) = 7,
@@ -122,13 +123,73 @@ pub enum EvmExtractedValue {
     Log(EvmLog) = 1,
 }
 
-/// The EVM variant of the MPC's `ExtractedValue`.
+/// Solana finality, `SvmFinality` (implicit indexes: Confirmed 0, Finalized 1).
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub enum SvmFinality {
+    Confirmed,
+    Finalized,
+}
+
+/// `SvmExtractor`: an inner instruction of a transaction, by the index of its top-level
+/// instruction and its position among that instruction's inner instructions.
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh", use_discriminant = true)]
+#[serde(crate = "near_sdk::serde")]
+#[repr(u8)]
+pub enum SvmExtractor {
+    InnerInstruction { instruction_index: u64, inner_instruction_index: u64 } = 1,
+    AccountState { pubkey: Hash256 } = 2,
+}
+
+/// `SvmRpcRequest`; `tx_id` is the 64-byte transaction signature.
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct SvmRpcRequest {
+    pub tx_id: HexArray<64>,
+    pub finality: SvmFinality,
+    pub extractors: Vec<SvmExtractor>,
+}
+
+/// `SvmInnerInstruction` as the MPC nodes read it from `getTransaction`: the program, the
+/// accounts it was called with (resolved through the transaction's account keys) and its data.
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct SvmInnerInstruction {
+    pub program_id: Hash256,
+    pub accounts: Vec<Hash256>,
+    pub data: Vec<u8>,
+}
+
+/// `SvmExtractedValue` (implicit indexes: InnerInstruction 0, AccountState 1).
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub enum SvmExtractedValue {
+    InnerInstruction(SvmInnerInstruction),
+    AccountState(SvmAccount),
+}
+
+/// `SvmAccount`: an account's owner program and data, for `SvmExtractor::AccountState`.
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
+pub struct SvmAccount {
+    pub owner: Hash256,
+    pub data: Vec<u8>,
+}
+
+/// The EVM and Solana variants of the MPC's `ExtractedValue`.
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 #[borsh(crate = "near_sdk::borsh", use_discriminant = true)]
 #[serde(crate = "near_sdk::serde")]
 #[repr(u8)]
 pub enum ExtractedValue {
     EvmExtractedValue(EvmExtractedValue) = 1,
+    SvmExtractedValue(SvmExtractedValue) = 6,
 }
 
 /// What the MPC network signs: `sha256(borsh(ForeignTxSignPayload::V1 { request, values }))`.
@@ -229,6 +290,28 @@ pub fn log_request(chain: &str, tx_id: Hash256, log: &EvmLog) -> Option<(Foreign
         values: vec![ExtractedValue::EvmExtractedValue(EvmExtractedValue::Log(log.clone()))],
     };
     Some((request, payload.msg_hash()))
+}
+
+/// The request and expected payload hash for one inner instruction of a finalized Solana
+/// transaction.
+pub fn instruction_request(
+    tx_id: HexArray<64>,
+    instruction_index: u64,
+    inner_instruction_index: u64,
+    instruction: &SvmInnerInstruction,
+) -> (ForeignChainRpcRequest, Hash256) {
+    let request = ForeignChainRpcRequest::Solana(SvmRpcRequest {
+        tx_id,
+        finality: SvmFinality::Finalized,
+        extractors: vec![SvmExtractor::InnerInstruction { instruction_index, inner_instruction_index }],
+    });
+    let payload = ForeignTxSignPayload::V1 {
+        request: request.clone(),
+        values: vec![ExtractedValue::SvmExtractedValue(SvmExtractedValue::InnerInstruction(
+            instruction.clone(),
+        ))],
+    };
+    (request, payload.msg_hash())
 }
 
 fn wrap(chain: &str, evm: EvmRpcRequest) -> Option<ForeignChainRpcRequest> {

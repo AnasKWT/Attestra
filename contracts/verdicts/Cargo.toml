@@ -20,6 +20,7 @@ near-sdk = { workspace = true, features = ["unit-testing", "unstable"] }
 ed25519-dalek = "2"
 k256 = { version = "0.13", features = ["ecdsa"] }
 sha3 = "0.10"
+proptest = { workspace = true }
 
 [package.metadata.near.reproducible_build]
 image = "sourcescan/cargo-near:0.22.0-rust-1.98.1"

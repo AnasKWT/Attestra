@@ -10,17 +10,17 @@ use near_sdk::serde_json::{self, json};
 use near_sdk::{borsh, NearToken, Promise};
 
 /// Gas for `verify_foreign_transaction` (the MPC requires 15 TGas and keeps 7 for its yield).
-const GAS_MPC: Gas = Gas::from_tgas(25);
+pub(crate) const GAS_MPC: Gas = Gas::from_tgas(25);
 /// The callback's own work (ecrecover, storage, events).
-const GAS_VERIFY_WORK: Gas = Gas::from_tgas(15);
+pub(crate) const GAS_VERIFY_WORK: Gas = Gas::from_tgas(15);
 /// The follow-up that releases the event when `attest` failed.
-const GAS_AFTER_ATTEST: Gas = Gas::from_tgas(10);
+pub(crate) const GAS_AFTER_ATTEST: Gas = Gas::from_tgas(10);
 /// Largest MPC response read in the callback.
-const MAX_RESPONSE_LEN: usize = 4 * 1024;
+pub(crate) const MAX_RESPONSE_LEN: usize = 4 * 1024;
 const MAX_TOPICS: usize = 4;
 const MAX_LOG_DATA_BYTES: usize = 8 * 1024;
 /// A `used_payloads` entry: prefix, 32-byte hash, empty value and the record overhead.
-const PAYLOAD_ENTRY_BYTES: u64 = 1 + 32 + RECORD_OVERHEAD_BYTES;
+pub(crate) const PAYLOAD_ENTRY_BYTES: u64 = 1 + 32 + RECORD_OVERHEAD_BYTES;
 
 /// A log the caller expects the MPC network to find in a finalized EVM transaction.
 #[near(serializers = [json])]
@@ -183,14 +183,7 @@ impl Contract {
                 "the MPC signed another payload hash",
             ));
         }
-        let key = self.mpc_key.as_deref().and_then(mpc::parse_secp256k1_key);
-        let valid = match (&response.signature, key) {
-            (mpc::SignatureResponse::Secp256k1(sig), Some(key)) => {
-                mpc::verify_secp256k1(sig, &p.payload_hash.0, &key)
-            }
-            _ => false,
-        };
-        if !valid {
+        if !self.mpc_signed(&response, &p.payload_hash) {
             return PromiseOrValue::Value(self.foreign_failed(claim, uid, "invalid MPC signature"));
         }
         let Some(schema_uid) = self.schemas.as_ref().map(|s| s.foreign_tx) else {
@@ -272,6 +265,21 @@ impl Contract {
         Ok(Prepared { tx_id, request, payload_hash, subject, data })
     }
 
+    /// True when `response` is the MPC key's secp256k1 signature over `payload_hash`.
+    pub(crate) fn mpc_signed(
+        &self,
+        response: &VerifyForeignTransactionResponse,
+        payload_hash: &mpc::Hash256,
+    ) -> bool {
+        let key = self.mpc_key.as_deref().and_then(mpc::parse_secp256k1_key);
+        match (&response.signature, key) {
+            (mpc::SignatureResponse::Secp256k1(sig), Some(key)) => {
+                mpc::verify_secp256k1(sig, &payload_hash.0, &key)
+            }
+            _ => false,
+        }
+    }
+
     fn foreign_failed(&self, claim: &ForeignEventClaim, payload_hash: Uid, reason: &str) -> Outcome {
         emit(
             events::FOREIGN_TX_FAILED,
@@ -285,7 +293,7 @@ impl Contract {
 }
 
 /// The MPC's answer, or why there is none.
-fn read_response() -> Result<VerifyForeignTransactionResponse, String> {
+pub(crate) fn read_response() -> Result<VerifyForeignTransactionResponse, String> {
     if env::promise_results_count() != 1 {
         return Err("expected one promise result".into());
     }
