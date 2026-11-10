@@ -53,9 +53,16 @@ const c = new AttestraClient({ network, indexerUrl: INDEXER });
 const idx = new IndexerClient(INDEXER);
 const rpc = <T>(m: string, p: unknown) => c.rpc<T>(m, p);
 
+/** A dropped connection or a rate limit (shared RPCs, a busy local stack) gets one more try before it counts. */
+const transient = (e: unknown) => /fetch failed|not reachable|429|Too Many Requests|ECONNRESET|socket/i.test((e as Error).message ?? '');
+
 async function check(claim: string, fn: () => Promise<string>) {
   try {
-    const detail = await fn();
+    const detail = await fn().catch(async (e) => {
+      if (!transient(e)) throw e;
+      await new Promise((r) => setTimeout(r, 3000));
+      return fn();
+    });
     results.push({ claim, ok: true, detail });
     console.log(`\u001b[32mPASS\u001b[0m ${claim}${detail ? `\n     ${detail}` : ''}`);
   } catch (e) {
