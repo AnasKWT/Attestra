@@ -6,9 +6,9 @@
 import { AttestraErrorType, type ServiceResponse } from './types';
 
 const RULES: Array<[RegExp, AttestraErrorType]> = [
-  [/already exists|already registered|already known|already approved|already used/i, AttestraErrorType.ALREADY_EXISTS],
+  [/already exists|already registered|already known|already approved|already used|AddKeyAlreadyExists/i, AttestraErrorType.ALREADY_EXISTS],
   [/already revoked/i, AttestraErrorType.ALREADY_REVOKED],
-  [/not found|unknown schema|unknown blob|unknown operation|does not exist|UNKNOWN_ACCOUNT/i, AttestraErrorType.NOT_FOUND],
+  [/not found|unknown schema|unknown blob|unknown operation|does not exist|DeleteKeyDoesNotExist|UNKNOWN_ACCESS_KEY|UNKNOWN_ACCOUNT/i, AttestraErrorType.NOT_FOUND],
   [/only the|only members|only governance|not a delegate|not a signer key|invalid signature|outside the delegation|does not allow|reserved account|not allowed|NotEnoughAllowance|AccessKeyNotFound|Unauthorized/i, AttestraErrorType.UNAUTHORIZED],
   [/expired|deadline|no uses left/i, AttestraErrorType.EXPIRED],
   [/storage balance|no storage balance|registration minimum|LackBalanceForState|NotEnoughBalance|insufficient/i, AttestraErrorType.INSUFFICIENT_STORAGE],
@@ -40,8 +40,16 @@ export function classifyError(error: unknown): AttestraErrorType {
   return AttestraErrorType.UNKNOWN_ERROR;
 }
 
+/** Errors the SDK raises itself carry a flag: `config` (no signer, missing URL) or `validation` (bad input). */
+function flaggedType(error: unknown): AttestraErrorType | undefined {
+  const e = error as { config?: boolean; validation?: boolean } | null;
+  if (e?.config) return AttestraErrorType.CONFIGURATION_ERROR;
+  if (e?.validation) return AttestraErrorType.VALIDATION_ERROR;
+  return undefined;
+}
+
 export function fail<T>(error: unknown, type?: AttestraErrorType): ServiceResponse<T> {
-  return { success: false, error: { type: type ?? classifyError(error), message: errorMessage(error) } };
+  return { success: false, error: { type: type ?? flaggedType(error) ?? classifyError(error), message: errorMessage(error) } };
 }
 
 export function ok<T>(data: T, txHash?: string): ServiceResponse<T> {

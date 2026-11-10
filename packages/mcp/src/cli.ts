@@ -7,6 +7,7 @@
 
 import { createServer } from 'node:http';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { DEFAULT_TOOL_CAPS, DailyCaps } from './caps';
 import { handleMcpRequest } from './http';
 import { createAttestraMcpServer, optionsFromEnv } from './server';
 
@@ -16,6 +17,8 @@ const options = optionsFromEnv();
 
 if (httpAt >= 0) {
   const port = Number(args[httpAt + 1] ?? process.env.PORT ?? 5600);
+  // Every request gets its own server, so the daily caps live here.
+  const caps = new DailyCaps(options.caps ?? { perTool: 20, total: 50, tools: DEFAULT_TOOL_CAPS });
   createServer(async (req, res) => {
     if (req.url === '/live' || req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true, service: 'mcp' }));
@@ -32,7 +35,7 @@ if (httpAt >= 0) {
       headers: req.headers as Record<string, string>,
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : Buffer.concat(chunks),
     });
-    const response = await handleMcpRequest(request, options);
+    const response = await handleMcpRequest(request, options, { caps });
     const headers: Record<string, string> = {};
     response.headers.forEach((v, k) => (headers[k] = v));
     res.writeHead(response.status, headers);

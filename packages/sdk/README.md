@@ -32,6 +32,22 @@ const created = await client.createAttestation({ schemaUid: schema.data!.schemaU
 
 Every method returns `{ success, data?, error?: { type, message }, txHash? }` and never throws.
 
+## Scoped delegation to an agent
+
+An account can give an AI agent its own NEAR function-call access key instead of a contract-level grant.
+The key works only on the attestations contract, only for the attest and revoke methods, and only up to its gas allowance; it cannot move NEAR or attach a deposit.
+
+```ts
+await client.grantAgentKey('ed25519:<agent public key>');                     // attest, revoke, schedule_revocation; 0.25 NEAR of gas
+await client.grantAgentKey(agentKey, { methods: ['attest'], allowanceNear: '0.1' });
+const { data } = await client.agentKeys('alice.testnet');                    // which agents hold keys
+await client.revokeAgentKey(agentKey);                                        // deletes only agent keys, never a full-access key
+```
+
+`methods` may only name methods in `AGENT_KEY_GRANTABLE_METHODS` (the attest and revoke family; never storage, delegation, signer keys or owner methods).
+The agent then signs as the account, so keep a storage balance on the attestations contract (`storageDeposit('attestations', ...)`): a function-call key cannot attach the storage top-up.
+`delegateToAgent` remains the contract-level alternative, with schema, expiry and use limits recorded on chain.
+
 ## Also in the box
 
 - `SchemaEncoder`: Borsh encoding for schema definitions such as `string name, u8 level, account_id issuer`.

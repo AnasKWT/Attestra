@@ -34,8 +34,15 @@ A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
 | `get_agent_reputation` | Know Your Agent: identity (owner, model, capabilities), delegations, reviews and average score |
 | `get_authority`, `get_delegates` | who an issuer is, whether governance verified it, who may issue for it |
 | `get_schema`, `list_schemas`, `well_known_schemas`, `compute_schema_uid`, `decode_data` | schemas and data |
+| `linked_account`, `wallet_link_message` | find the NEAR account behind a wallet on another chain; get the text a wallet signs to link itself |
+| `list_agent_keys` | which agents hold a function-call access key on an account, with their methods and gas allowance left |
 | `register_schema`, `create_attestation`, `revoke_attestation`, `rate_agent` | write (testnet, capped) |
 | `request_private_check` | prove a private fact (age, income, GitHub contributions) without revealing the evidence |
+| `link_wallet` | link a wallet on another chain once it signed the link message (write) |
+| `attest_foreign_event` | attest an EVM log the NEAR MPC network verified, no oracle (write, deposit capped) |
+| `register_agent`, `delegate_to_agent` | register an agent you own; let it attest for you within `expires_at` or `max_uses` (write) |
+| `grant_agent_key` | give an agent a function-call key: attestations contract only, attest and revoke methods only, gas allowance capped (write) |
+| `paid_verify` | buy a verified claim or agent check from the Attestra agent over x402 (write, payment capped) |
 
 Decision rules:
 - Trust a claim only when `verify_attestation` says `valid: true`; for high stakes also run `prove_attestation`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyError, errorMessage } from '../src/errors';
+import { classifyError, errorMessage, fail } from '../src/errors';
 import { AttestraErrorType } from '../src/types';
 
 describe('error mapping', () => {
@@ -14,6 +14,8 @@ describe('error mapping', () => {
     ["the schema's resolver refused attestation x; rejected", AttestraErrorType.RESOLVER_REJECTED],
     ['Smart contract panicked: the schema is not revocable', AttestraErrorType.VALIDATION_ERROR],
     ['fetch failed', AttestraErrorType.NETWORK_ERROR],
+    ['{"ActionError":{"kind":{"AddKeyAlreadyExists":{}}}}', AttestraErrorType.ALREADY_EXISTS],
+    ['{"ActionError":{"kind":{"DeleteKeyDoesNotExist":{}}}}', AttestraErrorType.NOT_FOUND],
     ['something odd', AttestraErrorType.UNKNOWN_ERROR],
   ];
   it.each(cases)('%s', (msg, type) => {
@@ -24,5 +26,11 @@ describe('error mapping', () => {
     expect(errorMessage(new Error('Smart contract panicked: only governance can verify authorities\nmore'))).toBe('only governance can verify authorities');
     expect(errorMessage({ panic: 'invalid signature' })).toBe('invalid signature');
     expect(errorMessage('plain')).toBe('plain');
+  });
+
+  it('maps the SDK flags for configuration and validation errors', () => {
+    expect(fail(Object.assign(new Error('no signer'), { config: true })).error?.type).toBe(AttestraErrorType.CONFIGURATION_ERROR);
+    expect(fail(Object.assign(new Error('above the limit'), { validation: true })).error?.type).toBe(AttestraErrorType.VALIDATION_ERROR);
+    expect(fail(Object.assign(new Error('above the limit'), { validation: true }), AttestraErrorType.UNAUTHORIZED).error?.type).toBe(AttestraErrorType.UNAUTHORIZED);
   });
 });

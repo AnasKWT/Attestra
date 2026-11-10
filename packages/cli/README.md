@@ -12,6 +12,13 @@ Every command takes `--json` and prints one JSON object, so scripts and agents c
 Command groups: `schema`, `blob`, `attestation`, `authority`, `storage`, `delegate`, `whitelist`, `fee`, `token-gated`, `token-reward`, `pipeline`, `credential`, `schedule`, `multisig`, `staking`, `token`, `events`, `check`, `chain`, `agent`, `pay`, `ai`.
 Run `attestra <group> --help` for the commands in each.
 
+## Agent keys
+
+`agent grant-key <publicKey> [--methods attest,revoke] [--allowance 0.25]` adds a NEAR function-call access key the agent holds to your account.
+It works only on the attestations contract, only for the listed methods (default `attest,revoke,schedule_revocation`; storage, delegation and owner methods are refused) and only up to the allowance of gas in NEAR.
+`agent keys <account>` lists the agent keys of an account and `agent revoke-key <publicKey>` deletes one (never a full-access key).
+`agent delegate <agent>` is the contract-level alternative.
+
 ## Signing
 
 Commands that write take `-a <account>`.

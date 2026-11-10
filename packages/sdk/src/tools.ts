@@ -4,10 +4,32 @@
  * OpenAI-compatible agent can use `openAITools()` directly (for example on NEAR AI Cloud).
  */
 
+import { AGENT_KEY_ALLOWANCE_NEAR, AGENT_KEY_GRANTABLE_METHODS, AGENT_KEY_METHODS, invalid, nearToYocto } from './agent-keys';
 import type { AttestraClient } from './client';
 import { SchemaEncoder } from './encoder';
+import { fail } from './errors';
 import { KNOWN_SCHEMAS, knownSchemas } from './schemas';
+import type { Network } from './types';
 import { computeSchemaUid } from './uid';
+import type { EvmLog } from './verdicts';
+
+/**
+ * Per-call spend limits for write tools, so an agent cannot be talked into a large deposit, key
+ * allowance or payment. `runTool` fills what is not given from `defaultToolLimits`.
+ */
+export interface ToolLimits {
+  /** Largest gas allowance `grant_agent_key` may give a key, in NEAR. */
+  maxKeyAllowanceNear: string;
+  /** Largest deposit `link_wallet` and `attest_foreign_event` may attach, in NEAR. */
+  maxDepositNear: string;
+  /** Largest x402 payment `paid_verify` may make, in the payment token's smallest unit. */
+  maxPayment: string;
+}
+
+/** 1 NEAR of key allowance, 0.25 NEAR of deposit, and 5 test tokens (testnet) or 0.05 USDC (mainnet) per payment. */
+export function defaultToolLimits(network: Network): ToolLimits {
+  return { maxKeyAllowanceNear: '1', maxDepositNear: '0.25', maxPayment: network === 'mainnet' ? '50000' : '5000000000000000000' };
+}
 
 export interface ToolSpec {
   name: string;
@@ -16,13 +38,16 @@ export interface ToolSpec {
   parameters: { type: 'object'; properties: Record<string, unknown>; required?: string[]; additionalProperties?: boolean };
   /** Writes send a transaction (or start a paid or private check). */
   write: boolean;
-  run: (client: AttestraClient, args: Record<string, unknown>) => Promise<unknown>;
+  run: (client: AttestraClient, args: Record<string, unknown>, limits: ToolLimits) => Promise<unknown>;
 }
 
 const str = (description: string) => ({ type: 'string', description });
 const uid = (description: string) => ({ type: 'string', description, pattern: '^(0x)?[0-9a-fA-F]{64}$' });
 const int = (description: string) => ({ type: 'integer', description });
 const bool = (description: string) => ({ type: 'boolean', description });
+const oneOf = (description: string, values: readonly string[]) => ({ type: 'string', description, enum: [...values] });
+const list = (description: string, items: Record<string, unknown> = { type: 'string' }) => ({ type: 'array', description, items });
+const WALLET_CHAINS = ['eip155', 'solana'] as const;
 
 function unwrap<T>(r: { success: boolean; data?: T; error?: { type: string; message: string }; txHash?: string }) {
   if (!r.success) return { ok: false, error: r.error };
@@ -123,6 +148,31 @@ export const TOOLS: ToolSpec[] = [
     run: async (c, a) => unwrap(await c.proveAttestation(String(a.uid))),
   },
   {
+    name: 'linked_account',
+    description: 'Which NEAR account a wallet on another chain is linked to (a link proven by that wallet signing on chain), or null.',
+    parameters: { type: 'object', properties: { caip10: str('CAIP-10 wallet id, e.g. eip155:1:0xabc... or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:<address>') }, required: ['caip10'] },
+    write: false,
+    run: async (c, a) => unwrap(await c.linkedAccount(String(a.caip10))),
+  },
+  {
+    name: 'wallet_link_message',
+    description: 'The exact text a wallet on another chain signs (personal_sign for eip155, an ed25519 message signature for solana) to link itself to a NEAR account with link_wallet.',
+    parameters: {
+      type: 'object',
+      properties: { account_id: str('NEAR account the wallet links to'), chain: oneOf('Wallet chain', WALLET_CHAINS), address: str('Wallet address (0x... or base58)') },
+      required: ['account_id', 'chain', 'address'],
+    },
+    write: false,
+    run: async (c, a) => unwrap(await c.linkWalletMessage(String(a.account_id), a.chain as 'eip155' | 'solana', String(a.address))),
+  },
+  {
+    name: 'list_agent_keys',
+    description: "The NEAR function-call access keys an account gave AI agents for the attestations contract: each key's allowed methods and gas allowance left (yoctoNEAR).",
+    parameters: { type: 'object', properties: { account_id: str('NEAR account id') }, required: ['account_id'] },
+    write: false,
+    run: async (c, a) => unwrap(await c.agentKeys(String(a.account_id))),
+  },
+  {
     name: 'decode_data',
     description: 'Decode base64 attestation data with a schema definition.',
     parameters: { type: 'object', properties: { definition: str('Schema definition, e.g. "string name, u8 level"'), data: str('Base64 data') }, required: ['definition', 'data'] },
@@ -203,6 +253,141 @@ export const TOOLS: ToolSpec[] = [
     run: async (c, a) =>
       unwrap(await c.requestPrivateCheck({ ruleId: String(a.rule_id), subject: String(a.subject), evidence: String(a.evidence ?? ''), github: a.github as string | undefined })),
   },
+  {
+    name: 'attest_foreign_event',
+    description:
+      'Attest an event on another chain without an oracle: the NEAR MPC network (Chain Signatures) verifies an EVM transaction log and the verdicts contract attests it. Takes a minute or two.',
+    parameters: {
+      type: 'object',
+      properties: {
+        chain: str('EVM chain: base, arbitrum, polygon, bnb, avalanche (testnets on testnet), plus ethereum on mainnet'),
+        tx_id: str('Transaction hash (0x...)'),
+        log_index: int('Index of the log in the transaction receipt'),
+        log: { type: 'object', description: "The expected log in the contract's EvmLog shape; read from the chain's public RPC when omitted", additionalProperties: true },
+        subject: str('Subject of the attestation, optional (CAIP-10 or NEAR account)'),
+      },
+      required: ['chain', 'tx_id', 'log_index'],
+    },
+    write: true,
+    run: async (c, a, limits) =>
+      unwrap(
+        await c.attestForeignEvent(
+          { chain: String(a.chain), txId: String(a.tx_id), logIndex: Number(a.log_index), log: a.log as EvmLog | undefined, subject: a.subject as string | undefined },
+          { maxDeposit: nearToYocto(limits.maxDepositNear) },
+        ),
+      ),
+  },
+  {
+    name: 'link_wallet',
+    description: 'Link a wallet on another chain to the signer, proven by the wallet signing the text from wallet_link_message; attests it under the wallet link schema.',
+    parameters: {
+      type: 'object',
+      properties: { chain: oneOf('Wallet chain', WALLET_CHAINS), address: str('Wallet address'), signature: str('The wallet signature over the link message (0x... hex for eip155, base58 for solana)') },
+      required: ['chain', 'address', 'signature'],
+    },
+    write: true,
+    run: async (c, a, limits) =>
+      unwrap(await c.linkWallet(a.chain as 'eip155' | 'solana', String(a.address), String(a.signature), { maxDeposit: nearToYocto(limits.maxDepositNear) })),
+  },
+  {
+    name: 'register_agent',
+    description: "Know Your Agent: register an AI agent you own (an identity attestation about the agent account with its name, model, capabilities and endpoint; you are the owner).",
+    parameters: {
+      type: 'object',
+      properties: {
+        agent: str('Agent account id'),
+        name: str('Agent name'),
+        model: str('Model id, e.g. a NEAR AI Cloud verifiable model'),
+        capabilities: list('What the agent does, e.g. ["verify", "attest"]'),
+        endpoint: str('Agent URL, optional'),
+        description: str('Short description, optional'),
+      },
+      required: ['agent', 'name', 'model'],
+    },
+    write: true,
+    run: async (c, a) =>
+      unwrap(
+        await c.registerAgent({
+          agent: String(a.agent),
+          name: String(a.name),
+          model: String(a.model),
+          capabilities: Array.isArray(a.capabilities) ? a.capabilities.map(String) : [],
+          endpoint: String(a.endpoint ?? ''),
+          description: a.description as string | undefined,
+        }),
+      ),
+  },
+  {
+    name: 'delegate_to_agent',
+    description:
+      'Let an AI agent attest for you on the attestations contract (a revocable on-chain delegation). Give expires_at or max_uses: an unbounded delegation is refused here. Optionally limit it to some schemas and allow revoking.',
+    parameters: {
+      type: 'object',
+      properties: {
+        agent: str('Agent account id'),
+        schemas: list('Schema UIDs it may use; omit for any', uid('Schema UID')),
+        expires_at: int('Unix seconds when the delegation ends'),
+        max_uses: int('Most attestations it may make'),
+        can_revoke: bool('Whether it may also revoke attestations it made for you'),
+      },
+      required: ['agent'],
+    },
+    write: true,
+    run: async (c, a) => {
+      if (a.expires_at === undefined && a.max_uses === undefined) throw invalid('give expires_at or max_uses: an unbounded delegation is not granted by a tool');
+      return unwrap(
+        await c.delegateToAgent(String(a.agent), {
+          schemas: Array.isArray(a.schemas) ? a.schemas.map(String) : undefined,
+          expiresAt: a.expires_at as number | undefined,
+          maxUses: a.max_uses as number | undefined,
+          canRevoke: a.can_revoke as boolean | undefined,
+        }),
+      );
+    },
+  },
+  {
+    name: 'grant_agent_key',
+    description: `Scoped delegation with a NEAR function-call access key: add a key the agent holds to your account, usable only on the attestations contract, only for some methods (default ${AGENT_KEY_METHODS.join(', ')}) and only up to a gas allowance (default ${AGENT_KEY_ALLOWANCE_NEAR} NEAR). The key cannot move NEAR or attach deposits.`,
+    parameters: {
+      type: 'object',
+      properties: {
+        public_key: str("The agent's public key, ed25519:..."),
+        methods: list('Methods the key may call; omit for the default', oneOf('Method', AGENT_KEY_GRANTABLE_METHODS)),
+        allowance_near: str(`Gas allowance in NEAR, default ${AGENT_KEY_ALLOWANCE_NEAR}; capped by the server`),
+      },
+      required: ['public_key'],
+    },
+    write: true,
+    run: async (c, a, limits) => {
+      const allowance = String(a.allowance_near ?? AGENT_KEY_ALLOWANCE_NEAR);
+      if (nearToYocto(allowance) > nearToYocto(limits.maxKeyAllowanceNear)) throw invalid(`allowance_near ${allowance} is above the limit of ${limits.maxKeyAllowanceNear} NEAR`);
+      return unwrap(await c.grantAgentKey(String(a.public_key), { methods: Array.isArray(a.methods) ? a.methods.map(String) : undefined, allowanceNear: allowance }));
+    },
+  },
+  {
+    name: 'paid_verify',
+    description:
+      'Paid verification through the Attestra agent over x402: pays per call with a NEP-141 token (the test token on testnet) and returns the verified claim (attestation status and light client proof) or agent check (identity, delegations, reputation) with the settlement.',
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: oneOf('claim verifies an attestation; agent checks an AI agent', ['claim', 'agent']),
+        target: str('Attestation UID for claim, agent account id for agent'),
+        max_amount: str("Most to pay, in the payment token's smallest unit; capped by the server"),
+      },
+      required: ['kind', 'target'],
+    },
+    write: true,
+    run: async (c, a, limits) => {
+      const cap = BigInt(limits.maxPayment);
+      if (a.max_amount !== undefined && !/^\d+$/.test(String(a.max_amount))) throw invalid('max_amount must be a whole number of the smallest unit');
+      const max = a.max_amount === undefined ? cap : BigInt(String(a.max_amount));
+      if (max > cap) throw invalid(`max_amount ${max} is above the limit of ${cap}`);
+      const kind = a.kind === 'agent' ? 'agent' : a.kind === 'claim' ? 'claim' : undefined;
+      if (!kind) throw invalid('kind must be claim or agent');
+      return unwrap(await c.paidVerify(kind, String(a.target), max));
+    },
+  },
 ];
 
 export const READ_TOOLS = TOOLS.filter((t) => !t.write).map((t) => t.name);
@@ -216,15 +401,25 @@ export function openAITools(opts: { includeWrites?: boolean } = {}) {
   }));
 }
 
-/** Runs one tool by name; never throws (errors come back as `{ ok: false, error }`). */
-export async function runTool(client: AttestraClient, name: string, args: Record<string, unknown>, opts: { allowWrites?: boolean } = {}) {
+/**
+ * Runs one tool by name; never throws (errors come back as `{ ok: false, error }`). `limits`
+ * overrides the spend limits of write tools (the rest come from `defaultToolLimits`).
+ */
+export async function runTool(
+  client: AttestraClient,
+  name: string,
+  args: Record<string, unknown>,
+  opts: { allowWrites?: boolean; limits?: Partial<ToolLimits> } = {},
+) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) return { ok: false, error: { type: 'NOT_FOUND', message: `unknown tool ${name}` } };
   if (tool.write && !opts.allowWrites) return { ok: false, error: { type: 'UNAUTHORIZED', message: `${name} writes on chain and is not enabled here` } };
+  const given = Object.fromEntries(Object.entries(opts.limits ?? {}).filter(([, v]) => v !== undefined && v !== ''));
+  const limits: ToolLimits = { ...defaultToolLimits(client.network), ...given };
   try {
-    return await tool.run(client, args ?? {});
+    return await tool.run(client, args ?? {}, limits);
   } catch (e) {
-    return { ok: false, error: { type: 'UNKNOWN_ERROR', message: (e as Error).message } };
+    return unwrap(fail(e));
   }
 }
 

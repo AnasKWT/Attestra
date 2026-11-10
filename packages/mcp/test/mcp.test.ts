@@ -2,15 +2,43 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
 import { AttestraClient, READ_TOOLS, TOOLS, WRITE_TOOLS } from '@attestra/sdk';
-import { DailyCaps } from '../src/caps';
+import { DEFAULT_TOOL_CAPS, DailyCaps } from '../src/caps';
 import { handleMcpRequest } from '../src/http';
-import { createAttestraMcpServer, writesEnabled } from '../src/server';
+import { createAttestraMcpServer, optionsFromEnv, writesEnabled } from '../src/server';
+
+const KEY = 'ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp';
+
+/** A near-kit stand-in for key transactions: records each action and answers success. */
+function fakeNear(actions: string[]) {
+  const builder = {
+    addKey: (pk: string, p: { methodNames: string[]; allowance: bigint }) => (actions.push(`addKey:${pk}:${p.methodNames.join(',')}:${p.allowance}`), builder),
+    deleteKey: (_a: string, pk: string) => (actions.push(`deleteKey:${pk}`), builder),
+    send: async () => ({ status: { SuccessValue: '' }, transaction: { hash: 'KEYTX' } }),
+  };
+  return { transaction: () => builder } as unknown as AttestraClient['near'];
+}
 
 /** A client whose chain calls are fakes, so every tool can be driven offline. */
 class FakeClient extends AttestraClient {
   calls: string[] = [];
+  /** What the verdicts contract asks as a deposit, in yoctoNEAR. */
+  deposit = '1000';
+  override async rpc<T>(_m: string, params: unknown): Promise<T> {
+    const p = params as { request_type: string; account_id: string };
+    this.calls.push(`rpc:${p.request_type}`);
+    const fc = { FunctionCall: { allowance: '1', receiver_id: this.contracts.attestations, method_names: ['attest'] } };
+    if (p.request_type === 'view_access_key_list') return { keys: [{ public_key: KEY, access_key: { nonce: 1, permission: fc } }, { public_key: 'ed25519:x', access_key: { nonce: 1, permission: 'FullAccess' } }] } as T;
+    return null as T;
+  }
+  override async paidVerify(kind: 'claim' | 'agent', target: string, maxAmount?: bigint) {
+    this.calls.push(`paid:${kind}:${target}:${maxAmount}`);
+    return { success: true as const, data: { result: { valid: true }, settlement: null } };
+  }
   override async view<T>(_c: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
     this.calls.push(method);
+    if (method === 'link_message') return `link ${args.chain}:${args.address} to ${args.account_id}` as T;
+    if (method === 'linked_account') return 'alice.testnet' as T;
+    if (method === 'link_wallet_deposit' || method === 'foreign_event_deposit') return this.deposit as T;
     if (method === 'get_schema') return { uid: args.uid, definition: 'string name, u8 level', authority: 'a.testnet', resolver: null, revocable: true, created_at: 1, status: 'active', blob_hash: null } as T;
     if (method === 'get_attestation') return { uid: args.uid, schema_uid: 'aa'.repeat(32), attester: 'a.testnet', subject: 'b.testnet', data: 'AgAAAEJvBw==', created_at: 1, expiration_time: 0, revoked: false, revocation_time: 0, revoke_at: 0, nonce: 0, ref_uid: null, status: 'active' } as T;
     if (method === 'get_authority') return { account_id: args.account_id, metadata: 'Acme', kind: 'organization', verified: true } as T;
@@ -59,6 +87,9 @@ describe('Attestra MCP server', () => {
       get_delegates: { authority: 'acme.testnet' },
       get_agent_reputation: { agent: 'agent.testnet' },
       prove_attestation: { uid },
+      linked_account: { caip10: 'eip155:1:0xabc' },
+      wallet_link_message: { account_id: 'alice.testnet', chain: 'eip155', address: '0xabc' },
+      list_agent_keys: { account_id: 'alice.testnet' },
       decode_data: { definition: 'string name, u8 level', data: 'AgAAAEJvBw==' },
       compute_schema_uid: { definition: 'string name, u8 level', revocable: true },
     };
@@ -69,6 +100,52 @@ describe('Attestra MCP server', () => {
     expect(text(await c.callTool({ name: 'verify_attestation', arguments: { uid } })).data.valid).toBe(true);
     expect(text(await c.callTool({ name: 'get_attestation', arguments: { uid } })).data.decoded).toEqual({ name: 'Bo', level: 7 });
     expect(text(await c.callTool({ name: 'compute_schema_uid', arguments: args.compute_schema_uid })).data.uid).toBe('b7707f26a2b3f1bd97ad1c8919f9c78e47031eb71092bdc441ed441110b8f452');
+    expect(text(await c.callTool({ name: 'linked_account', arguments: args.linked_account })).data).toEqual({ accountId: 'alice.testnet' });
+    expect(text(await c.callTool({ name: 'wallet_link_message', arguments: args.wallet_link_message })).data.message).toBe('link eip155:0xabc to alice.testnet');
+    expect(text(await c.callTool({ name: 'list_agent_keys', arguments: args.list_agent_keys })).data.keys).toEqual([
+      { publicKey: KEY, receiverId: 'attestations.attestra.testnet', methodNames: ['attest'], allowance: '1' },
+    ]);
+  });
+
+  it('drives the NEAR-only write tools within spend limits and tighter caps', async () => {
+    const actions: string[] = [];
+    const client = new FakeClient({ network: 'testnet', accountId: 'me.testnet', near: fakeNear(actions) });
+    const caps = new DailyCaps({ perTool: 20, total: 50, tools: { ...DEFAULT_TOOL_CAPS, grant_agent_key: 1 } });
+    const { c } = await connect({ network: 'testnet', accountId: 'me.testnet', privateKey: 'ed25519:x', limits: { maxPayment: '100' } }, client, caps);
+    const call = (name: string, args: Record<string, unknown>) => c.callTool({ name, arguments: args });
+    const log = { removed: false, log_index: 0, transaction_index: 0, transaction_hash: '0x' + '11'.repeat(32), block_hash: '0x' + '22'.repeat(32), block_number: 1, address: '0x' + '33'.repeat(20), data: '0x', topics: [] };
+
+    expect(text(await call('attest_foreign_event', { chain: 'base', tx_id: '0x' + '11'.repeat(32), log_index: 0, log })).data.status).toBe('created');
+    expect(text(await call('link_wallet', { chain: 'eip155', address: '0xabc', signature: '0xsig' })).data.status).toBe('created');
+    expect(text(await call('register_agent', { agent: 'bot.testnet', name: 'Bot', model: 'm', capabilities: ['verify'] })).data.attestationUid).toBe('dd'.repeat(32));
+    expect(text(await call('delegate_to_agent', { agent: 'bot.testnet', expires_at: 2_000_000_000 })).ok).toBe(true);
+    const granted = text(await call('grant_agent_key', { public_key: KEY, methods: ['attest', 'revoke'], allowance_near: '0.5' }));
+    expect(granted).toMatchObject({ ok: true, tx_hash: 'KEYTX', data: { methodNames: ['attest', 'revoke'], allowance: '500000000000000000000000' } });
+    expect(text(await call('paid_verify', { kind: 'agent', target: 'bot.testnet' })).data.result.valid).toBe(true);
+    expect(client.calls).toEqual(expect.arrayContaining(['call:attest_foreign_event', 'call:link_wallet', 'call:attest', 'call:add_delegate', 'paid:agent:bot.testnet:100']));
+    expect(actions).toEqual([`addKey:${KEY}:attest,revoke:500000000000000000000000`]);
+
+    // The grant cap of 1 is used up; the other limits refuse before anything is sent.
+    const second = await call('grant_agent_key', { public_key: KEY });
+    expect(second.isError).toBe(true);
+    expect((second.content as Array<{ text: string }>)[0].text).toMatch(/grant_agent_key reached its daily cap of 1/);
+    client.deposit = (3n * 10n ** 23n).toString();
+    const deposit = await call('link_wallet', { chain: 'eip155', address: '0xdef', signature: '0xsig' });
+    expect(deposit.isError).toBe(true);
+    expect(text(deposit).error).toMatchObject({ type: 'VALIDATION_ERROR', message: expect.stringMatching(/above the limit/) });
+    expect(text(await call('paid_verify', { kind: 'claim', target: 'ab'.repeat(32), max_amount: '101' })).error.type).toBe('VALIDATION_ERROR');
+    expect(text(await call('delegate_to_agent', { agent: 'bot.testnet' })).error.message).toMatch(/expires_at or max_uses/);
+    expect(client.calls.filter((x) => x === 'call:link_wallet').length).toBe(1);
+  });
+
+  it('reads caps and spend limits from the environment', () => {
+    const o = optionsFromEnv({ MCP_DAILY_CAP_GRANT_AGENT_KEY: '2', MCP_DAILY_CAP_PAID_VERIFY: '7', MCP_MAX_KEY_ALLOWANCE_NEAR: '0.5', MCP_MAX_PAYMENT: '10' });
+    expect(o.caps?.tools).toEqual({ ...DEFAULT_TOOL_CAPS, grant_agent_key: 2, paid_verify: 7 });
+    expect(o.limits).toEqual({ maxKeyAllowanceNear: '0.5', maxDepositNear: undefined, maxPayment: '10' });
+    const caps = new DailyCaps(o.caps!);
+    expect(caps.capOf('grant_agent_key')).toBe(2);
+    expect(caps.capOf('delegate_to_agent')).toBe(DEFAULT_TOOL_CAPS.delegate_to_agent);
+    expect(caps.capOf('create_attestation')).toBe(20);
   });
 
   it('drives write tools with a testnet signer and caps them', async () => {

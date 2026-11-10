@@ -9,6 +9,8 @@
 
 export { AttestraClient } from './client';
 export type { AttestraClientConfig } from './client';
+export { AGENT_KEY_METHODS, AGENT_KEY_GRANTABLE_METHODS, AGENT_KEY_ALLOWANCE_NEAR, nearToYocto } from './agent-keys';
+export type { AgentKey } from './agent-keys';
 export * from './types';
 export * from './config';
 export { SchemaEncoder, parseSchema, isValidSchemaType, BASE_TYPES } from './encoder';
@@ -25,7 +27,7 @@ export { encryptForModel, decryptWithEd25519Seed } from './e2ee';
 export { verdictDigest, foreignChainIds, foreignChainIdsTestnet, walletCaip10, EVM_CHAINS, fetchEvmLog, type EvmLog } from './verdicts';
 export type { AiVerdict } from './verdicts';
 export * as x402 from './x402';
-export { TOOLS, READ_TOOLS, WRITE_TOOLS, openAITools, runTool } from './tools';
-export type { ToolSpec } from './tools';
+export { TOOLS, READ_TOOLS, WRITE_TOOLS, openAITools, runTool, defaultToolLimits } from './tools';
+export type { ToolSpec, ToolLimits } from './tools';
 export { classifyError, errorMessage } from './errors';
 export { BorshWriter, BorshReader, bytesToHex, hexToBytes, bytesToBase64, base64ToBytes, base58Encode, base58Decode } from './borsh';

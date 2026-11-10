@@ -11,6 +11,7 @@
  */
 
 import { Near } from 'near-kit';
+import { agentKeyGrant, agentKeysFrom, functionCallOf, invalid, type AgentKey } from './agent-keys';
 import { bytesToBase64 } from './borsh';
 import { NEAR_AI_VERIFY_URL, resolveNetwork, type NetworkConfig } from './config';
 import { attempt, fail, ok } from './errors';
@@ -94,6 +95,11 @@ function decodeSuccessValue(outcome: unknown): unknown {
   } catch {
     return text;
   }
+}
+
+/** Refuses (as a validation error) a deposit a contract asks for that is above the caller's limit. */
+function checkDeposit(deposit: string | bigint, max: string | bigint | undefined, what: string) {
+  if (max !== undefined && BigInt(deposit) > BigInt(max)) throw invalid(`${what} asks a deposit of ${deposit} yoctoNEAR, above the limit of ${max}`);
 }
 
 function txHashOf(outcome: unknown): string {
@@ -223,13 +229,12 @@ export class AttestraClient {
     throw new Error(`${method} did not finish within 5 minutes; its transaction is ${txHash}`);
   }
 
-  /** Runs a write and wraps it; configuration problems become CONFIGURATION_ERROR. */
+  /** Runs a write and wraps it; configuration problems become CONFIGURATION_ERROR (see `fail`). */
   private async write<T>(fn: () => Promise<{ data: T; txHash: string }>): Promise<ServiceResponse<T>> {
     try {
       const { data, txHash } = await fn();
       return ok(data, txHash);
     } catch (e) {
-      if ((e as { config?: boolean }).config) return fail(e, AttestraErrorType.CONFIGURATION_ERROR);
       return fail(e);
     }
   }
@@ -852,10 +857,14 @@ export class AttestraClient {
     return attempt(async () => ({ message: await this.view<string>(this.contracts.verdicts, 'link_message', { account_id: accountId, chain, address }) }));
   }
 
-  /** Links a wallet on another chain to the signer, proven by that wallet's signature. */
-  async linkWallet(chain: 'eip155' | 'solana', address: string, signature: string): Promise<ServiceResponse<Outcome>> {
+  /**
+   * Links a wallet on another chain to the signer, proven by that wallet's signature.
+   * `maxDeposit` (yoctoNEAR) refuses a larger deposit than expected before anything is sent.
+   */
+  async linkWallet(chain: 'eip155' | 'solana', address: string, signature: string, opts: { maxDeposit?: bigint | string } = {}): Promise<ServiceResponse<Outcome>> {
     return this.write(async () => {
       const deposit = await this.view<string>(this.contracts.verdicts, 'link_wallet_deposit', { account_id: this.signer(), chain, address });
+      checkDeposit(deposit, opts.maxDeposit, 'link_wallet');
       const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'link_wallet', { chain, address, signature }, { deposit });
       return { data: r.value, txHash: r.txHash };
     });
@@ -868,18 +877,23 @@ export class AttestraClient {
   /**
    * Asks the NEAR MPC network to verify an event on another chain, then attests it (no oracle).
    * Without `log`, the log is read from the chain's public RPC (`fetchEvmLog`).
+   * `maxDeposit` (yoctoNEAR) refuses a larger deposit than expected before anything is sent.
    */
-  async attestForeignEvent(claim: {
-    chain: string;
-    txId: string;
-    logIndex: number;
-    log?: EvmLog;
-    subject?: string;
-  }): Promise<ServiceResponse<Outcome>> {
+  async attestForeignEvent(
+    claim: {
+      chain: string;
+      txId: string;
+      logIndex: number;
+      log?: EvmLog;
+      subject?: string;
+    },
+    opts: { maxDeposit?: bigint | string } = {},
+  ): Promise<ServiceResponse<Outcome>> {
     return this.write(async () => {
       const log = claim.log ?? (await fetchEvmLog(this.network, claim.chain, claim.txId, claim.logIndex));
       const args = { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log, subject: claim.subject ?? null } };
       const deposit = await this.view<string>(this.contracts.verdicts, 'foreign_event_deposit', args);
+      checkDeposit(deposit, opts.maxDeposit, 'attest_foreign_event');
       const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit, slow: true });
       if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the event');
       return { data: r.value, txHash: r.txHash };
@@ -948,6 +962,60 @@ export class AttestraClient {
   /** The owner lets the agent attest within a scope (schemas, expiry, max uses). */
   delegateToAgent(agent: string, scope: DelegateScope) {
     return this.addDelegate(agent, { ...scope, label: scope.label ?? 'agent' });
+  }
+
+  /**
+   * Scoped delegation with a NEAR function-call access key: adds `agentPublicKey` to the signer's
+   * own account, usable only on the attestations contract, only for `methods` (default
+   * `AGENT_KEY_METHODS`: attest, revoke, schedule_revocation) and only up to `allowanceNear` of gas
+   * (default 0.25 NEAR). The agent then signs as the account. A function-call key cannot attach a
+   * deposit, so keep a storage balance on the attestations contract (`storageDeposit`) for it.
+   */
+  async grantAgentKey(agentPublicKey: string, opts: { methods?: string[]; allowanceNear?: string } = {}): Promise<ServiceResponse<AgentKey>> {
+    let grant: { methodNames: string[]; allowance: bigint };
+    try {
+      grant = agentKeyGrant(agentPublicKey, opts);
+    } catch (e) {
+      return fail(e);
+    }
+    return this.write(async () => {
+      const receiverId = this.contracts.attestations;
+      const sent = await this.near
+        .transaction(this.signer())
+        .addKey(agentPublicKey, { type: 'functionCall', receiverId, methodNames: grant.methodNames, allowance: grant.allowance })
+        .send({ waitUntil: 'EXECUTED_OPTIMISTIC' });
+      decodeSuccessValue(sent);
+      return { data: { publicKey: agentPublicKey, receiverId, methodNames: grant.methodNames, allowance: grant.allowance.toString() }, txHash: txHashOf(sent) };
+    });
+  }
+
+  /** Deletes an agent key from the signer's account; refuses any key that is not a function-call key for the attestations contract. */
+  async revokeAgentKey(agentPublicKey: string): Promise<ServiceResponse<void>> {
+    return this.write(async () => {
+      const signerId = this.signer();
+      const key = await this.rpc<{ permission?: Parameters<typeof functionCallOf>[0]; error?: string }>('query', {
+        request_type: 'view_access_key',
+        finality: 'optimistic',
+        account_id: signerId,
+        public_key: agentPublicKey,
+      });
+      // Some nodes answer a missing key with a result carrying `error` rather than a JSON-RPC error.
+      if (key.error || !key.permission) throw new Error(key.error ?? `access key ${agentPublicKey} does not exist`);
+      if (functionCallOf(key.permission)?.receiver_id !== this.contracts.attestations) {
+        throw invalid(`${agentPublicKey} is not an agent key for ${this.contracts.attestations} (a full-access key or another contract's key is never deleted here)`);
+      }
+      const sent = await this.near.transaction(signerId).deleteKey(signerId, agentPublicKey).send({ waitUntil: 'EXECUTED_OPTIMISTIC' });
+      decodeSuccessValue(sent);
+      return { data: undefined, txHash: txHashOf(sent) };
+    });
+  }
+
+  /** The function-call keys of `accountId` whose receiver is the attestations contract: which agents hold keys. */
+  async agentKeys(accountId: string): Promise<ServiceResponse<{ keys: AgentKey[] }>> {
+    return attempt(async () => {
+      const list = await this.rpc<Parameters<typeof agentKeysFrom>[0]>('query', { request_type: 'view_access_key_list', finality: 'optimistic', account_id: accountId });
+      return { keys: agentKeysFrom(list, this.contracts.attestations) };
+    });
   }
 
   /** Anyone who hired the agent leaves a 1 to 5 review. */

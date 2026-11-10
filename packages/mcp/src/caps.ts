@@ -3,7 +3,12 @@
 export interface CapConfig {
   perTool: number;
   total: number;
+  /** Tighter daily caps for single tools; the lower of this and `perTool` applies. */
+  tools?: Record<string, number>;
 }
+
+/** Grants of power to an agent are rarer than other writes, so they get tighter caps by default. */
+export const DEFAULT_TOOL_CAPS: Record<string, number> = { grant_agent_key: 5, delegate_to_agent: 5 };
 
 export class DailyCaps {
   private day = '';
@@ -21,11 +26,17 @@ export class DailyCaps {
     }
   }
 
+  /** The daily cap of one tool. */
+  capOf(tool: string): number {
+    return Math.min(this.cfg.perTool, this.cfg.tools?.[tool] ?? Infinity);
+  }
+
   /** Reserves one use of `tool`; returns why not when a cap is reached. */
   take(tool: string): { ok: true } | { ok: false; reason: string } {
     this.roll();
     const n = this.counts.get(tool) ?? 0;
-    if (n >= this.cfg.perTool) return { ok: false, reason: `${tool} reached its daily cap of ${this.cfg.perTool}` };
+    const cap = this.capOf(tool);
+    if (n >= cap) return { ok: false, reason: `${tool} reached its daily cap of ${cap}` };
     if (this.all >= this.cfg.total) return { ok: false, reason: `write tools reached the daily cap of ${this.cfg.total}` };
     this.counts.set(tool, n + 1);
     this.all++;

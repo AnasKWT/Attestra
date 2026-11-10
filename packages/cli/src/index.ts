@@ -12,6 +12,9 @@
 import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import {
+  AGENT_KEY_ALLOWANCE_NEAR,
+  AGENT_KEY_GRANTABLE_METHODS,
+  AGENT_KEY_METHODS,
   AttestraClient,
   KNOWN_SCHEMAS,
   NEAR_AI_BASE_URL,
@@ -386,7 +389,7 @@ chain
   .option('--subject <subject>')
   .action(wrap(async (o) => out(client().attestForeignEvent({ chain: o.chain, txId: o.tx, logIndex: num(o.logIndex), log: parseJson(o.log, '--log'), subject: o.subject }))));
 
-const agent = program.command('agent').description('Know Your Agent: identity, delegation and reputation');
+const agent = program.command('agent').description('Know Your Agent: identity, delegation, scoped access keys and reputation');
 agent
   .command('register <agent>')
   .requiredOption('--name <name>')
@@ -411,6 +414,14 @@ agent
   .option('--job <ref>')
   .action(wrap(async (a, s, o) => out(client().rateAgent({ agent: a, score: num(s), comment: o.comment, jobRef: o.job }))));
 agent.command('profile <agent>').action(wrap(async (a) => out(client().getAgentProfile(a))));
+agent
+  .command('grant-key <publicKey>')
+  .description('add a function-call access key the agent holds: only the attestations contract, only --methods, only --allowance of gas')
+  .option('--methods <list>', `comma-separated (default ${AGENT_KEY_METHODS.join(',')}; allowed: ${AGENT_KEY_GRANTABLE_METHODS.join(', ')})`)
+  .option('--allowance <near>', 'gas allowance in NEAR', AGENT_KEY_ALLOWANCE_NEAR)
+  .action(wrap(async (k, o) => out(client().grantAgentKey(k, { methods: o.methods?.split(','), allowanceNear: o.allowance }))));
+agent.command('revoke-key <publicKey>').description('delete an agent key from your account').action(wrap(async (k) => out(client().revokeAgentKey(k))));
+agent.command('keys <account>').description("the account's agent keys for the attestations contract").action(wrap(async (a) => out(client().agentKeys(a))));
 
 const pay = program.command('pay').description('paid verification over x402 (test token on testnet)');
 pay.command('verify-claim <uid>').action(wrap(async (uid) => out(client().paidVerify('claim', uid))));
