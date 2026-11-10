@@ -211,6 +211,39 @@ async function main() {
     return `${SITE}, ${body.result.tools.length} MCP tools`;
   });
 
+  await check('Every hosted MCP tool answers with live data', async () => {
+    const att = (await idx.listAttestations({ limit: 1 })).data[0];
+    must(att, 'the indexer has no attestation');
+    const authority = (await idx.listAuthorities({ limit: 1 })).data[0]?.account_id ?? c.config.root;
+    const agent = (await idx.listAgents({ limit: 1 })).data[0]?.account_id;
+    const args: Record<string, Record<string, unknown>> = {
+      well_known_schemas: {},
+      get_schema: { uid: att.schema_uid },
+      list_schemas: { limit: 3 },
+      get_attestation: { uid: att.uid },
+      verify_attestation: { uid: att.uid },
+      list_attestations: { limit: 3 },
+      get_authority: { account_id: authority },
+      get_delegates: { authority },
+      get_agent_reputation: { agent: agent ?? `agent.${c.config.root}` },
+      prove_attestation: { uid: att.uid },
+      decode_data: { definition: 'string name, u8 level', data: 'AwAAAEJvYgM=' },
+      compute_schema_uid: { definition: 'string name, u8 level', revocable: true },
+    };
+    const failed: string[] = [];
+    for (const [name, a] of Object.entries(args)) {
+      const res = await get(`${SITE}/mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: a } }),
+      });
+      const r = (await res.json()) as { result?: { isError?: boolean } };
+      if (!r.result || r.result.isError) failed.push(name);
+    }
+    must(!failed.length, `failed: ${failed.join(', ')}`);
+    return `${Object.keys(args).length} tools`;
+  });
+
   await check('The services answer /live and /health', async () => {
     const out: string[] = [];
     for (const [name, url] of [['indexer', INDEXER], ['agent', AGENT], ['relayer', RELAYER], ['keeper', KEEPER], ['topup', TOPUP]]) {
