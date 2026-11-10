@@ -271,6 +271,10 @@ async function main() {
   if (vc && vc.schemas?.ai_check !== knownSchemaUid('aiCheck')) {
     log(`verdicts schemas ${await call(root, ids.verdicts, 'set_schemas', { ai_check: knownSchemaUid('aiCheck'), foreign_tx: knownSchemaUid('foreignEvent'), wallet_link: knownSchemaUid('walletLink') }, '1')}`);
   }
+  // Solana facts are attested under their own schema, kept apart from the stored config.
+  if (vc && vc.instruction_schema !== knownSchemaUid('foreignInstruction')) {
+    log(`verdicts instruction schema ${await call(root, ids.verdicts, 'set_instruction_schema', { uid: knownSchemaUid('foreignInstruction') }, '1')}`);
+  }
   if (vc && JSON.stringify((vc.rules ?? []).map((r: { id: string }) => r.id)) !== JSON.stringify(RULES.map((r) => r.id))) {
     log(`verdicts rules ${await call(root, ids.verdicts, 'set_rules', { rules: RULES }, '1')}`);
   }

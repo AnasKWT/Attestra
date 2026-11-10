@@ -389,6 +389,15 @@ chain
   .option('--subject <subject>')
   .action(wrap(async (o) => out(client().attestForeignEvent({ chain: o.chain, txId: o.tx, logIndex: num(o.logIndex), log: parseJson(o.log, '--log'), subject: o.subject }))));
 
+chain
+  .command('attest-solana')
+  .description('verify an inner instruction of a finalized Solana transaction (devnet on testnet) with the NEAR MPC network and attest it')
+  .requiredOption('--tx <signature>', 'transaction signature (base58)')
+  .requiredOption('--instruction <n>', 'index of the top-level instruction')
+  .requiredOption('--inner <n>', "position among that instruction's inner instructions")
+  .option('--subject <subject>')
+  .action(wrap(async (o) => out(client().attestForeignInstruction({ txId: o.tx, instructionIndex: num(o.instruction), innerInstructionIndex: num(o.inner), subject: o.subject }))));
+
 const agent = program.command('agent').description('Know Your Agent: identity, delegation, scoped access keys and reputation');
 agent
   .command('register <agent>')

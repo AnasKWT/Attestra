@@ -21,7 +21,7 @@ import { signRequest, type MessageSigner, type SignedRequest } from './nep413';
 import { KNOWN_SCHEMAS, knownSchemaUid } from './schemas';
 import { SchemaEncoder } from './encoder';
 import { computeAttestationUid, computeSchemaUid, normalizeUid } from './uid';
-import { fetchEvmLog, type EvmLog } from './verdicts';
+import { fetchEvmLog, fetchSolanaInstruction, type EvmLog, type SolanaInstruction } from './verdicts';
 import { payingFetch, type SettlementResponse } from './x402';
 import {
   AttestraErrorType,
@@ -896,6 +896,26 @@ export class AttestraClient {
       checkDeposit(deposit, opts.maxDeposit, 'attest_foreign_event');
       const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit, slow: true });
       if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the event');
+      return { data: r.value, txHash: r.txHash };
+    });
+  }
+
+  /**
+   * Asks the NEAR MPC network to verify an inner instruction of a finalized Solana transaction
+   * (for example the token transfer a program made), then attests it. Without `instruction`, it is
+   * read from Solana's public RPC (`fetchSolanaInstruction`).
+   */
+  async attestForeignInstruction(
+    claim: { txId: string; instructionIndex: number; innerInstructionIndex: number; instruction?: SolanaInstruction; subject?: string },
+    opts: { maxDeposit?: bigint | string } = {},
+  ): Promise<ServiceResponse<Outcome>> {
+    return this.write(async () => {
+      const ix = claim.instruction ?? (await fetchSolanaInstruction(this.network, claim.txId, claim.instructionIndex, claim.innerInstructionIndex));
+      const args = { claim: { ...ix, subject: claim.subject ?? null } };
+      const deposit = await this.view<string>(this.contracts.verdicts, 'foreign_instruction_deposit', args);
+      checkDeposit(deposit, opts.maxDeposit, 'attest_foreign_instruction');
+      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_instruction', args, { deposit, slow: true });
+      if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the instruction');
       return { data: r.value, txHash: r.txHash };
     });
   }

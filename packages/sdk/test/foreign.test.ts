@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AttestraClient } from '../src/client';
-import { fetchEvmLog } from '../src/verdicts';
+import { fetchEvmLog, fetchSolanaInstruction } from '../src/verdicts';
 
 const respond = (body: unknown) => vi.fn(async () => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
 
@@ -72,5 +72,41 @@ describe('fetchEvmLog', () => {
 
   it('refuses a chain the MPC network does not read', async () => {
     await expect(fetchEvmLog('testnet', 'solana', '0x99', 0)).rejects.toThrow('unknown chain solana');
+  });
+});
+
+describe('fetchSolanaInstruction', () => {
+  const tx = {
+    transaction: { message: { accountKeys: ['Payer111', 'Program222', 'TokenProgram333'] } },
+    meta: {
+      err: null,
+      loadedAddresses: { writable: ['Loaded444'], readonly: ['Loaded555'] },
+      innerInstructions: [{ index: 1, instructions: [{ programIdIndex: 2, accounts: [0, 3, 4], data: '3Bxs4h24hBtQy9rw' }] }],
+    },
+  };
+
+  it('resolves the program and accounts through the static and loaded keys, like the MPC nodes', async () => {
+    const f = respond({ jsonrpc: '2.0', id: 1, result: tx });
+    vi.stubGlobal('fetch', f);
+    expect(await fetchSolanaInstruction('testnet', 'Sig1', 1, 0)).toEqual({
+      tx_id: 'Sig1',
+      instruction_index: 1,
+      inner_instruction_index: 0,
+      program_id: 'TokenProgram333',
+      accounts: ['Payer111', 'Loaded444', 'Loaded555'],
+      data: '3Bxs4h24hBtQy9rw',
+    });
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.devnet.solana.com');
+    expect(JSON.parse(String(init.body)).params[1]).toMatchObject({ commitment: 'finalized', maxSupportedTransactionVersion: 0 });
+  });
+
+  it('refuses a transaction that is not finalized, failed, or lacks the instruction', async () => {
+    vi.stubGlobal('fetch', respond({ jsonrpc: '2.0', id: 1, result: null }));
+    await expect(fetchSolanaInstruction('testnet', 'Sig1', 1, 0)).rejects.toThrow('not finalized on Solana yet');
+    vi.stubGlobal('fetch', respond({ jsonrpc: '2.0', id: 1, result: { ...tx, meta: { ...tx.meta, err: { InstructionError: [0, 'Custom'] } } } }));
+    await expect(fetchSolanaInstruction('testnet', 'Sig1', 1, 0)).rejects.toThrow('the Solana transaction failed');
+    vi.stubGlobal('fetch', respond({ jsonrpc: '2.0', id: 1, result: tx }));
+    await expect(fetchSolanaInstruction('testnet', 'Sig1', 0, 0)).rejects.toThrow('it has 1:0-0');
   });
 });

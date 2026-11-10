@@ -20,7 +20,7 @@ import type { EvmLog } from './verdicts';
 export interface ToolLimits {
   /** Largest gas allowance `grant_agent_key` may give a key, in NEAR. */
   maxKeyAllowanceNear: string;
-  /** Largest deposit `link_wallet` and `attest_foreign_event` may attach, in NEAR. */
+  /** Largest deposit `link_wallet`, `attest_foreign_event` and `attest_foreign_instruction` may attach, in NEAR. */
   maxDepositNear: string;
   /** Largest x402 payment `paid_verify` may make, in the payment token's smallest unit. */
   maxPayment: string;
@@ -273,6 +273,29 @@ export const TOOLS: ToolSpec[] = [
       unwrap(
         await c.attestForeignEvent(
           { chain: String(a.chain), txId: String(a.tx_id), logIndex: Number(a.log_index), log: a.log as EvmLog | undefined, subject: a.subject as string | undefined },
+          { maxDeposit: nearToYocto(limits.maxDepositNear) },
+        ),
+      ),
+  },
+  {
+    name: 'attest_foreign_instruction',
+    description:
+      'Attest a Solana fact without an oracle: the NEAR MPC network verifies an inner instruction of a finalized Solana transaction (for example a token transfer a program made) and the verdicts contract attests it. Devnet on testnet. Takes a minute or two.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tx_id: str('Transaction signature (base58)'),
+        instruction_index: int('Index of the top-level instruction'),
+        inner_instruction_index: int('Position among that instruction\'s inner instructions'),
+        subject: str('Subject of the attestation, optional (CAIP-10 or NEAR account)'),
+      },
+      required: ['tx_id', 'instruction_index', 'inner_instruction_index'],
+    },
+    write: true,
+    run: async (c, a, limits) =>
+      unwrap(
+        await c.attestForeignInstruction(
+          { txId: String(a.tx_id), instructionIndex: Number(a.instruction_index), innerInstructionIndex: Number(a.inner_instruction_index), subject: a.subject as string | undefined },
           { maxDeposit: nearToYocto(limits.maxDepositNear) },
         ),
       ),

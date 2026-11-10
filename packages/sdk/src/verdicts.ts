@@ -128,6 +128,68 @@ export async function fetchEvmLog(network: 'testnet' | 'mainnet', chain: string,
   };
 }
 
+/** Public Solana RPCs: devnet, which the testnet MPC network reads, and mainnet. */
+export const SOLANA_RPC: Record<'testnet' | 'mainnet', string> = {
+  testnet: 'https://api.devnet.solana.com',
+  mainnet: 'https://api.mainnet-beta.solana.com',
+};
+
+/** An inner instruction in the verdicts contract's `ForeignInstructionClaim` shape (base58, as `getTransaction` returns it). */
+export interface SolanaInstruction {
+  tx_id: string;
+  instruction_index: number;
+  inner_instruction_index: number;
+  program_id: string;
+  accounts: string[];
+  data: string;
+}
+
+/**
+ * Reads one inner instruction of a finalized Solana transaction and resolves its program and
+ * accounts the way the MPC nodes do: static account keys, then the loaded writable and readonly
+ * addresses. Refuses a transaction that is not finalized yet or that failed.
+ */
+export async function fetchSolanaInstruction(network: 'testnet' | 'mainnet', signature: string, instructionIndex: number, innerInstructionIndex: number, rpcUrl?: string): Promise<SolanaInstruction> {
+  const res = await fetch(rpcUrl ?? SOLANA_RPC[network], {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { commitment: 'finalized', encoding: 'json', maxSupportedTransactionVersion: 0 }] }),
+  });
+  const j = (await res.json()) as {
+    result?: {
+      transaction: { message: { accountKeys: string[] } };
+      meta: { err: unknown; loadedAddresses?: { writable: string[]; readonly: string[] }; innerInstructions?: Array<{ index: number; instructions: Array<{ programIdIndex: number; accounts: number[]; data: string }> }> } | null;
+    } | null;
+    error?: { message?: string };
+  };
+  if (j.error) throw new Error(`Solana RPC: ${j.error.message ?? 'error'}`);
+  if (!j.result) throw new Error(`transaction ${signature} is not finalized on Solana yet (or does not exist); the MPC network verifies only finalized transactions`);
+  const meta = j.result.meta;
+  if (!meta) throw new Error('the Solana RPC returned no transaction status');
+  if (meta.err !== null) throw new Error('the Solana transaction failed');
+  const keys = [...j.result.transaction.message.accountKeys, ...(meta.loadedAddresses?.writable ?? []), ...(meta.loadedAddresses?.readonly ?? [])];
+  const group = (meta.innerInstructions ?? []).find((g) => g.index === instructionIndex);
+  const ix = group?.instructions[innerInstructionIndex];
+  if (!ix) {
+    const have = (meta.innerInstructions ?? []).map((g) => `${g.index}:0-${g.instructions.length - 1}`).join(', ');
+    throw new Error(`the transaction has no inner instruction ${instructionIndex}:${innerInstructionIndex}; it has ${have || 'none'}`);
+  }
+  const key = (i: number) => {
+    const k = keys[i];
+    if (!k) throw new Error(`account index ${i} is out of range`);
+    return k;
+  };
+  return {
+    tx_id: signature,
+    instruction_index: instructionIndex,
+    inner_instruction_index: innerInstructionIndex,
+    program_id: key(ix.programIdIndex),
+    accounts: ix.accounts.map(key),
+    data: ix.data,
+  };
+}
+
+export const SOLANA_DEVNET_REF = 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 export const SOLANA_MAINNET_REF = '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
 /** The CAIP-10 id the contract records for a linked wallet. */

@@ -42,6 +42,13 @@ export const KNOWN_SCHEMAS = {
     revocable: false,
     description: 'An event on another chain, verified by the NEAR MPC network through Chain Signatures.',
   },
+  foreignInstruction: {
+    key: 'foreignInstruction',
+    name: 'Solana instruction',
+    definition: 'string chain, bytes tx_id, u64 instruction_index, u64 inner_instruction_index, bytes32 program_id, bytes32[] accounts, bytes data',
+    revocable: false,
+    description: 'An inner instruction of a finalized Solana transaction (a program call such as a token transfer), verified by the NEAR MPC network.',
+  },
   walletLink: {
     key: 'walletLink',
     name: 'Wallet link',
