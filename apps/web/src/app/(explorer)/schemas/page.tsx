@@ -34,7 +34,7 @@ export default function SchemasPage() {
           { key: 'auth', header: 'Authority', cell: (r) => <AccountLink id={r.authority} /> },
           { key: 'res', header: 'Resolver', cell: (r) => (r.resolver ? <Badge tone="brand">{r.resolver.split('.')[0]}</Badge> : <span className="text-mute">none</span>) },
           { key: 'count', header: 'Attestations', cell: (r) => <span className="tabular-nums">{r.attestation_count}</span>, className: 'text-right' },
-          { key: 'age', header: 'Registered', cell: (r) => <span className="text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
+          { key: 'age', header: 'Registered', cell: (r) => <span className="whitespace-nowrap text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
         ]}
       />
       {data && <Pager total={data.pagination.total} limit={LIMIT} offset={offset} onChange={setOffset} />}

@@ -42,7 +42,7 @@ export default function AuthoritiesPage() {
           { key: 'ver', header: 'Verified', cell: (r) => (r.verified ? <Badge tone="ok"><BadgeCheck className="size-3" />verified</Badge> : <span className="text-mute">no</span>) },
           { key: 'tier', header: 'Tier', cell: (r) => (r.tier ? <Badge tone="brand">{r.tier}</Badge> : <span className="text-mute">none</span>) },
           { key: 'n', header: 'Issued', cell: (r) => <span className="tabular-nums">{r.attestation_count}</span>, className: 'text-right' },
-          { key: 'age', header: 'Since', cell: (r) => <span className="text-soft">{timeAgo(r.registered_at)}</span>, className: 'text-right' },
+          { key: 'age', header: 'Since', cell: (r) => <span className="whitespace-nowrap text-soft">{timeAgo(r.registered_at)}</span>, className: 'text-right' },
         ]}
       />
       {data && <Pager total={data.pagination.total} limit={LIMIT} offset={offset} onChange={setOffset} />}

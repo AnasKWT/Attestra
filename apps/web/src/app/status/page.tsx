@@ -3,7 +3,6 @@
 import { Activity, AlertTriangle, CheckCircle2, Server, Wallet, XCircle } from 'lucide-react';
 import { Alert, Badge, Panel, PanelHeader, Skeleton } from '@/components/ui/primitives';
 import { AGENT_URL, INDEXER_URL, KEEPER_URL, NETWORK, RELAYER_URL, TOPUP_URL } from '@/lib/config';
-import { formatAmount } from '@/lib/format';
 import { useAsync } from '@/lib/useFetch';
 
 const SERVICES = [
@@ -14,10 +13,36 @@ const SERVICES = [
   ['Top-up', TOPUP_URL],
 ] as const;
 
+/** One watched balance as the top-up service reports it (services/src/topup/app.ts), amounts in NEAR. */
+interface Reading {
+  account: string;
+  contract?: string;
+  balance_near: string | null;
+  min_near: string;
+  target_near: string;
+  below_min: boolean;
+  error?: string;
+}
+
 interface Balances {
-  accounts: Array<{ account: string; balance: string; min: string; target: string; low: boolean }>;
-  treasury: { account: string; balance: string };
+  treasury: { account: string; balance_near: string | null; warn_near: string; low: boolean };
   treasury_low: boolean;
+  accounts: Reading[];
+  storage: Reading[];
+  daily: { used_near: string; cap_near: string };
+}
+
+function WalletRow({ name, detail, balance, low }: { name: string; detail: string; balance: string | null; low: boolean }) {
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13.5px]">
+      <span className="font-mono text-[12.5px] text-fg">{name}</span>
+      <span className="flex items-center gap-3">
+        <span className="text-[12px] text-mute">{detail}</span>
+        <span className="font-mono tabular-nums text-fg">{balance === null ? 'unreadable' : `${balance} NEAR`}</span>
+        {low && <Badge tone="warn">low</Badge>}
+      </span>
+    </li>
+  );
 }
 
 async function health(url: string) {
@@ -58,19 +83,20 @@ export default function Status() {
         })}
       </div>
       <Panel className="mt-8">
-        <PanelHeader icon={<Wallet className="size-4" />} title="Service wallets" subtitle="Refilled from the treasury within a daily cap" right={bal.data && (bal.data.treasury_low ? <Badge tone="bad"><AlertTriangle className="size-3" />treasury low</Badge> : <Badge tone="ok">treasury ok</Badge>)} />
+        <PanelHeader
+          icon={<Wallet className="size-4" />}
+          title="Service wallets"
+          subtitle={bal.data ? `Refilled from the treasury within a daily cap: ${bal.data.daily.used_near} of ${bal.data.daily.cap_near} NEAR used today` : 'Refilled from the treasury within a daily cap'}
+          right={bal.data && (bal.data.treasury_low ? <Badge tone="bad"><AlertTriangle className="size-3" />treasury low</Badge> : <Badge tone="ok">treasury ok</Badge>)} />
         {bal.error && <div className="p-5"><Alert tone="warn" title="The top-up service did not answer">{bal.error}</Alert></div>}
         {bal.data && (
           <ul className="divide-y divide-[var(--line)]">
-            {[{ account: bal.data.treasury.account, balance: bal.data.treasury.balance, min: '', target: '', low: bal.data.treasury_low }, ...bal.data.accounts].map((a) => (
-              <li key={a.account} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13.5px]">
-                <span className="font-mono text-[12.5px] text-fg">{a.account}</span>
-                <span className="flex items-center gap-3">
-                  {a.min && <span className="text-[12px] text-mute">min {formatAmount(a.min)} / target {formatAmount(a.target)}</span>}
-                  <span className="font-mono tabular-nums text-fg">{formatAmount(a.balance)} NEAR</span>
-                  {a.low && <Badge tone="warn">low</Badge>}
-                </span>
-              </li>
+            <WalletRow name={bal.data.treasury.account} detail={`warns below ${bal.data.treasury.warn_near}`} balance={bal.data.treasury.balance_near} low={bal.data.treasury_low} />
+            {bal.data.accounts.map((a) => (
+              <WalletRow key={a.account} name={a.account} detail={`min ${a.min_near} / target ${a.target_near}`} balance={a.balance_near} low={a.below_min} />
+            ))}
+            {bal.data.storage.map((a) => (
+              <WalletRow key={`${a.contract}:${a.account}`} name={`${a.account} on ${a.contract}`} detail={`storage, min ${a.min_near} / target ${a.target_near}`} balance={a.balance_near} low={a.below_min} />
             ))}
           </ul>
         )}

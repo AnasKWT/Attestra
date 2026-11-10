@@ -38,7 +38,7 @@ export default function WalletSchemas() {
             { key: 'uid', header: 'UID', cell: (s) => <UidLink uid={s.uid} kind="schemas" /> },
             { key: 'def', header: 'Definition', cell: (s) => <span className="block max-w-[360px] truncate font-mono text-[12px] text-soft">{s.definition}</span> },
             { key: 'n', header: 'Attestations', cell: (s) => s.attestation_count, className: 'text-right' },
-            { key: 'age', header: 'Registered', cell: (s) => <span className="text-soft">{timeAgo(s.created_at)}</span>, className: 'text-right' },
+            { key: 'age', header: 'Registered', cell: (s) => <span className="whitespace-nowrap text-soft">{timeAgo(s.created_at)}</span>, className: 'text-right' },
           ]}
         />
       )}

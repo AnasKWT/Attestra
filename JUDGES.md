@@ -10,7 +10,7 @@ The local runs below exercise the same features on a local NEAR node, and the si
 pnpm install && pnpm build
 pnpm test                 # every TypeScript suite (SDK, CLI, MCP, indexer, agent, services, site)
 pnpm test:contracts       # 308 contract unit tests
-pnpm e2e                  # 219 Playwright tests on a production build of the site
+pnpm e2e                  # 220 Playwright tests on a production build of the site
 ```
 
 The longer checks:

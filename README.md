@@ -90,7 +90,7 @@ pnpm test:contracts       # every contract unit test (308)
 pnpm test:checker         # the OutLayer checker (23)
 contracts/scripts/build.sh && pnpm test:sandbox   # 19 flows across every contract on a local NEAR node
 pnpm cli:e2e              # 90 CLI steps against a fresh local deployment
-pnpm e2e                  # 219 Playwright tests on a production build of the site
+pnpm e2e                  # 220 Playwright tests on a production build of the site
 ```
 
 `pnpm dev` starts the site on :3100 with the indexer, agent and services against testnet.

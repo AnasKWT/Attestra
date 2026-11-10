@@ -42,7 +42,7 @@ export default function AttestationsPage() {
           { key: 'attester', header: 'Attester', cell: (r) => <AccountLink id={r.attester} /> },
           { key: 'subject', header: 'Subject', cell: (r) => <AccountLink id={r.subject} /> },
           { key: 'status', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-          { key: 'age', header: 'Issued', cell: (r) => <span className="text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
+          { key: 'age', header: 'Issued', cell: (r) => <span className="whitespace-nowrap text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
         ]}
       />
       {data && <Pager total={data.pagination.total} limit={LIMIT} offset={offset} onChange={setOffset} />}

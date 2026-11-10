@@ -87,7 +87,7 @@ export function SchemaDetail({ uid }: { uid: string }) {
                 { key: 'att', header: 'Attester', cell: (r) => <AccountLink id={r.attester} /> },
                 { key: 'sub', header: 'Subject', cell: (r) => <AccountLink id={r.subject} /> },
                 { key: 'st', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-                { key: 'age', header: 'Issued', cell: (r) => <span className="text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
+                { key: 'age', header: 'Issued', cell: (r) => <span className="whitespace-nowrap text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
               ]}
             />
           </div>

@@ -37,7 +37,7 @@ export default function SchemaAttestations() {
             { key: 'att', header: 'Attester', cell: (a) => <AccountLink id={a.attester} /> },
             { key: 'sub', header: 'Subject', cell: (a) => <AccountLink id={a.subject} /> },
             { key: 'st', header: 'Status', cell: (a) => <StatusBadge status={a.status} /> },
-            { key: 'age', header: 'Issued', cell: (a) => <span className="text-soft">{timeAgo(a.created_at)}</span>, className: 'text-right' },
+            { key: 'age', header: 'Issued', cell: (a) => <span className="whitespace-nowrap text-soft">{timeAgo(a.created_at)}</span>, className: 'text-right' },
           ]}
         />
       )}

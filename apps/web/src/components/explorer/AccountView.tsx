@@ -28,7 +28,7 @@ function List({ title, rows, loading, error, who }: { title: string; rows: Index
           { key: 'schema', header: 'Schema', cell: (r) => <UidLink uid={r.schema_uid} kind="schemas" /> },
           { key: 'who', header: who === 'attester' ? 'Subject' : 'Attester', cell: (r) => <AccountLink id={who === 'attester' ? r.subject : r.attester} /> },
           { key: 'st', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
-          { key: 'age', header: 'Issued', cell: (r) => <span className="text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
+          { key: 'age', header: 'Issued', cell: (r) => <span className="whitespace-nowrap text-soft">{timeAgo(r.created_at)}</span>, className: 'text-right' },
         ]}
       />
     </div>
