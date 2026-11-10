@@ -34,3 +34,19 @@ describe('error mapping', () => {
     expect(fail(Object.assign(new Error('above the limit'), { validation: true }), AttestraErrorType.UNAUTHORIZED).error?.type).toBe(AttestraErrorType.UNAUTHORIZED);
   });
 });
+
+describe('transaction and rate-limit errors', () => {
+  it('reads a rate limit as a network error, not a validation error', () => {
+    expect(classifyError(new Error('HTTP 429: Too Many Requests'))).toBe(AttestraErrorType.NETWORK_ERROR);
+    expect(classifyError(new Error('Smart contract panicked: too many fields'))).toBe(AttestraErrorType.VALIDATION_ERROR);
+  });
+
+  it('turns an RPC NotEnoughBalance into a sentence with the amounts', () => {
+    const e = Object.assign(new Error('Server error'), {
+      name: 'TransactionError',
+      data: { TxExecutionError: { InvalidTxError: { NotEnoughBalance: { signer_id: 'abc.testnet', balance: '69000000000000000000000', cost: '100900000000000000000000' } } } },
+    });
+    expect(errorMessage(e)).toBe('NotEnoughBalance: abc.testnet has 0.069 NEAR free but the transaction needs 0.1009 NEAR (attached deposit plus prepaid gas)');
+    expect(classifyError(e)).toBe(AttestraErrorType.INSUFFICIENT_STORAGE);
+  });
+});

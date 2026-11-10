@@ -63,6 +63,8 @@ export default function Multisig() {
           <Input id="pid" value={pid} onChange={(e) => setPid(e.target.value)} className="sm:w-40" />
         </div>
       </ActionCard>
+      <ActionCard title="Execute" subtitle="Any member; execute runs a proposal that already has enough approvals (a 1-of-n multisig)" label="Execute" disabled={!pid} action={() => need(w.client).executeMultisig(Number(pid))} />
+      <ActionCard title="Cancel" subtitle="The proposer withdraws an open proposal" label="Cancel proposal" disabled={!pid} action={() => need(w.client).cancelMultisig(Number(pid))} />
       <ActionCard title="Read" label="Read proposal and multisig" disabled={!pid && !ms} action={async () => ({ success: true, data: { proposal: pid ? (await reader().getProposal(Number(pid))).data : null, multisig: ms ? (await reader().getMultisig(ms)).data : null } })} />
     </ToolFrame>
   );

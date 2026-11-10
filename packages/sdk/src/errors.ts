@@ -6,6 +6,8 @@
 import { AttestraErrorType, type ServiceResponse } from './types';
 
 const RULES: Array<[RegExp, AttestraErrorType]> = [
+  // Rate limits first: "Too Many Requests" must not read as a validation error ("too many fields").
+  [/\b429\b|Too Many Requests|TOO_MANY_REQUESTS|rate limit/i, AttestraErrorType.NETWORK_ERROR],
   [/already exists|already registered|already known|already approved|already used|AddKeyAlreadyExists/i, AttestraErrorType.ALREADY_EXISTS],
   [/already revoked/i, AttestraErrorType.ALREADY_REVOKED],
   [/not found|unknown schema|unknown blob|unknown operation|does not exist|DeleteKeyDoesNotExist|UNKNOWN_ACCESS_KEY|UNKNOWN_ACCOUNT/i, AttestraErrorType.NOT_FOUND],
@@ -28,7 +30,38 @@ export function errorMessage(error: unknown): string {
   if (smart) return smart[1];
   const guest = /GuestPanic.*?panic_msg: "?(.+?)"?\s*[})]/.exec(msg);
   if (guest) return guest[1];
+  const detail = txErrorDetail((error as { data?: unknown }).data);
+  if (detail) return detail;
   return msg;
+}
+
+const near = (yocto: string) => `${(Number(BigInt(yocto) / 10n ** 18n) / 1e6).toLocaleString('en-US', { maximumFractionDigits: 4 })} NEAR`;
+
+/** A readable sentence for an RPC transaction error (near-kit keeps the RPC's `data` on the error). */
+function txErrorDetail(data: unknown): string | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+  const text = JSON.stringify(data);
+  const find = (key: string): Record<string, unknown> | undefined => {
+    const walk = (v: unknown): Record<string, unknown> | undefined => {
+      if (!v || typeof v !== 'object') return undefined;
+      const o = v as Record<string, unknown>;
+      if (key in o && o[key] && typeof o[key] === 'object') return o[key] as Record<string, unknown>;
+      for (const child of Object.values(o)) {
+        const hit = walk(child);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    return walk(data);
+  };
+  const balance = find('NotEnoughBalance');
+  if (balance?.balance && balance?.cost) {
+    return `NotEnoughBalance: ${String(balance.signer_id ?? 'the signer')} has ${near(String(balance.balance))} free but the transaction needs ${near(String(balance.cost))} (attached deposit plus prepaid gas)`;
+  }
+  const state = find('LackBalanceForState');
+  if (state?.amount) return `LackBalanceForState: ${String(state.account_id ?? 'the account')} needs ${near(String(state.amount))} more to cover its storage`;
+  if (/InvalidTxError|ActionError/.test(text)) return `transaction refused: ${text.slice(0, 300)}`;
+  return undefined;
 }
 
 export function classifyError(error: unknown): AttestraErrorType {

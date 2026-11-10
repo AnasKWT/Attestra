@@ -4,13 +4,15 @@ import { CheckCircle2, ExternalLink, Info, Loader2, XCircle } from 'lucide-react
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { classifyError, errorMessage, type ServiceResponse } from '@attestra/sdk';
+import { reader } from '@/lib/client';
 import { txUrl } from '@/lib/config';
+import { formatAmount } from '@/lib/format';
 import { toolBySlug } from '@/lib/tools';
-import { readableError } from '@/lib/useFetch';
+import { readableError, useAsync } from '@/lib/useFetch';
 import { ConnectButton } from '../wallet/ConnectButton';
 import { useWallet } from '../wallet/WalletProvider';
 import { CopyButton } from '../ui/Copy';
-import { Badge, Button, Panel, PanelHeader } from '../ui/primitives';
+import { Alert, Badge, Button, Panel, PanelHeader } from '../ui/primitives';
 
 export function ToolFrame({ slug, children, notes, aside }: { slug: string; children: ReactNode; notes?: ReactNode; aside?: ReactNode }) {
   const t = toolBySlug(slug);
@@ -31,6 +33,7 @@ export function ToolFrame({ slug, children, notes, aside }: { slug: string; chil
           <ConnectButton />
         </div>
       )}
+      {t?.write && w.kind === 'passkey' && w.accountId && slug !== 'gasless' && <PasskeyFunds account={w.accountId} />}
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
         <div className="min-w-0 space-y-6">{children}</div>
         <div className="space-y-6">
@@ -136,6 +139,33 @@ export function Result<T>({ res, render }: { res: ServiceResponse<T>; render?: (
         )}
       </div>
     </div>
+  );
+}
+
+/** NEAR wants the prepaid gas of a call free before it runs (300 Tgas is about 0.3 NEAR, mostly refunded). */
+const DIRECT_CALL_NEAR = 350_000_000_000_000_000_000_000n;
+
+/** A passkey account starts with only what the relayer gives it, enough for gasless issuing but not for its own transactions. */
+function PasskeyFunds({ account }: { account: string }) {
+  const bal = useAsync(
+    async () => BigInt((await reader().rpc<{ amount: string }>('query', { request_type: 'view_account', finality: 'optimistic', account_id: account }).catch(() => ({ amount: '0' }))).amount),
+    [account],
+  );
+  if (bal.data === null || bal.data >= DIRECT_CALL_NEAR) return null;
+  return (
+    <Alert tone="warn" title={`Your passkey account holds ${formatAmount(bal.data.toString())} NEAR`}>
+      <p>
+        This tool sends its own transaction, which prepays about 0.3 NEAR of gas (most of it comes back), so send some testnet NEAR to it first, or issue without NEAR in{' '}
+        <Link href="/sandbox/app/gasless" className="text-accent hover:underline">
+          Gasless Issuing
+        </Link>
+        .
+      </p>
+      <p className="mt-1.5 flex flex-wrap items-center gap-2">
+        <code className="break-all font-mono text-[12px] text-soft">{account}</code>
+        <CopyButton value={account} />
+      </p>
+    </Alert>
   );
 }
 
