@@ -11,12 +11,13 @@
     "build": "next build",
     "start": "next start --port 3100",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
+    "typecheck": "next typegen && tsc --noEmit && tsc --noEmit -p e2e",
     "test": "vitest run",
     "e2e": "playwright test",
     "e2e:shots": "E2E_SHOTS=1 playwright test"
   },
   "dependencies": {
+    "@attestra/mcp": "workspace:*",
     "@attestra/sdk": "workspace:*",
     "@hot-labs/near-connect": "0.12.0",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -26,8 +27,7 @@
     "near-kit": "0.20.2",
     "next": "16.4.6",
     "react": "19.2.9",
-    "react-dom": "19.2.9",
-    "@attestra/mcp": "workspace:*"
+    "react-dom": "19.2.9"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",

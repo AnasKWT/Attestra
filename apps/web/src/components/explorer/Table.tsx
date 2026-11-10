@@ -15,7 +15,7 @@ export function DataTable<T>({ columns, rows, loading, error, empty, onRow }: { 
   if (error) {
     return (
       <Alert tone="warn" title="The indexer did not answer">
-        {error}. Lists come from the Attestra indexer; any single record can still be read from the chain on its detail page.
+        {error.replace(/\.$/, '')}. Lists come from the Attestra indexer; any single record can still be read from the chain on its detail page.
       </Alert>
     );
   }

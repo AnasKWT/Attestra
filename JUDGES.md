@@ -1,7 +1,7 @@
 # For judges
 
-This page maps every claim Attestra makes to the code that implements it, the test that exercises it and the way to check it on the live deployment.
-The one-command check is `pnpm verify`, which prints PASS or FAIL per claim.
+This page maps every claim Attestra makes to the code that implements it, the test that exercises it and the way to check it on a live deployment.
+The testnet deployment is pending, so the local runs below are the evidence today: every contract feature runs end to end on a local NEAR node, and the site, agent and services are tested against mocks of what they call.
 
 ## Five-minute check
 
@@ -9,7 +9,7 @@ The one-command check is `pnpm verify`, which prints PASS or FAIL per claim.
 pnpm install && pnpm build
 pnpm test                 # every TypeScript suite (SDK, CLI, MCP, indexer, agent, services, site)
 pnpm test:contracts       # 308 contract unit tests
-pnpm verify               # every claim below against testnet, PASS or FAIL
+pnpm e2e                  # 219 Playwright tests on a production build of the site
 ```
 
 The longer checks:
@@ -21,6 +21,12 @@ contracts/scripts/build.sh --reproducible          # the wasm SourceScan builds,
 pnpm deploy:sandbox                                # the full deploy and wiring on a local node
 pnpm build && pnpm cli:e2e                         # 90 CLI steps against a fresh local deployment
 pnpm test:checker                                  # the OutLayer checker, natively against a mocked host
+```
+
+Against a live deployment (pending on testnet), with the stack running (`pnpm dev`):
+
+```bash
+pnpm verify               # the deployment's code, schemas, proofs, verdicts, agents, indexer and services, PASS or FAIL
 ```
 
 ## Claims
@@ -38,7 +44,7 @@ pnpm test:checker                                  # the OutLayer checker, nativ
 | Light client proofs checked locally | `packages/sdk/src/lightclient.ts` | a recorded testnet proof in `packages/sdk/test/fixtures/light-client.json` | `pnpm verify` proves a recent attestation final |
 | x402 paid verification on NEAR | `packages/sdk/src/x402.ts`, `apps/agent/src/paid.ts` | SDK and agent tests (402, signed delegate action, settle, serve) | sandbox "Paid verification" |
 | MCP for any agent, hosted and local | `packages/mcp`, `apps/web/src/app/mcp` | MCP tests drive every read tool and the caps | `/mcp` on the site; `claude mcp add` in [SKILL.md](skills/attestra/SKILL.md) |
-| Reproducible, verifiable contracts | `contracts/scripts/build.sh`, NEP-330 metadata | the build compares hashes | `near contract verify deployed-at <account> network-config testnet now`; `pnpm verify` |
+| Reproducible, verifiable contracts | `contracts/scripts/build.sh`, NEP-330 metadata | `pnpm verify` compares the deployed hashes with the record and a local reproducible build | `near contract verify deployed-at <account> network-config testnet now`; `pnpm verify` |
 | Mainnet-ready behind one switch | `packages/sdk/src/config.ts`, `scripts/deploy.ts` (refuses mainnet without the owner's go-ahead) | `pnpm deploy:sandbox` rehearsal | [MAINNET.md](MAINNET.md) |
 
 ## Where to read first
@@ -46,12 +52,14 @@ pnpm test:checker                                  # the OutLayer checker, nativ
 1. [README.md](README.md): what it is, how it works, the trust model.
 2. `contracts/attestations/src/gate.rs`: the pending, call, commit or roll back pattern every resolver goes through.
 3. `contracts/verdicts/src/ai.rs` and `foreign.rs`: what the contract checks before it attests a private or cross-chain fact.
-4. [SECURITY.md](SECURITY.md): the audit, its seven findings and fixes, and the risks accepted by design.
+4. [SECURITY.md](SECURITY.md): the audit, its seven findings, a gas bug the sandbox flows found, the fixes, and the risks accepted by design.
 5. [AGENTS.md](AGENTS.md): layout, commands and where each NEAR primitive lives.
 
 ## What is not finished
 
 Stated plainly so nothing here is a surprise:
 
+- The testnet deployment is pending (the faucet rate-limited the deploying machine); `pnpm deploy:testnet` is rehearsed on local nodes, including a mainnet-shaped run.
+- The OutLayer checker has not yet run on an OutLayer worker or against live NEAR AI; its tests use mocked hosts and vectors from the TypeScript side.
 - Nothing is deployed on mainnet; the plan and its one switch are in [MAINNET.md](MAINNET.md).
 - The npm packages are not published yet; every command above runs from the repository.

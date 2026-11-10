@@ -1,5 +1,5 @@
 import { KNOWN_SCHEMAS, TOOLS, knownSchemaUid } from '@attestra/sdk';
-import { CONTRACTS, NET, NETWORK, SITE_URL } from '@/lib/config';
+import { CONTRACTS, NET, NETWORK, REPO_URL, SITE_URL } from '@/lib/config';
 
 export const dynamic = 'force-static';
 
@@ -7,7 +7,7 @@ export function GET() {
   const site = SITE_URL || '';
   const body = `# Attestra
 
-> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by verifiable AI in a TEE, facts about other chains are verified by NEAR's MPC network without an oracle, agents get identity, delegation and reputation, and any event can be proven final with a light client proof.
+> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by a NEAR AI Cloud verifiable model in a TEE and signed by a checker (an OutLayer TEE component, or a local key while the deployment bootstraps), facts about other chains are verified by NEAR's MPC network without an oracle, agents get identity, delegation and reputation, and any event can be proven final with a light client proof.
 
 Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 - schemas: ${CONTRACTS.schemas}
@@ -26,9 +26,9 @@ Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 
 ## Agent access
 - MCP (Streamable HTTP, read tools): ${site}/mcp
-- MCP (stdio, read and capped testnet write tools): npx -y @attestra/mcp
+- MCP (stdio, read and capped testnet write tools): npx -y @attestra/mcp once published; until then node packages/mcp/dist/cli.js from a clone
 - Tools: ${TOOLS.map((t) => t.name).join(', ')}
-- Agent skill: skills/attestra/SKILL.md in the repository
+- Agent skill: skills/attestra/SKILL.md in the repository${REPO_URL && REPO_URL !== '[placeholder]' ? ` (${REPO_URL})` : ''}
 
 ## SDK (TypeScript, @attestra/sdk)
 - new AttestraClient({ network: 'testnet', accountId?, privateKey?, indexerUrl? })

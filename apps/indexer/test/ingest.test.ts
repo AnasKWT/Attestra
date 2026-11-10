@@ -1,3 +1,4 @@
+import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from '@attestra/sdk';
 import { createApi } from '../src/api';
@@ -7,7 +8,21 @@ import { ingestOnce } from '../src/ingest';
 import type { TxApi, TxRecord } from '../src/txapi';
 
 const url = process.env.TEST_DATABASE_URL ?? 'postgres://localhost:5432/attestra_test';
-const run = process.env.CI && !process.env.TEST_DATABASE_URL ? describe.skip : describe;
+
+/** A set TEST_DATABASE_URL must work; the default local database is optional (skipped with a note). */
+async function databaseReachable(): Promise<boolean> {
+  if (process.env.TEST_DATABASE_URL) return true;
+  const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 1500 });
+  try {
+    await client.connect();
+    await client.end();
+    return true;
+  } catch {
+    console.warn(`indexer database tests skipped: no Postgres at ${url} (see apps/indexer/README.md)`);
+    return false;
+  }
+}
+const run = (await databaseReachable()) ? describe : describe.skip;
 
 const A = 'attestations.attestra.testnet';
 const S = 'schemas.attestra.testnet';

@@ -6,7 +6,7 @@ description: Use and extend Attestra, the attestation protocol on NEAR. Use when
 # Attestra
 
 Attestra stores claims on NEAR as attestations: an attester says something about a subject (a NEAR account or a CAIP-10 account on another chain) under a schema that defines the fields.
-Testnet contracts live under `attestra.testnet` (`schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`).
+Testnet contracts live under `attestra.testnet` (deployment pending; until then run everything on a local node with `pnpm deploy:sandbox`) (`schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.`, and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`).
 
 ## Fastest path for an agent: MCP
 
@@ -72,7 +72,7 @@ Well-known schemas (UIDs are deterministic; `well_known_schemas` lists them): ag
 ## Extending Attestra
 
 - New resolver kind: add a module in `contracts/resolvers/src/`, implement `on_attest`, `on_revoke`, `on_aborted`, `on_committed`; never panic in a callback after changing state; add unit tests and a sandbox flow.
-- New private-check rule: add it with `set_rules` on the verdicts contract (owner) and teach the checker in `apps/agent/src/check.ts`.
+- New private-check rule: add it with `set_rules` on the verdicts contract (owner); the checkers build the prompt from the rule's on-chain claim, so a rule judged from evidence needs no code. A rule that fetches its own data (like the GitHub rules) needs code in both `apps/agent/src/check.ts` and `checker/src/check.rs`, and a new checker build means a new key: `set_enclave_keys` and `OUTLAYER_WASM_HASH`.
 - New agent tool: add it to `packages/sdk/src/tools.ts`; the MCP server, the agent and `@attestra/sdk/ai` pick it up.
 - Keep the UID vectors in `packages/sdk/test/uid.test.ts` and `contracts/common/src/uid.rs` in sync.
 - Run `pnpm test`, `pnpm test:contracts` and `pnpm security` before proposing a change.

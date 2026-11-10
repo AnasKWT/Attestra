@@ -23,5 +23,9 @@ export function useAsync<T>(load: () => Promise<T>, key: unknown[]): { data: T |
 
 /** Browsers report an unreachable host as a bare "Failed to fetch" (Chrome), "NetworkError..." (Firefox) or "Load failed" (Safari). */
 export function readableError(message: string): string {
-  return /failed to fetch|networkerror|load failed|fetch failed/i.test(message) ? 'Not reachable from this browser.' : message;
+  if (/failed to fetch|networkerror|load failed|fetch failed/i.test(message)) return 'Not reachable from this browser.';
+  // A view on a contract account that was never created: the deployment is missing, not the record.
+  const missing = /account ([\w.-]+) does not exist/i.exec(message);
+  if (missing) return `${missing[1]} is not deployed on this network yet, so there is nothing to read.`;
+  return message;
 }

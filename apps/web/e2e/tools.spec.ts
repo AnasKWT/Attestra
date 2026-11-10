@@ -134,9 +134,9 @@ test('a write tool asks to sign in when submitted signed out', async ({ page }) 
   await expect(page.getByText('sign in with a NEAR wallet or a passkey first')).toBeVisible();
 });
 
-test('lookup reports a UID that is on no contract', async ({ page }) => {
+test('lookup says the contracts are not deployed when the network has none', async ({ page }) => {
   await page.goto('/sandbox/app/lookup');
   await page.locator('#uid').fill('cd'.repeat(32));
   await page.getByRole('button', { name: 'Look up' }).click();
-  await expect(page.getByText('no attestation or schema with this UID')).toBeVisible();
+  await expect(page.getByText(/attestations\.attestra\.testnet is not deployed on this network yet/)).toBeVisible();
 });

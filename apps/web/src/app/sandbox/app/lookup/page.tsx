@@ -29,7 +29,9 @@ export default function Lookup() {
           }
           const s = await c.getSchema(uid.trim());
           if (s.success && s.data) return { success: true, data: { kind: 'schema', ...s.data } };
-          return { success: false, error: { type: 'NOT_FOUND' as never, message: 'no attestation or schema with this UID' } };
+          // Keep the chain's answer when the contracts themselves are missing; otherwise the UID is simply unknown.
+          const missing = [a.error?.message, s.error?.message].find((m) => m && /does not exist/i.test(m));
+          return { success: false, error: { type: 'NOT_FOUND' as never, message: missing ?? 'no attestation or schema with this UID' } };
         }}
       >
         <div>

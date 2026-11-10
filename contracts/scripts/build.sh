@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds every deployable contract to wasm.
 #
-#   scripts/build.sh                       local toolchain, to target/near/<crate>/<crate>.wasm (fast; for tests)
+#   scripts/build.sh                       local toolchain, to target/near/<crate>/<crate>.wasm (fast; for tests),
+#                                          plus the two test doubles the sandbox tests deploy (never deployed anywhere)
 #   scripts/build.sh --reproducible [rev]  SourceScan's pinned Docker image (each crate's
 #                                          [package.metadata.near.reproducible_build]) from commit `rev`
 #                                          (default HEAD), to target/near-reproducible/<commit>/<crate>.wasm.
@@ -14,10 +15,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CRATES="schemas attestations resolvers credentials staking verdicts token"
+DOUBLES="sandbox-tests/doubles/mpc sandbox-tests/doubles/resolver"
 
 case "${1:-}" in
   "")
-    for c in $CRATES; do
+    for c in $CRATES $DOUBLES; do
       (cd "$c" && cargo near build non-reproducible-wasm --no-abi --locked >/dev/null 2>&1) || {
         echo "build failed: $c" >&2
         (cd "$c" && cargo near build non-reproducible-wasm --no-abi --locked)

@@ -648,7 +648,7 @@ def pipeline() -> PanelFigure:
 def repository() -> PanelFigure:
     return PanelFigure(
         "What is in the repository",
-        "Eight Rust contracts, one TypeScript SDK that every tool shares, and the apps and services behind the hosted demo.",
+        "Seven Rust contracts, one TypeScript SDK that every tool shares, the OutLayer checker, and the apps and services behind the hosted demo.",
         [
             [
                 Panel("contracts/", "Rust, near-sdk 5.30, reproducible builds", [
@@ -669,11 +669,12 @@ def repository() -> PanelFigure:
                 ]),
             ],
             [
-                Panel("apps/ and services/", "what the hosted demo runs", [
+                Panel("apps/, services/, checker/", "what runs off chain", [
                     Item("apps/web", "Next.js 16: explorer, 31 sandbox tools, docs, /mcp, /llms.txt", "mono"),
                     Item("apps/indexer", "FastNEAR transactions API into Postgres, REST API", "mono"),
                     Item("apps/agent", "NEAR AI Cloud chat, private checks, x402 paid verification, A2A", "mono"),
                     Item("services/", "relayer (NEP-366, gas key lanes), keeper, top-up", "mono"),
+                    Item("checker/", "Rust for NEAR OutLayer: signs verdicts with a key bound to its build", "mono"),
                 ]),
             ],
         ],
@@ -701,10 +702,11 @@ def tree() -> TreeFigure:
             Row(2, "staking/", "NEP-141 stake that sets an authority's tier"),
             Row(2, "token/", "a testnet NEP-141 with a faucet"),
             Row(2, "sandbox-tests/", "near-workspaces flows across every contract"),
+            Row(1, "checker/", "the private checker as a NEAR OutLayer component; its key is bound to its build"),
             Row(1, "packages/", "@attestra/sdk, @attestra/cli and @attestra/mcp"),
             Row(1, "apps/", "web (3100), indexer (5100), agent (5300)"),
             Row(1, "services/", "relayer (5200), keeper (5400), top-up (5500)"),
-            Row(1, "scripts/", "deploy, verify (every claim, PASS or FAIL), security, dev"),
+            Row(1, "scripts/", "deploy, accounts, verify (a live deployment, PASS or FAIL), CLI e2e, security, dev"),
             Row(1, "deployments/", "accounts, code hashes and transactions per network"),
             Row(1, "skills/attestra/", "the agent skill for using and extending Attestra"),
             Row(1, "compose.yaml", "the whole stack in containers, with Caddy for TLS"),

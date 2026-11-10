@@ -27,7 +27,7 @@ Decisions and accounts the owner provides:
 
 1. The root account `attestra.near` (or another root, set with `ROOT`), with its key in `~/.near-credentials/mainnet/`.
 2. A governance account that verifies authorities (`GOVERNANCE`; a multisig is recommended), and the staking token (`STAKING_TOKEN`).
-3. About 45 NEAR: about 30 for contract code storage (eight wasm files, the resolver deployed five times, about 2.9 MB at 1 NEAR per 100 kB) plus working balances, and about 10 for the relayer, keeper, agent and top-up accounts.
+3. About 45 NEAR: about 30 for contract code storage (six wasm files, the resolver deployed five times, about 2.9 MB at 1 NEAR per 100 kB) plus working balances, and about 10 for the relayer, keeper, agent and top-up accounts.
 4. A NEAR AI Cloud key for the agent and the checker, and the checker's verdict key registered with OutLayer (see `checker/README.md`).
 5. Confirmation that `v1.signer` serves `verify_foreign_transaction` for the chains above.
    Check the release notes of the MPC version it runs (github.com/near/mpc) and send one real request for a known transaction before announcing cross-chain facts.

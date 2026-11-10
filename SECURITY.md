@@ -8,7 +8,7 @@ This file records how they were reviewed, what was found and fixed, what is acce
 ```bash
 pnpm security          # Clippy -D warnings, cargo audit, cargo deny on the wasm graph, pnpm audit
 pnpm test:contracts    # 308 unit tests
-pnpm test:sandbox      # 19 near-workspaces flows across every contract (build wasm first)
+pnpm test:sandbox      # 19 near-workspaces flows across every contract (build first: contracts/scripts/build.sh)
 ```
 
 `cargo audit` ignores three advisories, each with a reason in `scripts/security.ts`:
@@ -20,8 +20,8 @@ pnpm test:sandbox      # 19 near-workspaces flows across every contract (build w
 
 ## Review
 
-All eight contracts were reviewed against the NEAR contract audit checklist (the `near-contract-audit` agent skill): cross-contract calls and callbacks, state ordering around promises, gas sizing, deposit refunds, access control, NEP-145 storage accounting, NEP-413 replay, multisig thresholds, token accounting, signature verification (ed25519, EIP-191 with `ecrecover`, the MPC foreign-transaction payload hash), integer overflow, unbounded iteration and storage key collisions.
-Every finding below has a unit test that failed before the fix and passes after it.
+All seven contracts (and the five resolver kinds in one of them) were reviewed against the NEAR contract audit checklist (the `near-contract-audit` agent skill): cross-contract calls and callbacks, state ordering around promises, gas sizing, deposit refunds, access control, NEP-145 storage accounting, NEP-413 replay, multisig thresholds, token accounting, signature verification (ed25519, EIP-191 with `ecrecover`, the MPC foreign-transaction payload hash), integer overflow, unbounded iteration and storage key collisions.
+Every finding below has a regression unit test that reproduces its scenario.
 The near-workspaces flows separately found a gas-budget bug (G-1).
 
 ## Findings and fixes

@@ -1,5 +1,8 @@
 /**
- * pnpm verify: checks every claim the README makes and prints PASS or FAIL for each.
+ * pnpm verify: checks a live deployment and the stack around it, printing PASS or FAIL per check:
+ * the test suites, the deployed code against the record and a local reproducible build, the
+ * well-known schemas, a light client proof, an AI-checked and a cross-chain attestation, an agent's
+ * reputation, the indexer's lag, and the site and service health.
  *
  *   pnpm verify                  everything (runs the test suites first)
  *   pnpm verify --skip-tests     only the live checks
@@ -52,8 +55,21 @@ async function check(claim: string, fn: () => Promise<string>) {
     results.push({ claim, ok: true, detail });
     console.log(`\u001b[32mPASS\u001b[0m ${claim}${detail ? `\n     ${detail}` : ''}`);
   } catch (e) {
-    results.push({ claim, ok: false, detail: (e as Error).message });
-    console.log(`\u001b[31mFAIL\u001b[0m ${claim}\n     ${(e as Error).message}`);
+    const msg = (e as Error).message === 'fetch failed' ? `the indexer at ${INDEXER} is not reachable: ${HINT}` : (e as Error).message;
+    results.push({ claim, ok: false, detail: msg });
+    console.log(`\u001b[31mFAIL\u001b[0m ${claim}\n     ${msg}`);
+  }
+}
+
+const HINT = 'start the stack with `pnpm dev` (or `docker compose up`), or set SITE_URL, INDEXER_URL, AGENT_URL, RELAYER_URL, KEEPER_URL and TOPUP_URL';
+
+/** fetch that names the URL it could not reach. */
+async function get(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    const cause = (e as { cause?: { code?: string } }).cause?.code;
+    throw new Error(`${url} is not reachable${cause ? ` (${cause})` : ''}: ${HINT}`);
   }
 }
 
@@ -181,11 +197,11 @@ async function main() {
   });
 
   await check('The site, llms.txt and the hosted MCP endpoint answer', async () => {
-    const home = await fetch(SITE);
+    const home = await get(SITE);
     must(home.ok, `${SITE} answered ${home.status}`);
-    const llms = await fetch(`${SITE}/llms.txt`);
+    const llms = await get(`${SITE}/llms.txt`);
     must(llms.ok && (await llms.text()).includes('Attestra'), 'llms.txt is missing');
-    const mcp = await fetch(`${SITE}/mcp`, {
+    const mcp = await get(`${SITE}/mcp`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
@@ -200,7 +216,7 @@ async function main() {
     for (const [name, url] of [['indexer', INDEXER], ['agent', AGENT], ['relayer', RELAYER], ['keeper', KEEPER], ['topup', TOPUP]]) {
       const live = await fetch(`${url}/live`).catch(() => null);
       must(live?.ok, `${name} at ${url} does not answer /live`);
-      const h = (await (await fetch(`${url}/health`)).json()) as { ok: boolean; reason?: string };
+      const h = (await (await get(`${url}/health`)).json()) as { ok: boolean; reason?: string };
       out.push(`${name} ${h.ok ? 'healthy' : `degraded (${h.reason})`}`);
     }
     return out.join('; ');

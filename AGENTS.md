@@ -11,7 +11,7 @@ This file is for AI agents and engineers working in the repository; the product 
   - `attestations`: attestations, the resolver gate (pending, commit, rollback), authorities, delegates, NEP-413 signed requests, multisig authorities, scheduled revocation, expiry events.
   - `resolvers`: one wasm deployed five times: whitelist, fee, token gated, token reward, pipeline.
   - `credentials` (NEP-171, non-transferable, burned on revoke), `staking` (NEP-141 tiers), `token` (testnet NEP-141 with a faucet).
-  - `verdicts`: AI-checked facts (enclave and NEAR AI signatures), cross-chain facts (Chain Signatures `verify_foreign_transaction`), wallet links (ERC-191, ed25519).
+  - `verdicts`: AI-checked facts (enclave and NEAR AI signatures), cross-chain facts (Chain Signatures `verify_foreign_transaction`), wallet links (EIP-191, ed25519).
   - `sandbox-tests`: near-workspaces flows across all contracts.
 - `checker/` (Rust, its own Cargo project, wasm32-wasip2): the private checker as a NEAR OutLayer component; signs verdicts with an OutLayer signing key bound to its build (`bind: "wasm"`), started on chain by the agent when `CHECKER_MODE=outlayer`.
 - `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, E2EE, agent tools; `@attestra/sdk/ai` for LangChain.
@@ -37,13 +37,13 @@ pnpm typecheck && pnpm lint
 pnpm security                       # Clippy -D warnings, cargo audit, cargo deny, pnpm audit
 pnpm dev                            # indexer, agent, services and the site against testnet
 docker compose up --build           # the same stack in containers (site with --profile site)
-pnpm verify                         # every README claim against the live deployment, PASS or FAIL
+pnpm verify                         # a live deployment and its stack (code hashes, proofs, verdicts, services), PASS or FAIL
 pnpm e2e                            # Playwright on a production build of the site, no deployment needed (E2E_PORT, default 3100)
 contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's pinned image
 pnpm deploy:sandbox                 # full deploy rehearsal on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
 pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
-pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to internal/secrets/
+pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to the gitignored internal/secrets/
 ```
 
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
@@ -79,7 +79,7 @@ By hand: `near contract verify deployed-at attestations.attestra.testnet network
 - UIDs are 64 lowercase hex characters; `packages/sdk/src/uid.ts` and `contracts/common/src/uid.rs` share test vectors.
 - Every SDK method returns `ServiceResponse<T>` and never throws. Every CLI command takes `--json`.
 - Times are unix seconds. Amounts are strings in the token's smallest unit.
-- Secrets only in gitignored `.env` files; every package ships a `.env.example`.
+- Secrets only in gitignored `.env` files; every app and service that reads settings ships a `.env.example`.
 - Prose: no em dash; one sentence per line in long Markdown.
 
 ## Traps
