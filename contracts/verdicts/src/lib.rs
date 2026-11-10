@@ -1,8 +1,10 @@
 //! Attestra verdicts: facts checked off chain, attested on chain.
 //!
 //! This contract is an authority in the attestations contract. It verifies a fact, then calls
-//! `attest` there as itself; the owner keeps a storage balance for it at the attestations contract
-//! (`storage_deposit(account_id: <this contract>)`), so `attest` carries no deposit.
+//! `attest` there as itself. AI verdicts are paid from a storage balance the owner keeps for it at
+//! the attestations contract (`storage_deposit(account_id: <this contract>)`). Wallet links and
+//! foreign events can be requested by anyone, so their callers attach the storage they cause
+//! (`link_wallet_deposit`, `foreign_event_deposit`) and it travels with `attest`.
 //!
 //! Three flows:
 //!
@@ -49,7 +51,7 @@ pub use ai::{verdict_digest, AiVerdict, NearAiProof, VERDICT_TAG};
 pub use foreign::ForeignEventClaim;
 
 use attestra_common::uid::Uid;
-use near_sdk::json_types::Base64VecU8;
+use near_sdk::json_types::{Base64VecU8, U128};
 use near_sdk::store::{LookupMap, LookupSet};
 use near_sdk::{
     assert_one_yocto, env, ext_contract, near, require, AccountId, BorshStorageKey, CurveType, Gas,
@@ -65,6 +67,12 @@ pub(crate) const MIN_PREPAID_GAS: Gas = Gas::from_tgas(200);
 const MAX_ENCLAVE_KEYS: usize = 10;
 const MAX_MODEL_SIGNERS: usize = 50;
 const MAX_RULES: usize = 100;
+/// Bytes the protocol counts for every stored record on top of its key and value.
+pub(crate) const RECORD_OVERHEAD_BYTES: u64 = 40;
+/// Bytes a first attestation by this contract takes at the attestations contract besides its
+/// account id (three times: attester, payer and the nonce key), the subject and the data: the
+/// record's fixed fields (91), its key (33), the nonce entry (13) and two record overheads.
+pub const ATTESTATION_FIXED_BYTES: u64 = 91 + 33 + 13 + 2 * RECORD_OVERHEAD_BYTES;
 const MAX_RULE_ID_LEN: usize = 64;
 const MAX_CLAIM_LEN: usize = 256;
 pub(crate) const MAX_MODEL_LEN: usize = 128;
@@ -304,23 +312,50 @@ impl Contract {
         self.schemas.as_ref().unwrap_or_else(|| env::panic_str("schemas are not configured"))
     }
 
-    /// The `attest` call at the attestations contract, with no deposit and all unused gas.
+    /// The `attest` call at the attestations contract with all unused gas. `deposit` is credited
+    /// to this contract's storage balance there before the attestation is stored.
     pub(crate) fn attest(
         &self,
         schema_uid: Uid,
         subject: String,
         data: Vec<u8>,
         expiration_time: Option<u64>,
+        deposit: u128,
     ) -> near_sdk::Promise {
         ext_attestations::ext(self.attestations.clone())
             .with_static_gas(GAS_ATTEST)
             .with_unused_gas_weight(1)
+            .with_attached_deposit(near_sdk::NearToken::from_yoctonear(deposit))
             .attest(schema_uid, subject, Base64VecU8(data), expiration_time, None)
     }
 
     /// True when the MPC is the testnet one, so foreign chains are their test networks.
     pub(crate) fn is_testnet(&self) -> bool {
         self.mpc.as_str().ends_with(".testnet")
+    }
+}
+
+pub(crate) fn storage_cost(bytes: u64) -> u128 {
+    bytes as u128 * env::storage_byte_cost().as_yoctonear()
+}
+
+/// What an attestation by this contract about `subject` with `data_len` bytes of data costs in
+/// storage at the attestations contract (at most; the nonce entry exists after the first one).
+pub(crate) fn attestation_deposit(subject: &str, data_len: usize) -> u128 {
+    let self_len = env::current_account_id().len() as u64;
+    storage_cost(ATTESTATION_FIXED_BYTES + 3 * self_len + subject.len() as u64 + data_len as u64)
+}
+
+/// Keeps `required` of the attached deposit and refunds the rest to the caller.
+pub(crate) fn take_deposit(required: u128, what: &str) {
+    let attached = env::attached_deposit().as_yoctonear();
+    require!(attached >= required, format!("attach at least {required} yoctoNEAR for the storage of {what}"));
+    refund(&env::predecessor_account_id(), attached - required);
+}
+
+pub(crate) fn refund(account_id: &AccountId, amount: u128) {
+    if amount > 0 {
+        Promise::new(account_id.clone()).transfer(near_sdk::NearToken::from_yoctonear(amount)).detach();
     }
 }
 

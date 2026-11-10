@@ -260,7 +260,12 @@ impl Contract {
     /// Called by the staking contract whenever an account's stake changes.
     pub fn on_tier_changed(&mut self, account_id: AccountId, tier: Option<String>, staked: U128) {
         require!(Some(env::predecessor_account_id()) == self.staking, "only the staking contract");
-        self.tiers.insert(account_id.clone(), TierInfo { tier: tier.clone(), staked });
+        if tier.is_none() && staked.0 == 0 {
+            // This contract pays for tier entries; an account that staked nothing keeps none.
+            self.tiers.remove(&account_id);
+        } else {
+            self.tiers.insert(account_id.clone(), TierInfo { tier: tier.clone(), staked });
+        }
         events::emit(
             events::AUTHORITY_TIER,
             &json!({ "account_id": account_id, "tier": tier, "staked": staked }),

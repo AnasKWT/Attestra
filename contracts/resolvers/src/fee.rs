@@ -1,4 +1,5 @@
-//! Fee: each schema can charge a fee in NEAR or one NEP-141 token. Payers keep a prepaid balance
+//! Fee: each schema can charge a fee in NEAR or one NEP-141 token from the owner's list of accepted
+//! fee tokens. Payers keep a prepaid balance
 //! here (`deposit` for NEAR, `ft_transfer_call` for tokens), so no funds travel with the resolver
 //! call. `on_attest` moves the fee from the attester's balance into a charge held for the
 //! attestation; `on_committed` adds it to the schema's collected fees and `on_aborted` returns it
@@ -8,7 +9,7 @@
 use crate::*;
 use attestra_common::events::{FEES_CLAIMED, FEE_CHARGED, FEE_DEPOSITED, FEE_REFUNDED, FEE_WITHDRAWN};
 use attestra_common::promise_succeeded;
-use near_sdk::log;
+use near_sdk::{assert_one_yocto, log};
 
 #[near(serializers = [borsh])]
 pub(crate) struct Fee {
@@ -34,12 +35,45 @@ pub struct FeeView {
 
 #[near]
 impl Contract {
-    /// Sets the fee for attesting under `schema_uid`; `token` None means NEAR. A zero amount
-    /// charges nothing.
+    /// Owner only, 1 yoctoNEAR: accepts `token` for fees and prepaid balances.
+    #[payable]
+    pub fn add_fee_token(&mut self, token: AccountId) {
+        assert_one_yocto();
+        self.require_kind(ResolverKind::Fee);
+        self.assert_owner();
+        if !self.fee_tokens.contains(&token) {
+            self.fee_tokens.push(token.clone());
+            self.configured(None, "fee_token_added", json!(token));
+        }
+    }
+
+    /// Owner only, 1 yoctoNEAR: stops accepting new deposits of `token` and new fees in it.
+    /// Balances already held stay withdrawable and fees already set keep charging.
+    #[payable]
+    pub fn remove_fee_token(&mut self, token: AccountId) {
+        assert_one_yocto();
+        self.require_kind(ResolverKind::Fee);
+        self.assert_owner();
+        if let Some(i) = self.fee_tokens.iter().position(|t| *t == token) {
+            self.fee_tokens.remove(i);
+            self.configured(None, "fee_token_removed", json!(token));
+        }
+    }
+
+    pub fn fee_tokens(&self) -> Vec<AccountId> {
+        self.require_kind(ResolverKind::Fee);
+        self.fee_tokens.clone()
+    }
+
+    /// Sets the fee for attesting under `schema_uid`; `token` None means NEAR, otherwise it must
+    /// be an accepted fee token. A zero amount charges nothing.
     #[payable]
     pub fn set_fee(&mut self, schema_uid: Uid, token: Option<AccountId>, amount: U128) {
         self.require_kind(ResolverKind::Fee);
         self.assert_admin(&schema_uid);
+        if let Some(t) = &token {
+            require!(self.fee_tokens.contains(t), format!("{t} is not an accepted fee token"));
+        }
         let before = env::storage_usage();
         self.fees.insert(schema_uid, Fee { token: token.clone(), amount: amount.0 });
         self.fees.flush();
@@ -158,6 +192,10 @@ impl Contract {
         amount: u128,
         msg: &str,
     ) -> U128 {
+        if !self.fee_tokens.contains(&token) {
+            log!("{token} is not an accepted fee token; returning the tokens");
+            return U128(amount);
+        }
         if !(msg.is_empty() || msg == "deposit") {
             log!("unknown message {msg:?}; returning the tokens");
             return U128(amount);

@@ -704,3 +704,124 @@ fn record_expiry_too_early() {
     set_at("keeper.testnet", T0 + 10);
     c.record_expiry(uid);
 }
+
+// ---------------------------------------------------------------- audit regressions
+
+fn set_result_at(result: PromiseResult, at: u64) {
+    testing_env!(
+        ctx(SELF, NearToken::from_yoctonear(0), at).build(),
+        near_sdk::test_vm_config(),
+        RuntimeFeesConfig::test(),
+        Default::default(),
+        vec![result]
+    );
+}
+
+fn logged(event: &str) -> usize {
+    near_sdk::test_utils::get_logs().iter().filter(|l| l.contains(&format!("\"event\":\"{event}\""))).count()
+}
+
+/// While a resolver decides, the contract itself must not pay for a second copy of the payload:
+/// the payer's balance covers the attestation, and the pending operation adds only a small,
+/// fixed-size entry.
+#[test]
+fn pending_operation_does_not_copy_the_payload() {
+    let mut c = setup();
+    set("alice.testnet", NearToken::from_near(1));
+    c.storage_deposit(None, None);
+    set("alice.testnet", NearToken::from_yoctonear(0));
+    let before = env::storage_usage();
+    let locked_before = c.ledger.get(&acc("alice.testnet")).unwrap().locked;
+    let data = vec![7u8; attestra_common::MAX_DATA_LEN];
+    let _ = c.attest(schema(2), "bob.testnet".into(), Base64VecU8(data), None, None);
+    c.pending.flush();
+    let grown = env::storage_usage() - before;
+    let paid = (c.ledger.get(&acc("alice.testnet")).unwrap().locked - locked_before)
+        / env::storage_byte_cost().as_yoctonear();
+    assert!(
+        grown - paid as u64 <= 512,
+        "the contract pays {} bytes of the pending operation",
+        grown - paid as u64
+    );
+
+    // The verdict still sees the whole call.
+    set_result(PromiseResult::Successful(b"true".to_vec()));
+    assert_eq!(c.on_resolver_verdict(0).status, "created");
+    let hook = near_sdk::test_utils::get_created_receipts()
+        .into_iter()
+        .flat_map(|r| r.actions)
+        .find_map(|a| match a {
+            near_sdk::mock::MockAction::FunctionCallWeight { method_name, args, .. }
+                if method_name == b"on_committed" =>
+            {
+                Some(near_sdk::serde_json::from_slice::<near_sdk::serde_json::Value>(&args).unwrap())
+            }
+            _ => None,
+        })
+        .expect("on_committed");
+    assert_eq!(hook["call"]["subject"], "bob.testnet");
+    assert_eq!(hook["call"]["attester"], "alice.testnet");
+    assert_eq!(hook["call"]["schema_uid"], schema(2).to_hex());
+    assert_eq!(hook["call"]["data"].as_str().unwrap().len(), attestra_common::MAX_DATA_LEN.div_ceil(3) * 4);
+}
+
+/// A scheduled revocation finalized while a direct revocation waits for the resolver is
+/// recorded once: the approved revocation does not log a second `attestation_revoked` or move
+/// the revocation time.
+#[test]
+fn finalized_schedule_then_approved_revoke_is_recorded_once() {
+    let mut c = setup();
+    let uid = attest(&mut c, "alice.testnet", schema(2), "bob.testnet");
+    set_result(PromiseResult::Successful(b"true".to_vec()));
+    c.on_resolver_verdict(0);
+    set("alice.testnet", NearToken::from_yoctonear(0));
+    let _ = c.schedule_revocation(uid, T0 + 60);
+    set_result(PromiseResult::Successful(b"true".to_vec()));
+    assert_eq!(c.on_resolver_verdict(1).status, "scheduled");
+    set_at("alice.testnet", T0 + 59);
+    let _ = c.revoke(uid);
+    set_at("keeper.testnet", T0 + 60);
+    assert_eq!(c.finalize_revocation(uid).status, "revoked");
+    set_result_at(PromiseResult::Successful(b"true".to_vec()), T0 + 61);
+    assert_eq!(c.on_resolver_verdict(2).status, "revoked");
+    assert_eq!(logged("attestation_revoked"), 0, "the second revocation logged an event");
+    let v = c.get_attestation(uid).unwrap();
+    assert_eq!(v.revocation_time, T0 + 60);
+    assert_eq!(v.status, "revoked");
+}
+
+/// An account whose stake dropped to zero leaves no tier entry behind (the contract pays for
+/// those entries).
+#[test]
+fn zero_stake_removes_the_tier_entry() {
+    let mut c = setup();
+    set("owner.testnet", NearToken::from_yoctonear(1));
+    c.set_staking(Some(acc("staking.attestra.testnet")));
+    set("staking.attestra.testnet", NearToken::from_yoctonear(0));
+    c.on_tier_changed(acc("acme.testnet"), Some("gold".into()), U128(10));
+    c.tiers.flush();
+    let with_entry = env::storage_usage();
+    c.on_tier_changed(acc("acme.testnet"), None, U128(0));
+    c.tiers.flush();
+    assert!(c.tiers.get(&acc("acme.testnet")).is_none());
+    assert!(env::storage_usage() < with_entry);
+    assert_eq!(c.get_tier(acc("acme.testnet")), TierInfo::default());
+}
+
+/// The storage a contract attesting as itself is charged for its first attestation: 217 fixed
+/// bytes, its account id three times (attester, payer and the nonce key), the subject and the
+/// data. The verdicts contract asks its callers for exactly this much.
+#[test]
+fn first_attestation_storage_matches_the_verdicts_estimate() {
+    let mut c = setup();
+    let me = "verdicts.attestra.testnet";
+    set(me, NearToken::from_near(1));
+    c.storage_deposit(None, None);
+    set(me, NearToken::from_yoctonear(0));
+    let locked = c.ledger.get(&acc(me)).unwrap().locked;
+    let subject = "bob.testnet";
+    let data = vec![1u8; 100];
+    let _ = c.attest(schema(1), subject.into(), Base64VecU8(data.clone()), None, None);
+    let charged = (c.ledger.get(&acc(me)).unwrap().locked - locked) / env::storage_byte_cost().as_yoctonear();
+    assert_eq!(charged as usize, 217 + 3 * me.len() + subject.len() + data.len());
+}

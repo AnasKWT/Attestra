@@ -449,8 +449,11 @@ fn whitelist_remove_requires_admin() {
 
 // Fee
 
+/// A fee resolver that accepts `token()`, with the fee of `SCHEMA` set.
 fn fee_setup(fee_token: Option<AccountId>, amount: u128) -> Contract {
     let mut c = setup(ResolverKind::Fee);
+    ctx(&owner(), 1);
+    c.add_fee_token(token());
     ctx(&admin(), NEAR);
     c.set_fee(SCHEMA, fee_token, U128(amount));
     c
@@ -505,7 +508,12 @@ fn fee_token_deposit_through_ft_on_transfer() {
     // Unknown messages are refunded in full and credit nothing.
     assert_eq!(c.ft_on_transfer(alice(), U128(70), "stake".into()), U128(70));
     assert_eq!(c.balance_of(alice(), Some(token())), U128(100));
-    // Each calling token keeps its own balance.
+    // Each accepted token keeps its own balance; a token the owner did not accept is refunded.
+    ctx(&acc("other-token.testnet"), 0);
+    assert_eq!(c.ft_on_transfer(alice(), U128(3), String::new()), U128(3));
+    assert_eq!(c.balance_of(alice(), Some(acc("other-token.testnet"))), U128(0));
+    ctx(&owner(), 1);
+    c.add_fee_token(acc("other-token.testnet"));
     ctx(&acc("other-token.testnet"), 0);
     assert_eq!(c.ft_on_transfer(alice(), U128(3), String::new()), U128(0));
     assert_eq!(c.balance_of(alice(), Some(acc("other-token.testnet"))), U128(3));
@@ -1331,4 +1339,72 @@ fn pipeline_view_and_event_on_reconfigure() {
     assert!(c.pipeline_configured(SCHEMA, vec![r(1)], admin(), U128(9)));
     assert_eq!(transfers(), vec![(admin(), 9)]);
     assert_eq!(c.get_pipeline(SCHEMA), vec![r(1)]);
+}
+
+// Audit regressions
+
+/// `ft_on_transfer` is callable by any account, which passes as the "token". Each unknown
+/// (sender, token) pair used to become a balance entry this resolver pays storage for, so anyone
+/// could lock its NEAR for the cost of gas. Only owner-accepted fee tokens are credited now.
+#[test]
+fn fee_ignores_transfers_from_tokens_the_owner_did_not_accept() {
+    let mut c = setup(ResolverKind::Fee);
+    let fake = acc("fake-token.testnet");
+    ctx(&fake, 0);
+    let before = env::storage_usage();
+    for i in 0..20 {
+        let victim = acc(&format!("victim-{i}.testnet"));
+        assert_eq!(c.ft_on_transfer(victim, U128(1_000), String::new()), U128(1_000));
+    }
+    c.balances.flush();
+    assert_eq!(env::storage_usage(), before);
+    assert_eq!(c.balance_of(acc("victim-0.testnet"), Some(fake)), U128(0));
+}
+
+#[test]
+#[should_panic(expected = "is not an accepted fee token")]
+fn fee_set_fee_requires_an_accepted_token() {
+    let mut c = setup(ResolverKind::Fee);
+    ctx(&admin(), NEAR);
+    c.set_fee(SCHEMA, Some(acc("fake-token.testnet")), U128(5));
+}
+
+#[test]
+fn fee_tokens_are_owner_managed() {
+    let mut c = setup(ResolverKind::Fee);
+    assert!(c.fee_tokens().is_empty());
+    ctx(&owner(), 1);
+    c.add_fee_token(token());
+    c.add_fee_token(token());
+    assert_eq!(c.fee_tokens(), vec![token()]);
+    ctx(&admin(), NEAR);
+    c.set_fee(SCHEMA, Some(token()), U128(5));
+    ctx(&token(), 0);
+    assert_eq!(c.ft_on_transfer(alice(), U128(40), String::new()), U128(0));
+    // A removed token takes no new deposits; balances already held stay withdrawable.
+    ctx(&owner(), 1);
+    c.remove_fee_token(token());
+    assert!(c.fee_tokens().is_empty());
+    ctx(&token(), 0);
+    assert_eq!(c.ft_on_transfer(alice(), U128(40), String::new()), U128(40));
+    assert_eq!(c.balance_of(alice(), Some(token())), U128(40));
+    ctx(&alice(), 0);
+    let _ = c.withdraw_balance(Some(token()), None);
+    assert_eq!(c.balance_of(alice(), Some(token())), U128(0));
+}
+
+#[test]
+#[should_panic(expected = "only the owner can do this")]
+fn fee_tokens_require_the_owner() {
+    let mut c = setup(ResolverKind::Fee);
+    ctx(&admin(), 1);
+    c.add_fee_token(token());
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn fee_tokens_require_one_yocto() {
+    let mut c = setup(ResolverKind::Fee);
+    ctx(&owner(), 0);
+    c.add_fee_token(token());
 }

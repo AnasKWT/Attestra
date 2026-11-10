@@ -450,3 +450,53 @@ fn attestation_view_ignores_unknown_fields() {
     assert_eq!(view.expiration_time, 5);
     assert_eq!(view.status, "active");
 }
+
+/// A revocation that reaches this contract after `mint` read the attestation as active, but
+/// before `mint_checked` ran, must still stop the mint: otherwise the subject keeps a credential
+/// for a revoked attestation that nothing will ever burn.
+#[test]
+fn revocation_during_a_mint_in_flight_stops_the_mint() {
+    let mut c = setup();
+    ctx(&bob(), NEAR);
+    let _ = c.mint(ATTESTATION);
+    // The attestations contract answered `active`, then the attester revoked and the burn
+    // arrived first.
+    ctx(&attestations(), 0);
+    c.on_attestation_revoked(ATTESTATION);
+    let view = view_json(&ATTESTATION, "bob.testnet", "active", 0);
+    assert!(mint_with(&mut c, ATTESTATION, &bob(), NEAR, view).is_none());
+    assert_eq!(c.credential_for_attestation(ATTESTATION), None);
+    assert_eq!(transfers(), vec![(bob(), NEAR)]);
+}
+
+/// Concurrent mints of one attestation are each checked; the in-flight record clears once
+/// every callback ran.
+#[test]
+fn concurrent_mints_clear_their_in_flight_record() {
+    let mut c = setup();
+    ctx(&bob(), NEAR);
+    let _ = c.mint(ATTESTATION);
+    ctx(&alice(), NEAR);
+    let _ = c.mint(ATTESTATION);
+    assert!(mint_with(
+        &mut c,
+        ATTESTATION,
+        &bob(),
+        NEAR,
+        view_json(&ATTESTATION, "bob.testnet", "active", 0)
+    )
+    .is_some());
+    assert!(mint_with(
+        &mut c,
+        ATTESTATION,
+        &alice(),
+        NEAR,
+        view_json(&ATTESTATION, "bob.testnet", "active", 0)
+    )
+    .is_none());
+    assert!(c.minting.get(&ATTESTATION).is_none());
+    // A revocation after the mint burns as usual.
+    ctx(&attestations(), 0);
+    c.on_attestation_revoked(ATTESTATION);
+    assert_eq!(c.credential_for_attestation(ATTESTATION), None);
+}

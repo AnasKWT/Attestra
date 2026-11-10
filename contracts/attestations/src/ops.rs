@@ -355,6 +355,12 @@ impl Contract {
 
     pub(crate) fn apply_revoke(&mut self, uid: Uid, actor: &AccountId) -> Outcome {
         let a = self.attestations.get_mut(&uid).expect("exists");
+        if a.revoked {
+            // A scheduled revocation was finalized while this one waited for the resolver; it
+            // already logged the event and burned the credential.
+            a.state = State::Active;
+            return Outcome::new(uid, "revoked");
+        }
         a.revoked = true;
         a.revocation_time = now_secs();
         a.state = State::Active;

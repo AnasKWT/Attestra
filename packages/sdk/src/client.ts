@@ -827,7 +827,8 @@ export class AttestraClient {
   /** Links a wallet on another chain to the signer, proven by that wallet's signature. */
   async linkWallet(chain: 'eip155' | 'solana', address: string, signature: string): Promise<ServiceResponse<Outcome>> {
     return this.write(async () => {
-      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'link_wallet', { chain, address, signature });
+      const deposit = await this.view<string>(this.contracts.verdicts, 'link_wallet_deposit', { account_id: this.signer(), chain, address });
+      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'link_wallet', { chain, address, signature }, { deposit });
       return { data: r.value, txHash: r.txHash };
     });
   }
@@ -845,11 +846,9 @@ export class AttestraClient {
     subject?: string;
   }): Promise<ServiceResponse<Outcome>> {
     return this.write(async () => {
-      const r = await this.callRaw<Outcome>(
-        this.contracts.verdicts,
-        'attest_foreign_event',
-        { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log: claim.log, subject: claim.subject ?? null } },
-      );
+      const args = { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log: claim.log, subject: claim.subject ?? null } };
+      const deposit = await this.view<string>(this.contracts.verdicts, 'foreign_event_deposit', args);
+      const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit });
       if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the event');
       return { data: r.value, txHash: r.txHash };
     });

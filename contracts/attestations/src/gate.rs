@@ -20,11 +20,16 @@ const GAS_RESOLVER_CAP: Gas = Gas::from_tgas(200);
 /// What `gate` and the rest of its call may still burn after measuring the gas left.
 const GAS_GATE_RESERVE: Gas = Gas::from_tgas(30);
 
+/// What the callback needs besides the attestation record, which holds the rest of the call
+/// (schema, attester, subject and data). Keeping the payload out of this entry means the
+/// contract, which pays for pending entries, never stores a second copy of it.
 #[near(serializers = [borsh])]
 #[derive(Clone, Debug)]
 pub struct PendingOp {
     pub resolver: AccountId,
-    pub call: ResolverCall,
+    pub op: ResolverOp,
+    pub attestation_uid: Uid,
+    pub actor: AccountId,
     pub revoke_at: u64,
 }
 
@@ -32,7 +37,16 @@ impl Contract {
     pub(crate) fn gate(&mut self, resolver: AccountId, call: ResolverCall, revoke_at: u64) -> Promise {
         let id = self.op_count;
         self.op_count += 1;
-        self.pending.insert(id, PendingOp { resolver: resolver.clone(), call: call.clone(), revoke_at });
+        self.pending.insert(
+            id,
+            PendingOp {
+                resolver: resolver.clone(),
+                op: call.op,
+                attestation_uid: call.attestation_uid,
+                actor: call.actor.clone(),
+                revoke_at,
+            },
+        );
         let ask = match call.op {
             ResolverOp::Attest => ext_resolver::ext(resolver)
                 .with_static_gas(GAS_RESOLVER)
@@ -55,14 +69,40 @@ impl Contract {
     }
 }
 
+/// A pending operation with its resolver call read back from the attestation record.
+struct PendingCall {
+    resolver: AccountId,
+    call: ResolverCall,
+    revoke_at: u64,
+}
+
+impl Contract {
+    /// The resolver call of a pending operation. The attestation exists until the callback
+    /// that removes a rejected one, so the record is always there.
+    fn resolver_call(&self, op: &PendingOp) -> ResolverCall {
+        let a = self.attestations.get(&op.attestation_uid).expect("pending attestation");
+        ResolverCall {
+            op: op.op,
+            attestation_uid: op.attestation_uid,
+            schema_uid: a.schema_uid,
+            attester: a.attester.clone(),
+            actor: op.actor.clone(),
+            subject: a.subject.clone(),
+            data: Base64VecU8(a.data.clone()),
+        }
+    }
+}
+
 #[near]
 impl Contract {
     /// Commits or rolls back a pending operation. Never panics: a rollback must persist.
     #[private]
     pub fn on_resolver_verdict(&mut self, op_id: u64) -> Outcome {
         let approved = promise_bool();
-        let op = self.pending.remove(&op_id).unwrap_or_else(|| env::panic_str("unknown operation"));
-        let uid = op.call.attestation_uid;
+        let pending = self.pending.remove(&op_id).unwrap_or_else(|| env::panic_str("unknown operation"));
+        let uid = pending.attestation_uid;
+        let call = self.resolver_call(&pending);
+        let op = PendingCall { resolver: pending.resolver, call, revoke_at: pending.revoke_at };
         match op.call.op {
             ResolverOp::Attest => {
                 if approved {

@@ -18,6 +18,24 @@ struct Wallet {
     bytes: Vec<u8>,
 }
 
+/// What a link writes here: `links[caip10] = account` and `link_nonces[account]`.
+fn link_storage_bytes(account_id: &AccountId, caip10: &str) -> u64 {
+    let link = 1 + 4 + caip10.len() + 4 + account_id.len();
+    let nonce = 1 + 4 + account_id.len() + 8;
+    (link + nonce) as u64 + 2 * RECORD_OVERHEAD_BYTES
+}
+
+/// The `wallet_link` attestation data: `string chain, string address, string caip10`.
+fn link_data(wallet: &Wallet) -> Vec<u8> {
+    borsh::to_vec(&(wallet.chain, &wallet.address, &wallet.caip10)).expect("borsh")
+}
+
+/// The deposit `link_wallet` takes: the link here and its attestation there.
+fn link_deposit(account_id: &AccountId, wallet: &Wallet) -> (u128, u128) {
+    let local = storage_cost(link_storage_bytes(account_id, &wallet.caip10));
+    (local, attestation_deposit(account_id.as_str(), link_data(wallet).len()))
+}
+
 fn parse_wallet(chain: &str, address: &str) -> Wallet {
     match chain {
         "eip155" => {
@@ -61,9 +79,17 @@ impl Contract {
         self.message(&account_id, &wallet)
     }
 
+    /// The deposit `link_wallet` needs from `account_id` for this wallet, in yoctoNEAR.
+    pub fn link_wallet_deposit(&self, account_id: AccountId, chain: String, address: String) -> U128 {
+        let (local, remote) = link_deposit(&account_id, &parse_wallet(&chain, &address));
+        U128(local + remote)
+    }
+
     /// Links a wallet to the caller after checking the wallet's signature over `link_message`
     /// (`personal_sign` for eip155, a raw ed25519 message signature for solana), and attests it
-    /// under the `wallet_link` schema with the caller as subject. Attach 300 TGas.
+    /// under the `wallet_link` schema with the caller as subject. Attach 300 TGas and at least
+    /// `link_wallet_deposit` (the rest is refunded): it pays for the link and the attestation.
+    #[payable]
     pub fn link_wallet(&mut self, chain: String, address: String, signature: String) -> Promise {
         let schema_uid = self.schemas().wallet_link;
         require_gas();
@@ -76,7 +102,7 @@ impl Contract {
                     .filter(|s| s.len() == 65)
                     .unwrap_or_else(|| env::panic_str("an eip155 signature is 65 bytes of hex"));
                 crypto::recover_personal_sign(message.as_bytes(), &sig).map(|a| a.to_vec())
-                    == Some(wallet.bytes)
+                    == Some(wallet.bytes.clone())
             }
             _ => {
                 let sig = parse_solana_signature(&signature)
@@ -86,6 +112,8 @@ impl Contract {
             }
         };
         require!(valid, "invalid wallet signature");
+        let (local, remote) = link_deposit(&caller, &wallet);
+        take_deposit(local + remote, "the wallet link and its attestation");
 
         let nonce = self.link_nonce(caller.clone());
         self.link_nonces.insert(caller.clone(), nonce + 1);
@@ -97,8 +125,7 @@ impl Contract {
                 "nonce": nonce, "previous": previous,
             }),
         );
-        let data = borsh::to_vec(&(wallet.chain, &wallet.address, &wallet.caip10)).expect("borsh");
-        self.attest(schema_uid, caller.to_string(), data, None)
+        self.attest(schema_uid, caller.to_string(), link_data(&wallet), None, remote)
     }
 
     /// The NEAR account a wallet (CAIP-10 id, as `link_message` writes it) is linked to.

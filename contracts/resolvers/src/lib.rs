@@ -1,7 +1,8 @@
 //! Attestra resolvers. One wasm, deployed once per kind (chosen at init):
 //!
 //! - `whitelist`: only whitelisted attesters may attest under a schema.
-//! - `fee`: attesters pay a per-schema fee (NEAR or one NEP-141 token) from a prepaid balance.
+//! - `fee`: attesters pay a per-schema fee (NEAR or one NEP-141 token the owner accepted) from a
+//!   prepaid balance.
 //! - `token_gated`: attesters must hold a minimum balance of an NEP-141 token.
 //! - `token_reward`: the subject receives NEP-141 tokens from a per-schema pool once the
 //!   attestation is stored.
@@ -125,6 +126,10 @@ pub struct Contract {
     pipelines: LookupMap<Uid, Vec<AccountId>>,
     /// The resolvers that approved an attestation, until it is committed or aborted.
     runs: LookupMap<Uid, Vec<AccountId>>,
+    /// NEP-141 tokens a fee resolver accepts for fees and prepaid balances. Any account can call
+    /// `ft_on_transfer`, so without this list anyone could create balance entries (storage this
+    /// resolver pays for) by posing as a token.
+    fee_tokens: Vec<AccountId>,
 }
 
 #[near]
@@ -148,6 +153,7 @@ impl Contract {
             distributed: LookupMap::new(Key::Distributed),
             pipelines: LookupMap::new(Key::Pipelines),
             runs: LookupMap::new(Key::Runs),
+            fee_tokens: Vec::new(),
         }
     }
 

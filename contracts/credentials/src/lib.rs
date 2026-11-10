@@ -4,7 +4,8 @@
 //! NEAR account) with `mint`, which reads the attestation from the attestations contract and pays
 //! the token's storage from the attached deposit. The token id is the attestation UID in hex.
 //! When the attestation is revoked, the attestations contract calls `on_attestation_revoked` and
-//! the credential is burned. The storage it freed stays with this contract.
+//! the credential is burned. The storage it freed stays with this contract. A revocation that
+//! arrives while a mint is between its read and its callback marks that mint, which then refuses.
 //!
 //! Transfers and approvals are disabled; the enumeration and metadata views follow NEP-171,
 //! NEP-177 and NEP-181.
@@ -24,6 +25,7 @@ use near_contract_standards::non_fungible_token::{NonFungibleToken, Token, Token
 use near_sdk::json_types::U128;
 use near_sdk::serde::Deserialize;
 use near_sdk::serde_json::{self, json};
+use near_sdk::store::LookupMap;
 use near_sdk::{
     env, ext_contract, log, near, require, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault,
     Promise, PromiseOrValue,
@@ -62,6 +64,16 @@ enum Key {
     OwnerById,
     TokenMetadata,
     Enumeration,
+    Minting,
+}
+
+/// Mints of one attestation between `mint` and `mint_checked`.
+#[near(serializers = [borsh])]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Minting {
+    pub in_flight: u32,
+    /// The attestation was revoked while a mint was in flight.
+    pub revoked: bool,
 }
 
 #[near(contract_state)]
@@ -70,6 +82,7 @@ pub struct Contract {
     attestations: AccountId,
     tokens: NonFungibleToken,
     metadata: NFTContractMetadata,
+    minting: LookupMap<Uid, Minting>,
 }
 
 #[near]
@@ -96,6 +109,7 @@ impl Contract {
                 None::<Key>,
             ),
             metadata,
+            minting: LookupMap::new(Key::Minting),
         }
     }
 
@@ -110,6 +124,8 @@ impl Contract {
             self.tokens.owner_by_id.get(&attestation_uid.to_hex()).is_none(),
             "a credential already exists for this attestation"
         );
+        let entry = self.minting.entry(attestation_uid).or_default();
+        entry.in_flight += 1;
         ext_attestations_view::ext(self.attestations.clone())
             .with_static_gas(GAS_GET_ATTESTATION)
             .with_unused_gas_weight(0)
@@ -125,7 +141,13 @@ impl Contract {
     /// whole deposit to `minter` and returns null.
     #[private]
     pub fn mint_checked(&mut self, attestation_uid: Uid, minter: AccountId, deposit: U128) -> Option<Token> {
-        match self.try_mint(attestation_uid, &minter, deposit.0) {
+        let revoked = self.finish_minting(attestation_uid);
+        let minted = if revoked {
+            Err("the attestation was revoked while the credential was being minted".to_string())
+        } else {
+            self.try_mint(attestation_uid, &minter, deposit.0)
+        };
+        match minted {
             Ok(token) => Some(token),
             Err(reason) => {
                 log!("credential not minted: {reason}");
@@ -141,6 +163,9 @@ impl Contract {
             env::predecessor_account_id() == self.attestations,
             "only the attestations contract can burn credentials"
         );
+        if let Some(m) = self.minting.get_mut(&attestation_uid) {
+            m.revoked = true;
+        }
         let token_id = attestation_uid.to_hex();
         let Some(owner_id) = self.burn(&token_id) else { return };
         NftBurn { owner_id: &owner_id, token_ids: &[&token_id], authorized_id: None, memo: Some("revoked") }
@@ -244,6 +269,18 @@ impl Contract {
 }
 
 impl Contract {
+    /// Counts one in-flight mint of `uid` as done and returns whether the attestation was revoked
+    /// while it was in flight. The record goes once no mint is in flight.
+    fn finish_minting(&mut self, uid: Uid) -> bool {
+        let Some(m) = self.minting.get_mut(&uid) else { return false };
+        let revoked = m.revoked;
+        m.in_flight = m.in_flight.saturating_sub(1);
+        if m.in_flight == 0 {
+            self.minting.remove(&uid);
+        }
+        revoked
+    }
+
     fn try_mint(&mut self, attestation_uid: Uid, minter: &AccountId, deposit: u128) -> Result<Token, String> {
         let attestation = read_attestation()?;
         if attestation.uid != attestation_uid {

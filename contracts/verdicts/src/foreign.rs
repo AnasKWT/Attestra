@@ -19,6 +19,8 @@ const GAS_AFTER_ATTEST: Gas = Gas::from_tgas(10);
 const MAX_RESPONSE_LEN: usize = 4 * 1024;
 const MAX_TOPICS: usize = 4;
 const MAX_LOG_DATA_BYTES: usize = 8 * 1024;
+/// A `used_payloads` entry: prefix, 32-byte hash, empty value and the record overhead.
+const PAYLOAD_ENTRY_BYTES: u64 = 1 + 32 + RECORD_OVERHEAD_BYTES;
 
 /// A log the caller expects the MPC network to find in a finalized EVM transaction.
 #[near(serializers = [json])]
@@ -45,11 +47,26 @@ struct Prepared {
     data: Vec<u8>,
 }
 
+impl Prepared {
+    /// What attesting this event costs in storage: the payload entry here and the attestation
+    /// there.
+    fn deposit(&self) -> u128 {
+        storage_cost(PAYLOAD_ENTRY_BYTES) + attestation_deposit(&self.subject, self.data.len())
+    }
+}
+
 #[near]
 impl Contract {
+    /// The deposit `attest_foreign_event` needs for `claim`, in yoctoNEAR.
+    pub fn foreign_event_deposit(&self, claim: ForeignEventClaim) -> U128 {
+        U128(self.prepare(&claim).unwrap_or_else(|e| env::panic_str(&e)).deposit())
+    }
+
     /// Asks the MPC network to verify a log of an EVM transaction; the callback attests it under
-    /// the `foreign_tx` schema. Attach 300 TGas. The 1 yoctoNEAR the MPC requires comes from this
-    /// contract's balance.
+    /// the `foreign_tx` schema. Attach 300 TGas and at least `foreign_event_deposit` (the rest is
+    /// refunded): it pays for the event's storage and is refunded when the event is not attested.
+    /// The 1 yoctoNEAR the MPC requires comes from this contract's balance.
+    #[payable]
     pub fn attest_foreign_event(&mut self, claim: ForeignEventClaim) -> Promise {
         self.schemas();
         require!(self.mpc_key.is_some(), "the MPC key is not configured");
@@ -57,6 +74,8 @@ impl Contract {
         let p = self.prepare(&claim).unwrap_or_else(|e| env::panic_str(&e));
         let uid = Uid(p.payload_hash.0);
         require!(!self.used_payloads.contains(&uid), "this event was already attested");
+        let deposit = p.deposit();
+        take_deposit(deposit, "the event and its attestation");
 
         emit(
             events::FOREIGN_TX_REQUESTED,
@@ -85,26 +104,81 @@ impl Contract {
                         GAS_VERIFY_WORK.saturating_add(GAS_ATTEST).saturating_add(GAS_AFTER_ATTEST),
                     )
                     .with_unused_gas_weight(1)
-                    .on_foreign_verified(claim),
+                    .on_foreign_verified(claim, env::predecessor_account_id(), U128(deposit)),
             )
     }
 
-    /// Checks the MPC's answer and attests the event. Never panics: a failed or wrong answer
-    /// emits `foreign_tx_failed` and returns `failed`.
+    /// Checks the MPC's answer and attests the event, forwarding the attestation's share of
+    /// `deposit`. Never panics: a failed or wrong answer emits `foreign_tx_failed`, refunds
+    /// `deposit` to `requester` and returns `failed`.
     #[private]
-    pub fn on_foreign_verified(&mut self, claim: ForeignEventClaim) -> PromiseOrValue<Outcome> {
-        let p = match self.prepare(&claim) {
+    pub fn on_foreign_verified(
+        &mut self,
+        claim: ForeignEventClaim,
+        requester: AccountId,
+        deposit: U128,
+    ) -> PromiseOrValue<Outcome> {
+        let outcome = self.verify_and_attest(&claim, &requester, deposit.0);
+        if let PromiseOrValue::Value(_) = &outcome {
+            refund(&requester, deposit.0);
+        }
+        outcome
+    }
+
+    /// Passes the attestation's outcome through. When `attest` failed or the schema's resolver
+    /// rejected it, the event is released so it can be attested again, and `requester` gets back
+    /// what is still here: all of `deposit` when the call failed (its attached deposit came back),
+    /// the payload entry's share when the resolver rejected it (the rest stays in this contract's
+    /// storage balance at the attestations contract).
+    #[private]
+    pub fn on_foreign_attested(
+        &mut self,
+        claim: ForeignEventClaim,
+        payload_hash: Uid,
+        requester: AccountId,
+        deposit: U128,
+    ) -> Outcome {
+        let outcome = (env::promise_results_count() == 1)
+            .then(|| env::promise_result_checked(0, MAX_RESPONSE_LEN).ok())
+            .flatten()
+            .and_then(|bytes| serde_json::from_slice::<Outcome>(&bytes).ok());
+        match outcome {
+            Some(o) if o.status != "rejected" => o,
+            Some(o) => {
+                self.used_payloads.remove(&payload_hash);
+                refund(&requester, storage_cost(PAYLOAD_ENTRY_BYTES).min(deposit.0));
+                self.foreign_failed(&claim, payload_hash, "the schema resolver rejected the attestation");
+                o
+            }
+            None => {
+                self.used_payloads.remove(&payload_hash);
+                refund(&requester, deposit.0);
+                self.foreign_failed(&claim, payload_hash, "the attestation call failed")
+            }
+        }
+    }
+}
+
+impl Contract {
+    /// `on_foreign_verified` without the refund: a value is a failure, a promise is the attest.
+    fn verify_and_attest(
+        &mut self,
+        claim: &ForeignEventClaim,
+        requester: &AccountId,
+        deposit: u128,
+    ) -> PromiseOrValue<Outcome> {
+        let p = match self.prepare(claim) {
             Ok(p) => p,
-            Err(e) => return PromiseOrValue::Value(self.foreign_failed(&claim, Uid([0; 32]), &e)),
+            Err(e) => return PromiseOrValue::Value(self.foreign_failed(claim, Uid([0; 32]), &e)),
         };
         let uid = Uid(p.payload_hash.0);
         let response = match read_response() {
             Ok(r) => r,
-            Err(e) => return PromiseOrValue::Value(self.foreign_failed(&claim, uid, &e)),
+            Err(e) => return PromiseOrValue::Value(self.foreign_failed(claim, uid, &e)),
         };
         if response.payload_hash != p.payload_hash {
             return PromiseOrValue::Value(self.foreign_failed(
-                &claim,
+                claim,
                 uid,
                 "the MPC signed another payload hash",
             ));
@@ -117,17 +191,21 @@ impl Contract {
             _ => false,
         };
         if !valid {
-            return PromiseOrValue::Value(self.foreign_failed(&claim, uid, "invalid MPC signature"));
+            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "invalid MPC signature"));
         }
         let Some(schema_uid) = self.schemas.as_ref().map(|s| s.foreign_tx) else {
-            return PromiseOrValue::Value(self.foreign_failed(&claim, uid, "schemas are not configured"));
+            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "schemas are not configured"));
         };
-        if !self.used_payloads.insert(uid) {
+        let forwarded = attestation_deposit(&p.subject, p.data.len());
+        if forwarded > deposit {
             return PromiseOrValue::Value(self.foreign_failed(
-                &claim,
+                claim,
                 uid,
-                "this event was already attested",
+                "the deposit does not cover the storage",
             ));
+        }
+        if !self.used_payloads.insert(uid) {
+            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "this event was already attested"));
         }
         emit(
             events::FOREIGN_TX_VERIFIED,
@@ -138,39 +216,15 @@ impl Contract {
             }),
         );
         PromiseOrValue::Promise(
-            self.attest(schema_uid, p.subject, p.data, None).then(
+            self.attest(schema_uid, p.subject, p.data, None, forwarded).then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_AFTER_ATTEST)
                     .with_unused_gas_weight(0)
-                    .on_foreign_attested(claim, uid),
+                    .on_foreign_attested(claim.clone(), uid, requester.clone(), U128(deposit)),
             ),
         )
     }
 
-    /// Passes the attestation's outcome through. When `attest` failed or the schema's resolver
-    /// rejected it, the event is released so it can be attested again.
-    #[private]
-    pub fn on_foreign_attested(&mut self, claim: ForeignEventClaim, payload_hash: Uid) -> Outcome {
-        let outcome = (env::promise_results_count() == 1)
-            .then(|| env::promise_result_checked(0, MAX_RESPONSE_LEN).ok())
-            .flatten()
-            .and_then(|bytes| serde_json::from_slice::<Outcome>(&bytes).ok());
-        match outcome {
-            Some(o) if o.status != "rejected" => o,
-            Some(o) => {
-                self.used_payloads.remove(&payload_hash);
-                self.foreign_failed(&claim, payload_hash, "the schema resolver rejected the attestation");
-                o
-            }
-            None => {
-                self.used_payloads.remove(&payload_hash);
-                self.foreign_failed(&claim, payload_hash, "the attestation call failed")
-            }
-        }
-    }
-}
-
-impl Contract {
     fn prepare(&self, claim: &ForeignEventClaim) -> Result<Prepared, String> {
         let chain_id = mpc::chain_id(&claim.chain, self.is_testnet())
             .ok_or_else(|| format!("unknown chain {}", claim.chain))?;

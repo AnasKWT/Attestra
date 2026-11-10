@@ -201,6 +201,10 @@ async function main() {
     const info = await view<{ trusted_pipelines: string[] }>(r, 'resolver_info');
     if (!info?.trusted_pipelines.includes(ids.resolvers.pipeline)) log(`trust pipeline on ${r} ${await call(root, r, 'add_trusted_pipeline', { account_id: ids.resolvers.pipeline })}`);
   }
+  // The fee resolver accepts prepaid balances only in tokens its owner lists.
+  const feeTokens = (await view<string[]>(ids.resolvers.fee, 'fee_tokens')) ?? [];
+  const feeToken = NET === 'mainnet' ? resolveNetwork('mainnet').paymentToken : ids.token;
+  if (!feeTokens.includes(feeToken)) log(`fee token ${feeToken} ${await call(root, ids.resolvers.fee, 'add_fee_token', { token: feeToken }, '1')}`);
   // Token storage for contracts that receive or hold the test token.
   for (const holder of [ids.staking, ids.resolvers.fee, ids.resolvers.tokenReward, ids.resolvers.tokenGated, `agent.${root}`]) {
     if (!(await view(ids.token, 'storage_balance_of', { account_id: holder }))) {

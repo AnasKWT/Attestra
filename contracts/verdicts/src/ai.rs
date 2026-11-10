@@ -118,7 +118,7 @@ impl Contract {
         ))
         .expect("borsh");
         let expiration = (verdict.expires_at != 0).then_some(verdict.expires_at);
-        PromiseOrValue::Promise(self.attest(schema_uid, verdict.subject, data, expiration))
+        PromiseOrValue::Promise(self.attest(schema_uid, verdict.subject, data, expiration, 0))
     }
 }
 
@@ -165,6 +165,9 @@ impl Contract {
         let (Some(_response_hash), Some(request_hash)) = (parts.next(), parts.next()) else {
             env::panic_str("the NEAR AI text must be [model:]request_hash:response_hash");
         };
+        if let Some(model) = parts.next() {
+            require!(model == v.model, "the NEAR AI text names another model");
+        }
         require!(
             request_hash.eq_ignore_ascii_case(&v.evidence_hash.to_hex()),
             "the NEAR AI request hash does not match evidence_hash"
