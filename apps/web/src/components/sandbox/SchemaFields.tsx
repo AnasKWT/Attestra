@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, parseSchema } from '@attestra/sdk';
 import { reader } from '@/lib/client';
+import { readableError } from '@/lib/useFetch';
 import { Input, Label, Select, Textarea } from '../ui/Field';
 
 /** Picks a schema: a well-known one, or any UID (its definition is read from the chain). */
@@ -18,18 +19,25 @@ export function SchemaPicker({ value, onChange, onDefinition }: { value: string;
       return;
     }
     let alive = true;
-    reader()
-      .getSchema(uid)
-      .then((r) => {
+    // A failed read is not a missing schema: an RPC that is busy or unreachable is retried a few times.
+    const load = async () => {
+      for (let attempt = 1; alive; attempt++) {
+        const r = await reader().getSchema(uid);
         if (!alive) return;
         if (r.success && r.data) {
           onDefinition(r.data.definition);
           setRead({ uid, status: r.data.resolver ? `resolver: ${r.data.resolver}` : r.data.revocable ? 'revocable' : 'not revocable' });
-        } else {
-          onDefinition(null);
-          setRead({ uid, status: 'not found on chain' });
+          return;
         }
-      });
+        if (r.error?.type === 'NOT_FOUND' || attempt === 4) {
+          onDefinition(null);
+          setRead({ uid, status: r.error?.type === 'NOT_FOUND' ? 'not found on chain' : `could not read it: ${readableError(r.error?.message ?? '')}` });
+          return;
+        }
+        await new Promise((res) => setTimeout(res, attempt * 1500));
+      }
+    };
+    void load();
     return () => {
       alive = false;
     };

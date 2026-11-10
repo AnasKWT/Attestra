@@ -3,7 +3,7 @@
 import { CheckCircle2, ExternalLink, Info, Loader2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import type { ServiceResponse } from '@attestra/sdk';
+import { classifyError, errorMessage, type ServiceResponse } from '@attestra/sdk';
 import { txUrl } from '@/lib/config';
 import { toolBySlug } from '@/lib/tools';
 import { readableError } from '@/lib/useFetch';
@@ -73,6 +73,7 @@ export function ActionCard<T>({
     <Panel>
       <PanelHeader title={title} subtitle={subtitle} icon={icon} />
       <form
+        aria-label={title}
         className="space-y-4 p-5"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -81,7 +82,7 @@ export function ActionCard<T>({
           try {
             setRes(await action());
           } catch (err) {
-            setRes({ success: false, error: { type: 'VALIDATION_ERROR' as never, message: (err as Error).message } });
+            setRes({ success: false, error: { type: classifyError(err), message: errorMessage(err) } });
           } finally {
             setBusy(false);
           }
@@ -103,7 +104,7 @@ export function ActionCard<T>({
 export function Result<T>({ res, render }: { res: ServiceResponse<T>; render?: (data: T) => ReactNode }) {
   if (!res.success) {
     return (
-      <div className="flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[13px] text-red-700 dark:text-red-400">
+      <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[13px] text-red-700 dark:text-red-400">
         <XCircle className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
           <p className="font-semibold">{res.error?.type.replaceAll('_', ' ').toLowerCase()}</p>
@@ -114,7 +115,7 @@ export function Result<T>({ res, render }: { res: ServiceResponse<T>; render?: (
   }
   const json = JSON.stringify(res.data ?? null, (_k, v) => (typeof v === 'bigint' ? v.toString() : v), 2);
   return (
-    <div className="overflow-hidden rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06]">
+    <div role="status" className="overflow-hidden rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06]">
       <div className="flex items-center justify-between gap-2 border-b border-emerald-500/15 px-4 py-2.5">
         <span className="flex items-center gap-2 text-[13px] font-semibold text-emerald-700 dark:text-emerald-400">
           <CheckCircle2 className="size-4" /> Done

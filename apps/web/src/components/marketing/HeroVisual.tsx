@@ -27,7 +27,7 @@ export function HeroVisual() {
         <Head icon={<Sparkles className="size-3.5" />} label="Private AI check" tone="text-violet-500" />
         <p className="mt-2 text-[13px] font-medium text-fg">is at least 18 years old</p>
         <div className="mt-2.5 flex items-center justify-between">
-          <Chip>enclave signed</Chip>
+          <Chip>TEE model signed</Chip>
           <span className="font-mono text-[10.5px] text-mute">evidence: sha256 only</span>
         </div>
       </Card>

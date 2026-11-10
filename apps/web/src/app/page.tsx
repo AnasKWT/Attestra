@@ -41,7 +41,7 @@ const NEAR_FEATURES = [
     icon: Sparkles,
     tone: 'from-violet-500/15 text-violet-600 dark:text-violet-400',
     title: 'Private facts, checked by verifiable AI',
-    body: 'Evidence is encrypted to a NEAR AI Cloud model inside a TEE. An enclave checks it against the rule and signs a verdict; only its hash goes on chain.',
+    body: 'Evidence is encrypted to a NEAR AI Cloud model inside a TEE. A checker (an OutLayer TEE component, or the agent with a bootstrap key in local mode) checks it against the rule and signs a verdict; only its hash goes on chain.',
     href: '/sandbox/app/private-check',
     span: 'lg:col-span-2',
   },
@@ -89,8 +89,8 @@ const NEAR_FEATURES = [
 
 const USE_CASES = [
   { icon: Users, title: 'Reputation-gated communities', body: 'DAO membership, contributor levels and role credentials that gate access and budgets.' },
-  { icon: Lock, title: 'Private eligibility', body: 'Over 18, income above a threshold, employed: proven without the document ever leaving the enclave.' },
-  { icon: GitPullRequest, title: 'Contributor credentials', body: 'Merged pull requests counted inside the enclave from GitHub itself, so the claim cannot be faked.' },
+  { icon: Lock, title: 'Private eligibility', body: 'Over 18, income above a threshold, employed: proven while the document is readable only inside the model TEE.' },
+  { icon: GitPullRequest, title: 'Contributor credentials', body: 'Merged pull requests counted by the checker from GitHub itself, so the claim cannot be faked.' },
   { icon: Bot, title: 'Agent marketplaces', body: 'Hire agents by their verified owner, model and reviews; pay them per verification.' },
   { icon: Globe2, title: 'Cross-chain receipts', body: 'A payment on Base or Arbitrum becomes a NEAR attestation any contract can read.' },
   { icon: Building2, title: 'Organizational issuers', body: 'Companies verified by governance, staking for a tier, issuing through employees, bots and 2-of-3 multisigs.' },
@@ -98,7 +98,7 @@ const USE_CASES = [
 
 const TRACKS = [
   { title: 'Social Money', body: 'Reputation-based access and programmable rewards: token-gated and token-reward resolvers, governance-verified authorities, membership credentials.' },
-  { title: 'Privacy and Private AI', body: 'Facts checked by a NEAR AI Cloud verifiable model with end-to-end encryption and an enclave; only hashes are stored.' },
+  { title: 'Privacy and Private AI', body: 'Facts checked by a NEAR AI Cloud verifiable model in a TEE with end-to-end encryption; only hashes are stored.' },
   { title: 'Agent Economy', body: 'Identity, scoped delegation and reputation for agents, and verification sold per call over x402.' },
   { title: 'Open Innovation', body: 'Attestations about wallets on any chain, verified by Chain Signatures without an oracle, and light client proofs in the browser.' },
 ];

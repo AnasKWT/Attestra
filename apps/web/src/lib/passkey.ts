@@ -9,7 +9,9 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { base58Encode, bytesToHex } from '@attestra/sdk';
 
 const STORE = 'attestra.passkey';
-const SALT = new TextEncoder().encode('attestra:passkey:ed25519:v1');
+/** The PRF input every passkey account is derived with; changing it changes every account. */
+export const PRF_SALT = 'attestra:passkey:ed25519:v1';
+const SALT = new TextEncoder().encode(PRF_SALT);
 
 export interface PasskeyAccount {
   accountId: string;
@@ -31,7 +33,8 @@ export function passkeySupported(): boolean {
   return typeof window !== 'undefined' && !!window.PublicKeyCredential && !!navigator.credentials;
 }
 
-function accountFromSeed(seed: Uint8Array, credentialId: string): PasskeyAccount {
+/** The account a PRF output derives: its first 32 bytes are the ed25519 seed. */
+export function accountFromSeed(seed: Uint8Array, credentialId: string): PasskeyAccount {
   const pub = ed25519.getPublicKey(seed);
   const full = new Uint8Array(64);
   full.set(seed, 0);

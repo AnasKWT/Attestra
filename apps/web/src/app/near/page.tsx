@@ -1,5 +1,6 @@
 import { ArrowRight, Bot, Coins, Fingerprint, Link2, ScrollText, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { CheckerModeBadge } from '@/components/marketing/CheckerMode';
 import { PageHero } from '@/components/marketing/PageHero';
 import { Reveal } from '@/components/ui/Reveal';
 import { ButtonLink } from '@/components/ui/primitives';
@@ -11,9 +12,10 @@ const FEATURES = [
     icon: Sparkles,
     title: 'Private facts, checked by verifiable AI',
     primitive: 'NEAR AI Cloud (TEE inference, end-to-end encryption, signed responses) + OutLayer TEE',
-    flow: ['Your browser encrypts the evidence to the attested model key.', 'An OutLayer enclave adds the rule, calls the verifiable model, checks its signature and signs a verdict with a key bound to its build.', 'The verdicts contract checks the enclave signature and the model signature (ed25519 or secp256k1) and attests a pass with only the evidence hash.'],
-    trust: 'Proven: the verdict came from the published enclave build and the model answered in a TEE. Not proven: that free-text evidence is genuine; GitHub rules close that gap by fetching the data inside the enclave.',
+    flow: ['Your browser encrypts the evidence to the attested model key.', 'The checker adds the rule, calls the verifiable model, checks its signature and signs a verdict: in OutLayer mode inside an OutLayer TEE with a key bound to its build, in local mode inside the Attestra agent with a bootstrap key.', 'The verdicts contract checks the checker signature and the model signature (ed25519 or secp256k1) and attests a pass with only the evidence hash.'],
+    trust: 'Proven: the model answered in a TEE and a checker key the verdicts contract trusts signed the verdict; in OutLayer mode that key is bound to the published checker build, in local mode it is held by the agent operator. Not proven: that free-text evidence is genuine; GitHub rules close that gap by having the checker fetch the data itself.',
     href: '/sandbox/app/private-check',
+    checkerMode: true,
   },
   {
     icon: Link2,
@@ -35,7 +37,7 @@ const FEATURES = [
     icon: Coins,
     title: 'Verification as a paid service',
     primitive: 'x402 on NEAR: NEP-366 delegate action carrying a NEP-141 ft_transfer',
-    flow: ['The agent answers 402 with the price.', 'The client signs one ft_transfer as a delegate action.', 'The agent verifies, answers, and its relayer settles on chain.'],
+    flow: ['The agent answers 402 with the price.', 'The client signs one ft_transfer as a delegate action.', 'The agent checks the signed transfer, settles it on chain from its own account, then answers.'],
     trust: 'The payer needs the token and no NEAR. Testnet uses a free test token; mainnet uses native USDC.',
     href: '/sandbox/app/paid-verify',
   },
@@ -83,6 +85,7 @@ export default function NearPage() {
                   ))}
                 </ol>
                 <p className="rounded-xl border border-line bg-panel-2 p-3.5 text-[13px] leading-relaxed text-soft"><span className="font-semibold text-fg">Trust model. </span>{f.trust}</p>
+                {'checkerMode' in f && f.checkerMode && <p className="flex flex-wrap items-center gap-2 text-[13px] text-soft">Checker mode right now: <CheckerModeBadge /></p>}
               </div>
             </article>
           </Reveal>

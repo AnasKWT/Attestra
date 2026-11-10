@@ -2,6 +2,7 @@
 
 import { ExternalLink, Lock, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
+import { CheckerModeBadge } from '@/components/marketing/CheckerMode';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label, Select, Textarea } from '@/components/ui/Field';
@@ -30,9 +31,14 @@ export default function PrivateCheck() {
       slug="private-check"
       notes={
         <>
-          <p><b>In your browser</b>, the evidence is encrypted to the attested key of a NEAR AI Cloud verifiable model (X25519 + XChaCha20-Poly1305). Attestra, the enclave and the NEAR AI gateway cannot read it.</p>
-          <p><b>In an OutLayer enclave</b>, a program whose signing key is bound to its build adds the rule, calls the model, checks the model&apos;s response signature, and signs a verdict. For GitHub rules it fetches the data itself, so the claim cannot be faked.</p>
-          <p><b>On chain</b>, <code>{CONTRACTS.verdicts}</code> checks both signatures (the enclave&apos;s and the model&apos;s) and attests a pass. Only the SHA-256 of the request is stored; the evidence is never stored anywhere.</p>
+          <p><b>In your browser</b>, the evidence is encrypted to the attested key of a NEAR AI Cloud verifiable model (X25519 + XChaCha20-Poly1305). Attestra, the checker and the NEAR AI gateway cannot read it.</p>
+          <p><b>In the checker</b>, the rule is added, the model is called, the model&apos;s response signature is checked and a verdict is signed. For GitHub rules the checker fetches the data itself, so the claim cannot be faked. The checker runs in one of two modes:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li><b>OutLayer</b>: a component inside an OutLayer TEE, whose signing key is bound to its build.</li>
+            <li><b>Local</b>: inside the Attestra agent, signing with a bootstrap key its operator holds.</li>
+          </ul>
+          <p className="flex flex-wrap items-center gap-2">Right now: <CheckerModeBadge /></p>
+          <p><b>On chain</b>, <code>{CONTRACTS.verdicts}</code> checks both signatures (the checker&apos;s and the model&apos;s) and attests a pass. Only the SHA-256 of the request is stored; the evidence is never stored anywhere.</p>
           <p>Limits: a model can be misled by text in the evidence that pretends to be instructions; rules return a strict yes or no to keep this small.</p>
         </>
       }
@@ -82,7 +88,7 @@ export default function PrivateCheck() {
         </div>
         {isGithub ? (
           <div>
-            <Label htmlFor="gh" hint="the enclave reads GitHub itself">GitHub login</Label>
+            <Label htmlFor="gh" hint="the checker reads GitHub itself">GitHub login</Label>
             <Input id="gh" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="octocat" />
           </div>
         ) : (

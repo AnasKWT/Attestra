@@ -19,7 +19,7 @@ export default function PaidVerify() {
       notes={
         <>
           <p>The Attestra agent sells two calls: verify a claim (with a light client proof) and check an agent (identity, reviews, delegations).</p>
-          <p>Without payment it answers <code>402</code> with a <code>PAYMENT-REQUIRED</code> header. The client signs a NEP-366 delegate action holding one <code>ft_transfer</code> and repeats the call; the agent&apos;s relayer settles it. The payer needs the token, not NEAR.</p>
+          <p>Without payment it answers <code>402</code> with a <code>PAYMENT-REQUIRED</code> header. The client signs a NEP-366 delegate action holding one <code>ft_transfer</code> and repeats the call; the agent checks it, submits it on chain from its own account (paying the gas) and only then answers. The payer needs the token, not NEAR.</p>
           <p>Testnet uses the free test token; mainnet uses USDC. Signing a delegate action needs a key you hold: use a passkey account here, or the CLI.</p>
         </>
       }
