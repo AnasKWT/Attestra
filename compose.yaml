@@ -1,7 +1,8 @@
 # The whole Attestra stack against the public testnet contracts:
 #   cp .env.example .env    (optional: keys turn on writes, chat and private checks)
 #   docker compose up --build
-# Site http://localhost:3100, indexer :5100, relayer :5200, agent :5300, keeper :5400, top-up :5500.
+# Site http://localhost:3100, indexer :5100, relayer :5200, agent :5300, keeper :5400, top-up :5500
+# (bound to 127.0.0.1: on a VM only Caddy on 80 and 443 faces the internet).
 # Without keys every service runs read-only and says so on /health.
 # On the services VM add TLS with:  docker compose --profile tls up -d   (see deploy/Caddyfile)
 
@@ -41,7 +42,7 @@ services:
       PORT: "5100"
     depends_on:
       postgres: { condition: service_healthy }
-    ports: ["5100:5100"]
+    ports: ["127.0.0.1:5100:5100"]
 
   agent:
     <<: *node
@@ -50,34 +51,34 @@ services:
       <<: *env
       AGENT_PORT: "5300"
       AGENT_PUBLIC_URL: ${AGENT_PUBLIC_URL:-http://localhost:5300}
-    ports: ["5300:5300"]
+    ports: ["127.0.0.1:5300:5300"]
 
   relayer:
     <<: *node
     build: { context: ., dockerfile: services/Dockerfile }
     command: ["node", "--import", "tsx", "src/main.ts", "relayer"]
     volumes: ["relayer-data:/app/services/.data"]
-    ports: ["5200:5200"]
+    ports: ["127.0.0.1:5200:5200"]
 
   keeper:
     <<: *node
     build: { context: ., dockerfile: services/Dockerfile }
     command: ["node", "--import", "tsx", "src/main.ts", "keeper"]
     volumes: ["keeper-data:/app/services/.data"]
-    ports: ["5400:5400"]
+    ports: ["127.0.0.1:5400:5400"]
 
   topup:
     <<: *node
     build: { context: ., dockerfile: services/Dockerfile }
     command: ["node", "--import", "tsx", "src/main.ts", "topup"]
     volumes: ["topup-data:/app/services/.data"]
-    ports: ["5500:5500"]
+    ports: ["127.0.0.1:5500:5500"]
 
   web:
     build: { context: ., dockerfile: apps/web/Dockerfile }
     restart: unless-stopped
     profiles: ["site"]
-    ports: ["3100:3100"]
+    ports: ["127.0.0.1:3100:3100"]
     mem_limit: 256m
 
   caddy:

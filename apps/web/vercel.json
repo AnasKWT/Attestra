@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile --filter @attestra/web...",
+  "buildCommand": "cd ../.. && pnpm --filter @attestra/sdk build && pnpm --filter @attestra/mcp build && pnpm --filter @attestra/web build"
+}
