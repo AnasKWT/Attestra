@@ -14,7 +14,8 @@
     "typecheck": "next typegen && tsc --noEmit && tsc --noEmit -p e2e",
     "test": "vitest run",
     "e2e": "playwright test",
-    "e2e:shots": "E2E_SHOTS=1 playwright test"
+    "e2e:shots": "E2E_SHOTS=1 playwright test",
+    "e2e:live": "E2E_LIVE=${E2E_LIVE:-http://localhost:3100} playwright test"
   },
   "dependencies": {
     "@attestra/mcp": "workspace:*",

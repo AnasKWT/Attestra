@@ -1,7 +1,8 @@
 # For judges
 
 This page maps every claim Attestra makes to the code that implements it, the test that exercises it and the way to check it on a live deployment.
-The testnet deployment is pending, so the local runs below are the evidence today: every contract feature runs end to end on a local NEAR node, and the site, agent and services are tested against mocks of what they call.
+Every contract is deployed on testnet under `attestra.testnet` from a reproducible build, and the README's "Live on testnet" table links a transaction for each flow.
+The local runs below exercise the same features on a local NEAR node, and the site, agent and services are tested against mocks of what they call.
 
 ## Five-minute check
 
@@ -20,14 +21,18 @@ pnpm security                                      # Clippy -D warnings, cargo a
 contracts/scripts/build.sh --reproducible          # the wasm SourceScan builds, in its pinned image
 pnpm deploy:sandbox                                # the full deploy and wiring on a local node
 pnpm build && pnpm cli:e2e                         # 90 CLI steps against a fresh local deployment
+pnpm cli:e2e testnet                               # the same 90 steps against the testnet deployment (needs a funded root key)
+pnpm --filter @attestra/web e2e:live               # a passkey account issues a gasless attestation in a real browser, on testnet
 pnpm test:checker                                  # the OutLayer checker, natively against a mocked host
 ```
 
-Against a live deployment (pending on testnet), with the stack running (`pnpm dev`):
+Against the testnet deployment, with the stack running (`pnpm dev`):
 
 ```bash
-pnpm verify               # the deployment's code, schemas, proofs, verdicts, agents, indexer and services, PASS or FAIL
+pnpm verify               # the deployment's code, schemas, proofs, verdicts, agents, indexer, MCP tools and services, PASS or FAIL
 ```
+
+On testnet today it passes every check except the AI-checked attestation, which waits on a NEAR AI Cloud key.
 
 ## Claims
 
@@ -59,7 +64,7 @@ pnpm verify               # the deployment's code, schemas, proofs, verdicts, ag
 
 Stated plainly so nothing here is a surprise:
 
-- The testnet deployment is pending (the faucet rate-limited the deploying machine); `pnpm deploy:testnet` is rehearsed on local nodes, including a mainnet-shaped run.
+- No AI-checked attestation is on testnet yet: the private check needs a NEAR AI Cloud key, so its flow is proven by the agent and verdicts tests and the sandbox flows.
 - The OutLayer checker has not yet run on an OutLayer worker or against live NEAR AI; its tests use mocked hosts and vectors from the TypeScript side.
 - Nothing is deployed on mainnet; the plan and its one switch are in [MAINNET.md](MAINNET.md).
 - The npm packages are not published yet; every command above runs from the repository.

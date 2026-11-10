@@ -5,6 +5,7 @@
  *
  *   pnpm accounts testnet                 keys in ~/.near-credentials/testnet/, env in internal/secrets/services.env
  *   HOLD_FILE=<file> pnpm accounts sandbox   against a node held by `HOLD=<file> pnpm deploy:sandbox`
+ *   SCALE=0.5 pnpm accounts testnet          start every account (and the top-up thresholds) at half the plan
  *
  * #mainnet: refuses mainnet unless ATTESTRA_MAINNET_GO names the root, like the deploy script.
  * The env file holds private keys: it lives in gitignored internal/ and is never committed.
@@ -29,6 +30,8 @@ const PLAN = [
   { name: 'keeper', near: 2, env: 'KEEPER' },
   { name: 'agent', near: 4, env: 'AGENT' },
 ] as const;
+const SCALE = Number(process.env.SCALE ?? 1);
+const amount = (near: number) => Math.round(near * SCALE * 100) / 100;
 
 async function main() {
   let near: Near;
@@ -85,9 +88,9 @@ async function main() {
     }
     const key = generateKey();
     await keyStore.add(id, key);
-    const out = await near.transaction(root).createAccount(id).transfer(id, `${a.near} NEAR`).addKey(key.publicKey.toString(), { type: 'fullAccess' }).send();
+    const out = await near.transaction(root).createAccount(id).transfer(id, `${amount(a.near)} NEAR`).addKey(key.publicKey.toString(), { type: 'fullAccess' }).send();
     secrets.set(a.env, key.secretKey);
-    log(`created ${id} with ${a.near} NEAR (${(out as { transaction: { hash: string } }).transaction.hash})`);
+    log(`created ${id} with ${amount(a.near)} NEAR (${(out as { transaction: { hash: string } }).transaction.hash})`);
   }
 
   const lines = [
@@ -95,7 +98,7 @@ async function main() {
     `NEAR_NETWORK=${NET === 'sandbox' ? 'testnet' : NET}`,
     `ATTESTRA_ROOT=${root}`,
     ...PLAN.flatMap((a) => [`${a.env}_ACCOUNT_ID=${a.name}.${root}`, `${a.env}_PRIVATE_KEY=${secrets.get(a.env)}`]),
-    `TOPUP_ACCOUNTS=relayer.${root}:3:6,keeper.${root}:1:2,agent.${root}:2:4`,
+    `TOPUP_ACCOUNTS=relayer.${root}:${amount(3)}:${amount(6)},keeper.${root}:${amount(1)}:${amount(2)},agent.${root}:${amount(2)}:${amount(4)}`,
   ];
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, `${lines.join('\n')}\n`, { mode: 0o600 });

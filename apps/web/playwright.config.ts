@@ -8,6 +8,8 @@ import { chromium, defineConfig, devices } from '@playwright/test';
  *
  *   pnpm e2e          every suite except the screenshot sweep
  *   pnpm e2e:shots    full-page screenshots of every route to internal/qa/shots/
+ *   pnpm e2e:live     e2e/live.spec.ts against a running stack on testnet (E2E_LIVE, default
+ *                     http://localhost:3100, with the indexer and relayer up): real passkey, real chain
  *
  * E2E_PORT picks another port (default 3100) when something else already serves 3100.
  */
@@ -15,6 +17,7 @@ import { chromium, defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://localhost:${PORT}`;
 const SHOTS = Boolean(process.env.E2E_SHOTS);
+const LIVE = process.env.E2E_LIVE;
 
 // Playwright's own Chromium when it is installed (`pnpm exec playwright install chromium`), the system Chrome otherwise.
 const channel = existsSync(chromium.executablePath()) ? undefined : 'chrome';
@@ -31,8 +34,20 @@ const env = {
   INDEXER_URL: 'http://localhost:5100',
 };
 
-export default defineConfig({
+const live = defineConfig({
   testDir: 'e2e',
+  testMatch: /live\.spec\.ts/,
+  retries: 0,
+  reporter: 'list',
+  timeout: 240_000,
+  expect: { timeout: 60_000 },
+  use: { baseURL: LIVE, trace: 'retain-on-failure' },
+  projects: [{ name: 'live', use: browser }],
+});
+
+const site = defineConfig({
+  testDir: 'e2e',
+  testIgnore: /live\.spec\.ts/,
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
@@ -54,3 +69,5 @@ export default defineConfig({
     stderr: 'pipe',
   },
 });
+
+export default LIVE ? live : site;

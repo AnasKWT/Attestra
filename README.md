@@ -22,7 +22,7 @@ On NEAR it goes past a registry:
 
 | | |
 |---|---|
-| Testnet contracts | `attestra.testnet`: `schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.` and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.` (deployment pending: `pnpm deploy:testnet` writes the accounts, code hashes and transactions to `deployments/testnet.json`) |
+| Testnet contracts | `attestra.testnet`: `schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.` and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`, deployed from a reproducible build; accounts, code hashes and transactions in [deployments/testnet.json](deployments/testnet.json) |
 | Demo | site and video: `[placeholder]` |
 | Packages | `@attestra/sdk`, `@attestra/cli` (binary `attestra`), `@attestra/mcp` |
 | For agents | [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md), `/llms.txt` and `/mcp` on the site |
@@ -52,6 +52,25 @@ On NEAR it goes past a registry:
 | Credentials | NEP-171, non-transferable, burned when the attestation is revoked | `contracts/credentials` |
 | Reproducible builds | NEP-330 metadata, `near contract verify` | `contracts/scripts/build.sh` |
 
+## Live on testnet
+
+Every flow below ran against the deployed contracts; each link is the transaction.
+
+| Flow | Transaction |
+|---|---|
+| A passkey account (Chrome's authenticator, no wallet, no NEAR) issuing a membership through the relayer with a NEP-413 signed request | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
+| A Base Sepolia event verified by the NEAR MPC network (`verify_foreign_transaction`) and attested by the verdicts contract | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
+| The same request before the block was final: the MPC timed out, the contract emitted `foreign_tx_failed` and refunded | [GLnfjP7C](https://testnet.nearblocks.io/txns/GLnfjP7CKz1HiHoTTvQNSqpdFQoN41WJJ93NkVjabBMH) |
+| An Ethereum wallet linked to a NEAR account by its EIP-191 signature | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
+| A resolver refusing an attestation, which is removed and its storage refunded | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
+| A multisig authority reaching its threshold and attesting | [5uWRoyvR](https://testnet.nearblocks.io/txns/5uWRoyvRPEkcpQJSMqkVCtDjioRrKPWbJzyRyd2YGNuQ) |
+| A credential minted, then burned when its attestation was revoked | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
+| A scheduled revocation | [ETjb9aGT](https://testnet.nearblocks.io/txns/ETjb9aGTawxQiNi6TWjQsgGtvm2Mm9caw8WHc7HGfMCm) |
+| A token reward paid by a resolver | [2Pdm1UN8](https://testnet.nearblocks.io/txns/2Pdm1UN8s7hL9k736nZGX5i1CDvHJW33d6bA68Svw4Ak) |
+| Staking for an authority tier | [F8JEGaGy](https://testnet.nearblocks.io/txns/F8JEGaGyc3XmdVxRyF8s4Q81yKhskAGiB5KnGSk2jMYk) |
+
+`pnpm cli:e2e testnet` repeats all 90 CLI steps against the deployment, `pnpm --filter @attestra/web e2e:live` repeats the passkey flow in a browser, and `pnpm verify` proves a recent attestation final with a light client proof checked locally.
+
 ## Quickstart
 
 Requirements:
@@ -65,7 +84,7 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (137 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (141 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit test (308)
 pnpm test:checker         # the OutLayer checker (23)
 contracts/scripts/build.sh && pnpm test:sandbox   # 19 flows across every contract on a local NEAR node
@@ -102,7 +121,7 @@ node packages/cli/dist/index.js attestation verify <uid> --json
 
 The local runs in the Quickstart exercise every feature: resolvers, delegation, gasless and signed requests, credentials, scheduled revocation, multisig, staking, wallet links and cross-chain facts (against an MPC double that signs real secp256k1 answers).
 
-Against a live deployment, `pnpm verify` prints PASS or FAIL for: the test suites, the deployed code against the recorded hashes and a local reproducible build of the recorded commit (`contracts/scripts/build.sh --reproducible <commit>` first), the well-known schemas, a light client proof of a recent attestation, an AI-checked attestation's signatures, a cross-chain attestation, an agent's reputation, the indexer's lag, and the site, MCP and service health (start them with `pnpm dev`, or set `SITE_URL` and the service URLs to a hosted stack).
+Against a live deployment, `pnpm verify` prints PASS or FAIL for: the test suites, the deployed code against the recorded hashes and a local reproducible build of the recorded commit (`contracts/scripts/build.sh --reproducible <commit>` first, with the commit from `deployments/testnet.json`), the well-known schemas, a light client proof of a recent attestation, an AI-checked attestation's signatures, a cross-chain attestation, an agent's reputation, the indexer's lag, every hosted MCP tool with live data, and the site and service health (start them with `pnpm dev`, or set `SITE_URL` and the service URLs to a hosted stack).
 
 ```bash
 pnpm verify
@@ -139,7 +158,8 @@ near contract verify deployed-at attestations.attestra.testnet network-config te
 
 ## Status
 
-- Testnet deployment pending (the faucet rate-limited this machine); every feature runs end to end on a local NEAR node today.
+- Deployed on testnet from a reproducible build; with the stack running locally, `pnpm verify` passes every check except the AI-checked attestation, which waits on a NEAR AI Cloud key.
+- The site and services run locally against testnet; they are not hosted publicly yet.
 - Mainnet is one switch away and not deployed: see [MAINNET.md](MAINNET.md).
 - The npm packages are packed and tested from a clean install but not published; every command above runs from the repository.
 - The OutLayer checker is tested against mocked hosts and vectors from the TypeScript side; it has not yet run on an OutLayer worker or live NEAR AI.

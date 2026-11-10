@@ -6,7 +6,7 @@ description: Use and extend Attestra, the attestation protocol on NEAR. Use when
 # Attestra
 
 Attestra stores claims on NEAR as attestations: an attester says something about a subject (a NEAR account or a CAIP-10 account on another chain) under a schema that defines the fields.
-Testnet contracts live under `attestra.testnet` (deployment pending; until then run everything on a local node with `pnpm deploy:sandbox`) (`schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.`, and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`).
+Testnet contracts live under `attestra.testnet` (`schemas.`, `attestations.`, `verdicts.`, `credentials.`, `staking.`, `token.`, and the resolvers `whitelist.`, `fee.`, `gated.`, `reward.`, `pipeline.`).
 
 ## Fastest path for an agent: MCP
 
