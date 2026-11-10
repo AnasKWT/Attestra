@@ -85,7 +85,8 @@ export async function runCheck(ai: NearAi, model: string, checkerSecret: string,
       { role: 'user', content: evidence },
     ],
     temperature: 0,
-    max_tokens: 8,
+    // Reasoning models think before they answer; a small limit cuts them off with no answer.
+    max_tokens: 1024,
     stream: false,
   });
   const { json, requestHash, responseHash } = await ai.chatRaw(body, {
@@ -101,6 +102,9 @@ export async function runCheck(ai: NearAi, model: string, checkerSecret: string,
   const hashes = signedHashes(sig.text);
   if (hashes.requestHash !== requestHash) throw new Error('the model signed a different request');
   if (hashes.responseHash !== responseHash) throw new Error('the model signed a different response');
+
+  // Only an explicit answer is a verdict: an empty or cut-off one is an error, never a FAIL.
+  if (!answer.startsWith('PASS') && !answer.startsWith('FAIL')) throw new Error(`the model gave no verdict (answer ${JSON.stringify(answer.slice(0, 40))})`);
 
   const now = Math.floor((opts.now ?? Date.now)() / 1000);
   const verdict: AiVerdict = {

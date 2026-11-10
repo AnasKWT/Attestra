@@ -96,13 +96,16 @@ pub struct CheckOutput {
     pub answer: String,
 }
 
+/// Room for a reasoning model to think and then answer.
+pub const MAX_TOKENS: u16 = 1024;
+
 /// The chat request, serialized in the field order the agent sends (`JSON.stringify`).
 #[derive(Serialize)]
 struct ChatBody<'a> {
     model: &'a str,
     messages: [ChatMessage; 2],
     temperature: u8,
-    max_tokens: u8,
+    max_tokens: u16,
     stream: bool,
 }
 
@@ -269,7 +272,8 @@ pub fn run_check(host: &dyn Host, input: &CheckInput) -> Result<CheckOutput> {
             ChatMessage { role: "user", content: evidence },
         ],
         temperature: 0,
-        max_tokens: 8,
+        // Reasoning models think before they answer; a small limit cuts them off with no answer.
+        max_tokens: MAX_TOKENS,
         stream: false,
     })
     .map_err(|e| e.to_string())?;
@@ -301,12 +305,21 @@ pub fn run_check(host: &dyn Host, input: &CheckInput) -> Result<CheckOutput> {
         return Err("the model signed a different response".into());
     }
 
+    // Only an explicit answer is a verdict: an empty or cut-off one is an error, never a FAIL.
+    let result = if answer.starts_with("PASS") {
+        true
+    } else if answer.starts_with("FAIL") {
+        false
+    } else {
+        return Err(format!("the model gave no verdict (answer {:?})", answer.chars().take(40).collect::<String>()));
+    };
+
     let now = host.now_secs();
     let verdict = AiVerdict {
         request_id,
         rule_id: rule.id,
         subject: input.subject.clone(),
-        result: answer.starts_with("PASS"),
+        result,
         evidence_hash: chat.request_hash,
         model: model.to_string(),
         issued_at: now,

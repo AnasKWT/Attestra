@@ -21,7 +21,9 @@ export default function AgentChat() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), [msgs, busy]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [msgs, busy]);
 
   const send = async (text: string) => {
     if (!text.trim() || busy) return;

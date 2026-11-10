@@ -90,6 +90,11 @@ describe('private check pipeline', () => {
     expect(out.verdict.result).toBe(false);
   });
 
+  it('treats an empty answer (a reasoning model cut off) as an error, not a FAIL', async () => {
+    const ai = new NearAi('k', fakeNearAi('').f);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'bob.testnet', encryptedEvidence: encryptForModel('born 1990', modelPub) })).rejects.toThrow(/no verdict/);
+  });
+
   it('refuses a model signature over another response', async () => {
     const fake = fakeNearAi('PASS');
     const f = (async (url: string | URL | Request, init?: RequestInit) => {

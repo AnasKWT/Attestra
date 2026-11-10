@@ -3,7 +3,7 @@
   "root": "attestra.testnet",
   "commit": "b3af07e3587ca838a35784173d2093c27ec5d40a",
   "build": "reproducible",
-  "deployed_at": "2026-11-10T13:25:22.375Z",
+  "deployed_at": "2026-11-10T14:10:50.338Z",
   "contracts": {
     "schemas": {
       "account": "schemas.attestra.testnet",

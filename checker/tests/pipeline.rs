@@ -75,7 +75,7 @@ fn encrypts_end_to_end_checks_the_model_signature_and_signs_a_verdict_the_contra
         body.starts_with(r#"{"model":"z-ai/glm-5.3-flash","messages":[{"role":"system","content":""#),
         "{body}"
     );
-    assert!(body.ends_with(r#""}],"temperature":0,"max_tokens":8,"stream":false}"#), "{body}");
+    assert!(body.ends_with(r#""}],"temperature":0,"max_tokens":1024,"stream":false}"#), "{body}");
 
     let report = &mock.requests_to("/attestation/report")[0];
     assert!(report.url.starts_with("https://cloud-api.near.ai/v1/attestation/report?model=z-ai%2Fglm-5.3-flash&signing_algo=ed25519&nonce="));
@@ -123,6 +123,13 @@ fn a_fail_answer_becomes_result_false() {
     assert!(!out.verdict.result);
     assert_eq!(out.answer, "FAIL");
     assert_contract_would_accept(&out);
+}
+
+#[test]
+fn an_empty_answer_is_an_error_not_a_fail() {
+    // What a reasoning model returns when the token limit cuts it off before it answers.
+    let err = run_check(&Mock::new(""), &input("age_over_18", evidence("born 1990"))).unwrap_err();
+    assert!(err.contains("no verdict"), "{err}");
 }
 
 #[test]
