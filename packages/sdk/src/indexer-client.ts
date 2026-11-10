@@ -13,6 +13,8 @@ import type {
   ProfileSummary,
 } from './types';
 
+import { fetchWithRetry } from './retry';
+
 export interface AgentProfile {
   account_id: string;
   identity: IndexedAttestation | null;
@@ -64,7 +66,7 @@ export class IndexerClient {
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
       .join('&');
     const url = `${this.base}${path}${qs ? `?${qs}` : ''}`;
-    const res = await this.fetchImpl(url, { headers: { accept: 'application/json' } });
+    const res = await fetchWithRetry(url, { headers: { accept: 'application/json' } }, { fetchImpl: this.fetchImpl, attempts: 3 });
     if (res.status === 404) throw Object.assign(new Error(`not found: ${path}`), { status: 404 });
     if (!res.ok) throw new Error(`indexer answered ${res.status} for ${path}`);
     return (await res.json()) as T;

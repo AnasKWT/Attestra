@@ -11,7 +11,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
-import { bytesToHex, hexToBytes } from '@attestra/sdk';
+import { bytesToHex, fetchWithRetry, hexToBytes } from '@attestra/sdk';
 
 export const NEAR_AI = 'https://cloud-api.near.ai/v1';
 export const VERIFY_URL = 'https://cloud.near.ai/verify';
@@ -46,7 +46,7 @@ export class NearAi {
 
   /** Verifiable model ids from the live list (no key needed). */
   async verifiableModels(): Promise<string[]> {
-    const res = await this.fetchImpl(`${NEAR_AI}/model/list`);
+    const res = await fetchWithRetry(`${NEAR_AI}/model/list`, {}, { fetchImpl: this.fetchImpl });
     if (!res.ok) throw new Error(`model list answered ${res.status}`);
     const body = (await res.json()) as { models?: Array<{ modelId?: string; id?: string; metadata?: { verifiable?: boolean }; verifiable?: boolean }> };
     return (body.models ?? []).filter((m) => m.metadata?.verifiable === true || m.verifiable === true).map((m) => String(m.modelId ?? m.id));
@@ -65,7 +65,8 @@ export class NearAi {
 
   /** Sends exactly `body` (a JSON string) and returns the parsed response with both hashes. */
   async chatRaw(body: string, extraHeaders: Record<string, string> = {}): Promise<{ json: ChatResponse; requestHash: string; responseHash: string; raw: string }> {
-    const res = await this.fetchImpl(`${NEAR_AI}/chat/completions`, { method: 'POST', headers: this.headers(extraHeaders), body });
+    // A completion spends credits: retried only on answers that say it was not processed (429, 503).
+    const res = await fetchWithRetry(`${NEAR_AI}/chat/completions`, { method: 'POST', headers: this.headers(extraHeaders), body }, { write: true, fetchImpl: this.fetchImpl });
     const raw = await res.text();
     if (!res.ok) throw new Error(`NEAR AI answered ${res.status}: ${raw.slice(0, 300)}`);
     return { json: JSON.parse(raw) as ChatResponse, requestHash: sha256Hex(body), responseHash: sha256Hex(raw), raw };
@@ -86,7 +87,7 @@ export class NearAi {
   /** The attested model's ed25519 public key (hex) used for end-to-end encryption, and its ecdsa address. */
   async modelKeys(model: string): Promise<{ ed25519: string; address?: string }> {
     const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
-    const res = await this.fetchImpl(`${NEAR_AI}/attestation/report?model=${encodeURIComponent(model)}&signing_algo=ed25519&nonce=${nonce}`, { headers: this.headers() });
+    const res = await fetchWithRetry(`${NEAR_AI}/attestation/report?model=${encodeURIComponent(model)}&signing_algo=ed25519&nonce=${nonce}`, { headers: this.headers() }, { fetchImpl: this.fetchImpl });
     if (!res.ok) throw new Error(`attestation report answered ${res.status}`);
     const body = (await res.json()) as { model_attestations?: Array<{ signing_public_key?: string; signing_address?: string }>; signing_public_key?: string };
     const a = body.model_attestations?.[0];

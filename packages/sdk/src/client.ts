@@ -22,6 +22,7 @@ import { KNOWN_SCHEMAS, knownSchemaUid } from './schemas';
 import { SchemaEncoder } from './encoder';
 import { computeAttestationUid, computeSchemaUid, normalizeUid } from './uid';
 import { fetchEvmLog, fetchSolanaInstruction, type EvmLog, type SolanaInstruction } from './verdicts';
+import { fetchWithRetry, isTransient, RetryableStatus, withRetry } from './retry';
 import { payingFetch, type SettlementResponse } from './x402';
 import {
   AttestraErrorType,
@@ -147,8 +148,15 @@ export class AttestraClient {
 
   // ──────────────────────────────────────────────────────────── plumbing
 
-  /** Raw JSON-RPC with failover across the configured endpoints. */
+  /**
+   * Raw JSON-RPC with failover across the configured endpoints, and up to three rounds with backoff
+   * when every endpoint is throttled or down. A contract or RPC error answer is final.
+   */
   async rpc<T>(method: string, params: unknown): Promise<T> {
+    return withRetry(() => this.rpcRound<T>(method, params), { attempts: 3, baseMs: 500, retryOn: (e) => !(e as { rpc?: boolean }).rpc && isTransient(e) });
+  }
+
+  private async rpcRound<T>(method: string, params: unknown): Promise<T> {
     let last: unknown;
     for (const url of this.config.rpcUrls) {
       try {
@@ -157,7 +165,7 @@ export class AttestraClient {
           headers: { 'content-type': 'application/json', ...(this.rpcHeaders ?? {}) },
           body: JSON.stringify({ jsonrpc: '2.0', id: ++this.rpcId, method, params }),
         });
-        if (res.status === 429 || res.status >= 500) throw new Error(`RPC ${url} answered ${res.status}`);
+        if (res.status === 429 || res.status >= 500) throw new RetryableStatus(res.status, `RPC ${url}`);
         const json = (await res.json()) as { result?: T; error?: { message?: string; data?: unknown; cause?: { name?: string } } };
         if (json.error) {
           const name = json.error.cause?.name ?? '';
@@ -533,11 +541,13 @@ export class AttestraClient {
   async relaySigned(request: SignedRequest): Promise<ServiceResponse<Outcome>> {
     return attempt(async () => {
       if (!this.relayerUrl) throw new Error('relaying needs relayerUrl');
-      const res = await fetch(`${this.relayerUrl}/v1/submit`, {
+      // A signed request carries its own nonce, so the contract refuses a replay; still, only answers
+      // that say it was not processed are retried.
+      const res = await fetchWithRetry(`${this.relayerUrl}/v1/submit`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ request }),
-      });
+      }, { write: true });
       const body = (await res.json()) as { outcome?: Outcome; tx_hash?: string; error?: string };
       if (!res.ok || !body.outcome) throw new Error(body.error ?? `relayer answered ${res.status}`);
       return ok(body.outcome, body.tx_hash);
@@ -935,15 +945,16 @@ export class AttestraClient {
     return attempt(async () => {
       if (!this.agentUrl) throw new Error('private checks need agentUrl');
       const { encryptForModel } = await import('./e2ee');
-      const keyRes = await fetch(`${this.agentUrl}/v1/check/model`);
+      const keyRes = await fetchWithRetry(`${this.agentUrl}/v1/check/model`);
       if (!keyRes.ok) throw new Error(`agent answered ${keyRes.status} for the model key`);
       const model = (await keyRes.json()) as { model: string; public_key: string };
       const encrypted = p.evidence ? encryptForModel(p.evidence, model.public_key) : '';
-      const res = await fetch(`${this.agentUrl}/v1/check`, {
+      // A check spends NEAR AI credits and a transaction: retried only when the agent did not take it.
+      const res = await fetchWithRetry(`${this.agentUrl}/v1/check`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ rule_id: p.ruleId, subject: p.subject, encrypted_evidence: encrypted, model: model.model, github: p.github ?? null }),
-      });
+      }, { write: true });
       const body = (await res.json()) as { outcome?: Outcome; verdict?: Record<string, unknown>; nearai?: Record<string, unknown>; tx_hash?: string; error?: string };
       if (!res.ok || !body.outcome) throw new Error(body.error ?? `agent answered ${res.status}`);
       return ok({ outcome: body.outcome, verdict: body.verdict ?? {}, nearai: body.nearai ?? {}, verifyUrl: NEAR_AI_VERIFY_URL, txHash: body.tx_hash }, body.tx_hash);

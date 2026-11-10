@@ -4,13 +4,14 @@
  */
 
 import { NEAR_AI_BASE_URL } from './config';
+import { fetchWithRetry } from './retry';
 
 /** Verifiable models, cheapest capable first. */
 export const PREFERRED_MODELS = ['z-ai/glm-5.3-flash', 'Qwen/Qwen3.8-27B', 'deepseek-ai/DeepSeek-V4.1-Flash-1017', 'z-ai/glm-5.3'];
 
 /** Verifiable model ids from the live list (no key needed). */
 export async function verifiableModels(fetchImpl: typeof fetch = fetch): Promise<string[]> {
-  const res = await fetchImpl(`${NEAR_AI_BASE_URL}/model/list`);
+  const res = await fetchWithRetry(`${NEAR_AI_BASE_URL}/model/list`, {}, { fetchImpl });
   if (!res.ok) throw new Error(`the NEAR AI model list answered ${res.status}`);
   const body = (await res.json()) as { models?: Array<{ modelId?: string; id?: string; metadata?: { verifiable?: boolean }; verifiable?: boolean }> };
   return (body.models ?? []).filter((m) => m.metadata?.verifiable === true || m.verifiable === true).map((m) => String(m.modelId ?? m.id));

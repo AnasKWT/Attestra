@@ -8,6 +8,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { BorshWriter } from './borsh';
 import { uidBytes } from './uid';
+import { fetchWithRetry } from './retry';
 
 export interface AiVerdict {
   request_id: string;
@@ -100,7 +101,7 @@ export async function fetchEvmLog(network: 'testnet' | 'mainnet', chain: string,
   const url = rpcUrl ?? EVM_CHAINS[network][chain]?.rpc;
   if (!url) throw new Error(`unknown chain ${chain}; one of ${Object.keys(EVM_CHAINS[network]).join(', ')}`);
   const call = async <T>(method: string, params: unknown[]): Promise<T | undefined> => {
-    const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    const res = await fetchWithRetry(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
     return ((await res.json()) as { result?: T }).result;
   };
   const receipt = await call<{ logs: Array<Record<string, string | string[] | boolean>>; transactionIndex: string; blockHash: string; blockNumber: string }>('eth_getTransactionReceipt', [txHash]);
@@ -150,7 +151,7 @@ export interface SolanaInstruction {
  * addresses. Refuses a transaction that is not finalized yet or that failed.
  */
 export async function fetchSolanaInstruction(network: 'testnet' | 'mainnet', signature: string, instructionIndex: number, innerInstructionIndex: number, rpcUrl?: string): Promise<SolanaInstruction> {
-  const res = await fetch(rpcUrl ?? SOLANA_RPC[network], {
+  const res = await fetchWithRetry(rpcUrl ?? SOLANA_RPC[network], {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { commitment: 'finalized', encoding: 'json', maxSupportedTransactionVersion: 0 }] }),

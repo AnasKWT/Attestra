@@ -22,6 +22,7 @@ import {
   computeSchemaUid,
   keySigner,
   knownSchemas,
+  fetchWithRetry,
   openAITools,
   pickVerifiableModel,
   runTool,
@@ -474,11 +475,12 @@ program
       ];
       const tools = openAITools({ includeWrites: o.writes });
       for (let step = 0; step < 6; step++) {
-        const res = await fetch(`${NEAR_AI_BASE_URL}/chat/completions`, {
+        // A completion spends credits: retried only on answers that say it was not processed.
+        const res = await fetchWithRetry(`${NEAR_AI_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
           body: JSON.stringify({ model: o.model, messages, tools }),
-        });
+        }, { write: true });
         if (!res.ok) throw new Error(`NEAR AI answered ${res.status}: ${await res.text()}`);
         const body = (await res.json()) as { id: string; choices: Array<{ message: { content?: string; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }> };
         const msg = body.choices[0].message;

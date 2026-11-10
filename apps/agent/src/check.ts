@@ -14,7 +14,7 @@
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, verdictDigest, type AiVerdict } from '@attestra/sdk';
+import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, fetchWithRetry, verdictDigest, type AiVerdict } from '@attestra/sdk';
 import { NearAi, signedHashes, verifySignature } from './nearai';
 
 export interface Rule {
@@ -51,9 +51,9 @@ export function rulePrompt(rule: Rule): string {
 /** Merged pull requests of a GitHub login, counted from GitHub's search API. */
 export async function githubMergedPrs(login: string, token?: string, fetchImpl: typeof fetch = fetch): Promise<number> {
   if (!/^[A-Za-z0-9-]{1,39}$/.test(login)) throw new Error('not a GitHub login');
-  const res = await fetchImpl(`https://api.github.com/search/issues?q=${encodeURIComponent(`type:pr author:${login} is:merged`)}&per_page=1`, {
+  const res = await fetchWithRetry(`https://api.github.com/search/issues?q=${encodeURIComponent(`type:pr author:${login} is:merged`)}&per_page=1`, {
     headers: { accept: 'application/vnd.github+json', 'user-agent': 'attestra-checker', ...(token ? { authorization: `Bearer ${token}` } : {}) },
-  });
+  }, { fetchImpl });
   if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
   return ((await res.json()) as { total_count: number }).total_count;
 }
