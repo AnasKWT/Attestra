@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ActionCard, ToolFrame } from '@/components/sandbox/ToolFrame';
 import { SchemaUidInput } from '@/components/sandbox/SchemaUidInput';
 import { need } from '@/components/sandbox/need';
-import { Input, Label, Select } from '@/components/ui/Field';
+import { Input, Select } from '@/components/ui/Field';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { reader } from '@/lib/client';
 import { CONTRACTS } from '@/lib/config';

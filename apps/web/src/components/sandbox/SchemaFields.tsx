@@ -8,33 +8,33 @@ import { Input, Label, Select, Textarea } from '../ui/Field';
 /** Picks a schema: a well-known one, or any UID (its definition is read from the chain). */
 export function SchemaPicker({ value, onChange, onDefinition }: { value: string; onChange: (uid: string) => void; onDefinition: (def: string | null) => void }) {
   const known = useMemo(() => Object.entries(KNOWN_SCHEMAS).map(([k, s]) => ({ key: k, uid: knownSchemaUid(k as keyof typeof KNOWN_SCHEMAS), name: s.name })), []);
-  const [status, setStatus] = useState('');
+  const [read, setRead] = useState<{ uid: string; status: string } | null>(null);
+  const uid = value.trim().replace(/^0x/, '');
+  const valid = /^[0-9a-fA-F]{64}$/.test(uid);
+  const status = !valid ? (uid ? 'a UID is 64 hex characters' : '') : read?.uid === uid ? read.status : 'reading the schema...';
   useEffect(() => {
-    const uid = value.trim().replace(/^0x/, '');
-    if (!/^[0-9a-fA-F]{64}$/.test(uid)) {
+    if (!valid) {
       onDefinition(null);
-      setStatus(uid ? 'a UID is 64 hex characters' : '');
       return;
     }
     let alive = true;
-    setStatus('reading the schema...');
     reader()
       .getSchema(uid)
       .then((r) => {
         if (!alive) return;
         if (r.success && r.data) {
           onDefinition(r.data.definition);
-          setStatus(r.data.resolver ? `resolver: ${r.data.resolver}` : r.data.revocable ? 'revocable' : 'not revocable');
+          setRead({ uid, status: r.data.resolver ? `resolver: ${r.data.resolver}` : r.data.revocable ? 'revocable' : 'not revocable' });
         } else {
           onDefinition(null);
-          setStatus('not found on chain');
+          setRead({ uid, status: 'not found on chain' });
         }
       });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [uid, valid]);
   return (
     <div>
       <Label htmlFor="schema" hint={status}>Schema</Label>
@@ -60,7 +60,11 @@ function inputFor(type: string): 'bool' | 'list' | 'text' {
 }
 
 /** Inputs for each field of a definition; reports the encoded base64 (or an error). */
-export function SchemaValues({ definition, onEncoded }: { definition: string; onEncoded: (data: string | null, error: string | null) => void }) {
+export function SchemaValues(props: { definition: string; onEncoded: (data: string | null, error: string | null) => void }) {
+  return <Values key={props.definition} {...props} />;
+}
+
+function Values({ definition, onEncoded }: { definition: string; onEncoded: (data: string | null, error: string | null) => void }) {
   const fields = useMemo(() => {
     try {
       return parseSchema(definition);
@@ -68,10 +72,7 @@ export function SchemaValues({ definition, onEncoded }: { definition: string; on
       return [];
     }
   }, [definition]);
-  const [vals, setVals] = useState<Record<string, string>>({});
-  useEffect(() => {
-    setVals(Object.fromEntries(fields.map((f) => [f.name, f.type === 'bool' ? 'true' : ''])));
-  }, [fields]);
+  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.name, f.type === 'bool' ? 'true' : ''])));
   useEffect(() => {
     try {
       const enc = new SchemaEncoder(definition);

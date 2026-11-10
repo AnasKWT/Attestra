@@ -104,6 +104,7 @@ export function refreshTargets(row: EventRow): { schema?: string; attestation?: 
     case 'attestation_created':
     case 'attestation_rejected':
     case 'attestation_revoked':
+    case 'attestation_expired':
     case 'revocation_scheduled':
     case 'revocation_rejected':
       return { attestation: d.uid as string };

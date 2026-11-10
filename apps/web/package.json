@@ -26,7 +26,8 @@
     "next": "16.4.6",
     "react": "19.2.9",
     "react-dom": "19.2.9",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@attestra/mcp": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",

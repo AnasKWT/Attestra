@@ -21,7 +21,9 @@ export function Navbar() {
   const path = usePathname();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [openAt, setOpenAt] = useState<string | null>(null);
+  const open = openAt === path;
+  const setOpen = (fn: (o: boolean) => boolean) => setOpenAt(fn(open) ? path : null);
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -30,7 +32,6 @@ export function Navbar() {
     window.addEventListener('scroll', on, { passive: true });
     return () => window.removeEventListener('scroll', on);
   }, []);
-  useEffect(() => setOpen(false), [path]);
 
   const active = (n: (typeof NAV)[number]) => (n.match ?? [n.href]).some((m) => path === m || path.startsWith(`${m}/`));
 

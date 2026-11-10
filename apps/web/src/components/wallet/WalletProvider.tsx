@@ -50,6 +50,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [passkey, setPasskey] = useState<PasskeyAccount | null>(null);
   const connector = useRef<Connector | null>(null);
+  const [connectorReady, setConnectorReady] = useState(false);
   const nearKit = useRef<typeof import('near-kit') | null>(null);
 
   const base = { network: NETWORK, root: ROOT, indexerUrl: INDEXER_URL, relayerUrl: RELAYER_URL, agentUrl: AGENT_URL };
@@ -85,6 +86,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           footerBranding: null,
         }) as unknown as Connector;
         connector.current = c;
+        setConnectorReady(true);
         c.on('wallet:signIn', (ev) => {
           const id = ev.accounts?.[0]?.accountId;
           if (id) void adoptWallet(id);
@@ -159,7 +161,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
                 return keySigner(passkey.secretKey).signMessage(p);
               },
             }
-          : kind === 'wallet' && connector.current
+          : kind === 'wallet' && connectorReady
             ? {
                 signMessage: async (p) => {
                   const w = await connector.current!.wallet();
@@ -169,7 +171,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             : null,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountId, kind, client, ready, busy, error, passkey],
+    [accountId, kind, client, ready, busy, error, passkey, connectorReady],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

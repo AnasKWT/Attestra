@@ -16,10 +16,7 @@ export function SearchView({ initial = '' }: { initial?: string }) {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2) {
-      setResults(null);
-      return;
-    }
+    if (term.length < 2) return;
     const t = window.setTimeout(() => {
       indexer
         .search(term)
@@ -28,6 +25,7 @@ export function SearchView({ initial = '' }: { initial?: string }) {
     }, 250);
     return () => window.clearTimeout(t);
   }, [q]);
+  const shown = q.trim().length < 2 ? null : results;
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 shadow-panel focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-500/10">
@@ -35,10 +33,10 @@ export function SearchView({ initial = '' }: { initial?: string }) {
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Attestation or schema UID, account id, or schema fields" aria-label="Search" className="h-14 w-full bg-transparent text-[15px] text-fg outline-none placeholder:text-mute" />
       </div>
       {err && <Alert tone="warn">{err}</Alert>}
-      {results && results.length === 0 && <Empty title="No matches" />}
-      {results && results.length > 0 && (
+      {shown && shown.length === 0 && <Empty title="No matches" />}
+      {shown && shown.length > 0 && (
         <ul className="overflow-hidden rounded-2xl border border-line bg-panel shadow-panel">
-          {results.map((r) => {
+          {shown.map((r) => {
             const I = ICON[r.type];
             return (
               <li key={`${r.type}${r.id}`} className="border-b border-line last:border-0">
