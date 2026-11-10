@@ -172,7 +172,8 @@ async function main() {
   const record: Record<string, unknown> = {
     network: NET,
     root,
-    commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(),
+    // The commit the code was built from: BUILD for a reproducible build, else the checkout.
+    commit: execFileSync('git', ['rev-parse', `${process.env.BUILD ?? 'HEAD'}^{commit}`], { cwd: repo, encoding: 'utf8' }).trim(),
     build: process.env.BUILD ? 'reproducible' : 'local',
     deployed_at: new Date().toISOString(),
     contracts: {} as Record<string, unknown>,
