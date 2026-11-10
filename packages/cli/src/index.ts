@@ -382,9 +382,9 @@ chain
   .requiredOption('--chain <chain>', 'ethereum, base, arbitrum, polygon, bnb, avalanche')
   .requiredOption('--tx <hash>')
   .requiredOption('--log-index <n>')
-  .requiredOption('--log <json>', 'the expected log (JSON or @file)')
+  .option('--log <json>', "the expected log in the contract's EvmLog shape (JSON or @file); read from the chain's public RPC when omitted")
   .option('--subject <subject>')
-  .action(wrap(async (o) => out(client().attestForeignEvent({ chain: o.chain, txId: o.tx, logIndex: num(o.logIndex), log: parseJson(o.log, '--log')!, subject: o.subject }))));
+  .action(wrap(async (o) => out(client().attestForeignEvent({ chain: o.chain, txId: o.tx, logIndex: num(o.logIndex), log: parseJson(o.log, '--log'), subject: o.subject }))));
 
 const agent = program.command('agent').description('Know Your Agent: identity, delegation and reputation');
 agent

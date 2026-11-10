@@ -22,7 +22,7 @@ export type { DelegatedAction, DelegatedAttest, DelegatedRevoke, MessageSigner, 
 export { proveReceipt, findEventReceipt, computeRootFromPath, blockHashFromHeader, outcomeHash, checkApprovals } from './lightclient';
 export type { ProofResult, ProofCheck, LightClientProof } from './lightclient';
 export { encryptForModel, decryptWithEd25519Seed } from './e2ee';
-export { verdictDigest, foreignChainIds, foreignChainIdsTestnet, walletCaip10 } from './verdicts';
+export { verdictDigest, foreignChainIds, foreignChainIdsTestnet, walletCaip10, EVM_CHAINS, fetchEvmLog, type EvmLog } from './verdicts';
 export type { AiVerdict } from './verdicts';
 export * as x402 from './x402';
 export { TOOLS, READ_TOOLS, WRITE_TOOLS, openAITools, runTool } from './tools';

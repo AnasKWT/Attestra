@@ -20,6 +20,7 @@ import { signRequest, type MessageSigner, type SignedRequest } from './nep413';
 import { KNOWN_SCHEMAS, knownSchemaUid } from './schemas';
 import { SchemaEncoder } from './encoder';
 import { computeAttestationUid, computeSchemaUid, normalizeUid } from './uid';
+import { fetchEvmLog, type EvmLog } from './verdicts';
 import { payingFetch, type SettlementResponse } from './x402';
 import {
   AttestraErrorType,
@@ -167,13 +168,15 @@ export class AttestraClient {
   }
 
   async view<T>(contractId: string, method: string, args: object = {}): Promise<T> {
-    const res = await this.rpc<{ result: number[] }>('query', {
+    const res = await this.rpc<{ result?: number[]; error?: string }>('query', {
       request_type: 'call_function',
       finality: 'optimistic',
       account_id: contractId,
       method_name: method,
       args_base64: bytesToBase64(new TextEncoder().encode(JSON.stringify(args))),
     });
+    // A view that panics comes back as a result carrying an `error` string, not as a JSON-RPC error.
+    if (!res.result) throw new Error(res.error ?? `${contractId}.${method} returned no result`);
     const text = new TextDecoder().decode(Uint8Array.from(res.result));
     return (text ? JSON.parse(text) : null) as T;
   }
@@ -837,16 +840,20 @@ export class AttestraClient {
     return attempt(async () => ({ accountId: await this.view<string | null>(this.contracts.verdicts, 'linked_account', { caip10 }) }));
   }
 
-  /** Asks the NEAR MPC network to verify an event on another chain, then attests it (no oracle). */
+  /**
+   * Asks the NEAR MPC network to verify an event on another chain, then attests it (no oracle).
+   * Without `log`, the log is read from the chain's public RPC (`fetchEvmLog`).
+   */
   async attestForeignEvent(claim: {
     chain: string;
     txId: string;
     logIndex: number;
-    log: Record<string, unknown>;
+    log?: EvmLog;
     subject?: string;
   }): Promise<ServiceResponse<Outcome>> {
     return this.write(async () => {
-      const args = { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log: claim.log, subject: claim.subject ?? null } };
+      const log = claim.log ?? (await fetchEvmLog(this.network, claim.chain, claim.txId, claim.logIndex));
+      const args = { claim: { chain: claim.chain, tx_id: claim.txId.replace(/^0x/, ''), log_index: claim.logIndex, log, subject: claim.subject ?? null } };
       const deposit = await this.view<string>(this.contracts.verdicts, 'foreign_event_deposit', args);
       const r = await this.callRaw<Outcome>(this.contracts.verdicts, 'attest_foreign_event', args, { deposit });
       if (r.value?.status === 'failed') throw new Error('the MPC network did not verify the event');
