@@ -9,7 +9,7 @@ Every contract is deployed on testnet under `attestra.testnet` from a reproducib
 |---|---|---|
 | NEAR AI Cloud (private inference in a TEE, signed answers) | private checks with evidence encrypted in the browser; agent chat with verified signatures | `pnpm cli:e2e testnet` runs a check; `pnpm verify` checks the model's TDX and GPU attestation |
 | NEAR OutLayer (TEE worker, key bound to the build) | `checker/`, the only key the verdicts contract accepts | [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1) |
-| Chain Signatures (`verify_foreign_transaction`) | facts about Solana and EVM chains with no oracle | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) (Base Sepolia); Solana devnet in every testnet run |
+| Chain Signatures (`verify_foreign_transaction`) | facts about Solana and EVM chains with no oracle | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) (Base Sepolia), [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) (Solana devnet) |
 | Asynchronous cross-contract calls with rollback | the resolver gate: pending, ask, commit or remove and refund | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
 | Function-call access keys | an agent key that can only attest, revoke and schedule revocations | `pnpm cli:e2e testnet` |
 | NEP-413 signed messages and meta-transactions | gasless issuing through the relayer; passkey accounts with no wallet | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
@@ -28,7 +28,7 @@ Every contract is deployed on testnet under `attestra.testnet` from a reproducib
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
 | CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
 | Playwright on a production build (`pnpm e2e`) | 223 passed |
-| Playwright live on testnet with a passkey account (`e2e:live`) | 17 tests |
+| Playwright live on testnet with a passkey account (`e2e:live`) | 17 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
 
 Every network call retries transient failures with exponential backoff and full jitter, and writes retry only on answers that prove nothing was processed ([retry.ts](packages/sdk/src/retry.ts)).

@@ -86,6 +86,7 @@ The test runs create their own accounts and delete them afterwards, returning th
 | A passkey account (Chrome's authenticator, no wallet, no NEAR) issuing a membership through the relayer with a NEP-413 signed request | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
 | Signing in with a NEAR wallet through NEAR Connect (the NEAR CLI wallet) and issuing an attestation it signed | [9jAv1M46](https://testnet.nearblocks.io/txns/9jAv1M46gvTbg4TQC2HVSFnuU1Zwax7CwT2Ed6JdbUYH) |
 | A Base Sepolia event verified by the NEAR MPC network (`verify_foreign_transaction`) and attested by the verdicts contract | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
+| A Solana devnet instruction verified by the NEAR MPC network (`verify_foreign_transaction` with the SVM extractor) and attested | [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) |
 | The same request before the block was final: the MPC timed out, the contract emitted `foreign_tx_failed` and refunded | [GLnfjP7C](https://testnet.nearblocks.io/txns/GLnfjP7CKz1HiHoTTvQNSqpdFQoN41WJJ93NkVjabBMH) |
 | An Ethereum wallet linked to a NEAR account by its EIP-191 signature | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
 | A resolver refusing an attestation, which is removed and its storage refunded | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |

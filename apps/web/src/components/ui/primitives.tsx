@@ -39,8 +39,13 @@ export function ButtonLink({ href, variant = 'primary', size = 'md', className =
   );
 }
 
-export function Panel({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-xl border border-line bg-panel shadow-panel ${className}`}>{children}</div>;
+/** `label` names the panel as a region, for screen readers and for tests that find it by role. */
+export function Panel({ className = '', children, label }: { className?: string; children: ReactNode; label?: string }) {
+  return (
+    <div role={label ? 'region' : undefined} aria-label={label} className={`rounded-xl border border-line bg-panel shadow-panel ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 export function PanelHeader({ title, subtitle, right }: { title: ReactNode; subtitle?: ReactNode; right?: ReactNode }) {

@@ -363,7 +363,7 @@ test.describe('live on testnet with one passkey account', () => {
     await submit('1. Sign a request off chain', 'Sign');
     // A passkey account's key is its account id, so nothing needs registering.
     await expect(page.getByText('This key is not registered as a signer key yet.')).toHaveCount(0);
-    const submitPanel = page.locator('div.rounded-2xl', { has: page.getByRole('heading', { name: '2. Submit', exact: true }) });
+    const submitPanel = page.getByRole('region', { name: '2. Submit', exact: true });
     await submitPanel.getByRole('button', { name: 'Submit through the relayer' }).click();
     await expect(submitPanel.getByRole('status').or(submitPanel.getByRole('alert')).first()).toBeVisible({ timeout: 120_000 });
     await expect(submitPanel.getByRole('alert')).toHaveCount(0);

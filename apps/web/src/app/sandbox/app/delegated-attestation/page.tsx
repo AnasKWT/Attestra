@@ -54,7 +54,7 @@ export default function DelegatedAttestation() {
       </ActionCard>
 
       {req && (
-        <Panel>
+        <Panel label="2. Submit">
           <PanelHeader title="2. Submit" subtitle="Through the relayer (gasless) or yourself" />
           <div className="space-y-4 p-5">
             <pre className="max-h-48 overflow-auto rounded-lg border border-line bg-panel-2 p-3 font-mono text-[11.5px] text-fg">{JSON.stringify(req, null, 2)}</pre>
