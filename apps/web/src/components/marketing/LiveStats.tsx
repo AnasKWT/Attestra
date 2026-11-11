@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CONTRACTS, NETWORK } from '@/lib/config';
 import { indexer, reader } from '@/lib/client';
 import { formatCount } from '@/lib/format';
+import { CountUp } from './Motion';
 
 interface Stats {
   schemas: number | null;
@@ -56,7 +57,7 @@ export function LiveStats({ className = '' }: { className?: string }) {
           // Two by two on phones, one row from sm: every cell but the row's last gets a right border.
           <div key={label} className={`border-line px-5 py-5 ${i < 2 ? 'border-b sm:border-b-0' : ''} ${i % 2 === 0 ? 'border-r' : ''} ${i < 3 ? 'sm:border-r' : ''}`}>
             <dt className="text-[13px] text-mute">{label}</dt>
-            <dd className="mt-1.5 font-display text-[1.6rem] font-semibold leading-8 tabular-nums text-fg">{s === null ? <span className="skeleton inline-block h-6 w-12 rounded align-middle" /> : v === null || v === undefined ? <span className="text-mute">n/a</span> : formatCount(v)}</dd>
+            <dd className="mt-1.5 font-display text-[1.6rem] font-semibold leading-8 tabular-nums text-fg">{s === null ? <span className="skeleton inline-block h-6 w-12 rounded align-middle" /> : v === null || v === undefined ? <span className="text-mute">n/a</span> : <CountUp value={v} format={formatCount} />}</dd>
           </div>
         ))}
       </dl>

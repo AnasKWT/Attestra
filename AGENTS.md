@@ -105,3 +105,5 @@ By hand: `near contract verify deployed-at attestations.attestra.testnet network
 - NEAR keys are base58 and case-sensitive: never lowercase a key.
 - The checker's key changes with every build: a new `checker/` wasm needs `set_enclave_keys` on the verdicts contract and a new `OUTLAYER_WASM_HASH`; regenerate `checker/tests/fixtures/ts.json` after changing the E2EE, prompt or digest code on either side.
 - `next lint` is gone in Next.js 16: lint the site with `pnpm --filter @attestra/web lint`.
+- The site's CSS goes through Lightning CSS, which drops `mask-composite`: draw borders with padding or grid gaps (see `.beam` and `.spot-grid` in `globals.css`), not with masks.
+- Landing page motion lives in the Motion section of `globals.css` and in `components/marketing/Motion.tsx`; every animation must end in a readable resting state, since `prefers-reduced-motion` cuts them to one frame.

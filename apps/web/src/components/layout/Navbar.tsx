@@ -39,7 +39,7 @@ export function Navbar() {
     <header className={`fixed inset-x-0 top-0 z-40 transition-all duration-300 ${scrolled ? 'border-b border-line bg-[color-mix(in_srgb,var(--bg)_94%,transparent)] backdrop-blur-md' : 'border-b border-transparent'}`}>
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" aria-label="Attestra home" className="shrink-0">
-          <Logo />
+          <Logo animated />
         </Link>
         <nav className="ml-4 hidden items-center gap-0.5 lg:flex" aria-label="Main">
           {NAV.map((n) => (

@@ -158,6 +158,193 @@ body {
   }
 }
 
+/* ── Motion ────────────────────────────────────────────────────────────────── */
+/* Everything here stops under prefers-reduced-motion (the rule above), ending in its resting state. */
+
+/* Load-time entrance, staggered with --d. */
+.enter {
+  animation: enter 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes enter {
+  from { opacity: 0; transform: translateY(16px); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.swap { animation: swap 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes swap {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Scroll reveal, driven by the element's own view timeline; browsers without one show it as is. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry calc(var(--d, 0) * 6%) entry calc(55% + var(--d, 0) * 6%);
+    }
+  }
+}
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(28px) scale(0.985); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+/* The hero backdrop: a dot grid that drifts and two warm glows that wander behind the record. */
+.hero-grid {
+  background-image: radial-gradient(var(--line-strong) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 75% 70% at 65% 35%, #000 25%, transparent 75%);
+  animation: grid-drift 60s linear infinite;
+  opacity: 0.8;
+}
+@keyframes grid-drift { to { background-position: 240px 120px; } }
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.16;
+  will-change: transform;
+}
+[data-theme='dark'] .aurora { opacity: 0.24; }
+.aurora-1 {
+  width: 560px; height: 460px; right: -8%; top: -12%;
+  background: radial-gradient(circle at 40% 40%, #f97316, transparent 65%);
+  animation: wander-1 22s ease-in-out infinite alternate;
+}
+.aurora-2 {
+  width: 420px; height: 380px; left: 18%; bottom: -30%;
+  background: radial-gradient(circle, #fb923c, transparent 65%);
+  animation: wander-2 28s ease-in-out infinite alternate;
+}
+@keyframes wander-1 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-90px, 60px) scale(1.15); }
+  100% { transform: translate(40px, 110px) scale(0.95); }
+}
+@keyframes wander-2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(120px, -50px) scale(1.2); }
+  100% { transform: translate(-60px, -90px) scale(1); }
+}
+
+/* A light that travels round a border: the element's 1px padding is the border, its child the card. */
+@property --beam {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.beam {
+  --beam-light: conic-gradient(from var(--beam), transparent 0deg 240deg, rgba(249, 115, 22, 0.2) 285deg, #f97316 330deg, #fed7aa 348deg, transparent 360deg);
+  position: relative;
+  isolation: isolate;
+  padding: 1px;
+  background: var(--beam-light), linear-gradient(var(--line-strong), var(--line-strong));
+  animation: beam 7s linear infinite;
+}
+.beam::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--beam-light);
+  filter: blur(20px);
+  opacity: 0.32;
+  animation: beam 7s linear infinite;
+}
+@keyframes beam { to { --beam: 360deg; } }
+
+/* Two rows of chips that scroll for ever; hovering pauses them. */
+.marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee, 48s) linear infinite;
+}
+.marquee-track[data-reverse] { animation-direction: reverse; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* Cards that light up around the pointer. The grid's 1px gaps are its borders: the Spotlight wrapper
+   sets --gx/--gy on the grid and --mx/--my on each card, so the gaps and the card under it glow. */
+.spot-grid {
+  background: radial-gradient(280px circle at var(--gx, -999px) var(--gy, -999px), rgba(249, 115, 22, 0.85), transparent 70%), var(--line);
+}
+.spot { position: relative; }
+.spot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgba(249, 115, 22, 0.09), transparent 45%);
+}
+.spot-grid:hover .spot::before { opacity: 1; }
+
+/* A band of light that sweeps down a block now and then. */
+.scan { position: relative; overflow: hidden; }
+.scan::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 40%;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(249, 115, 22, 0.1) 60%, rgba(249, 115, 22, 0.28) 98%, transparent);
+  transform: translateY(-110%);
+  animation: scan 9s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  animation-delay: 2.2s;
+}
+@keyframes scan {
+  0% { transform: translateY(-110%); }
+  22%, 100% { transform: translateY(260%); }
+}
+
+/* Progress that fills over --ms (the hero proof, the active step). */
+.fill { transform-origin: left; animation: fill var(--ms, 2s) linear both; }
+@keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.spinner {
+  display: inline-block;
+  border-radius: 9999px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.caret { animation: blink 1.05s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+
+/* The mark draws itself: the hexagon, then the short stroke, then the long one. */
+.mark-draw path[data-part] {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.mark-draw path[data-part='short'] { animation-delay: 0.55s; animation-duration: 0.45s; }
+.mark-draw path[data-part='long'] { animation-delay: 0.85s; animation-duration: 0.55s; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* A sheen that crosses a primary button on hover. */
+.btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.3) 50%, transparent 70%);
+  transform: translateX(-130%);
+  transition: transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.btn-shine:hover::after { transform: translateX(130%); }
+
 /* Code tokens */
 .tok-k { color: #ff8f7e; }
 .tok-s { color: #a5d6ff; }
