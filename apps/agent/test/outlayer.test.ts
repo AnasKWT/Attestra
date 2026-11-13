@@ -5,7 +5,7 @@ import type { Near } from 'near-kit';
 import { createApp, outlayerSettings } from '../src/app';
 import { loadConfig } from '../src/config';
 import { NearAi } from '../src/nearai';
-import { checkCheckerOutput, checkerRequest, decodeReturnValue, nearChain, OUTLAYER_GAS, requestExecutionArgs, runCheckOnOutLayer, type CheckerRequest, type OutLayerChain, type OutLayerConfig } from '../src/outlayer';
+import { checkCheckerOutput, checkerRequest, decodeReturnValue, nearChain, OUTLAYER_DEPOSIT_MARGIN, OUTLAYER_GAS, requestExecutionArgs, runCheckOnOutLayer, type CheckerRequest, type OutLayerChain, type OutLayerConfig } from '../src/outlayer';
 
 const HASH = 'ab'.repeat(32);
 const cfg: OutLayerConfig = {
@@ -71,7 +71,7 @@ describe('OutLayer checker requests', () => {
     expect(() => requestExecutionArgs({ ...cfg, wasmUrl: 'http://x/y.wasm' }, request)).toThrow(/https/);
   });
 
-  it('pays the estimated cost, sends the check and verifies what the TEE signed', async () => {
+  it('pays the estimated cost plus room for a large output, sends the check and verifies what the TEE signed', async () => {
     const { chain, calls } = fakeChain((input) => checkerOutput(input));
     const out = await runCheckOnOutLayer(chain, cfg, request);
     expect(out.verdict.request_id).toBe(request.request_id);
@@ -80,7 +80,7 @@ describe('OutLayer checker requests', () => {
       method: 'estimate_execution_cost',
       args: { resource_limits: requestExecutionArgs(cfg, request).resource_limits, input_len: new TextEncoder().encode(JSON.stringify(request)).length },
     });
-    expect(calls[1]).toMatchObject({ contractId: 'outlayer.testnet', method: 'request_execution', deposit: 250000000000000000000000n, gas: OUTLAYER_GAS });
+    expect(calls[1]).toMatchObject({ contractId: 'outlayer.testnet', method: 'request_execution', deposit: 250000000000000000000000n + OUTLAYER_DEPOSIT_MARGIN, gas: OUTLAYER_GAS });
     expect(calls[1].args).toEqual(requestExecutionArgs(cfg, request));
   });
 

@@ -21,6 +21,12 @@ import type { CheckOutput } from './check';
 /** The run's limits; the contract's caps are 500B instructions and 180 seconds. */
 export const OUTLAYER_LIMITS = { max_instructions: 2_000_000_000, max_memory_mb: 128, max_execution_seconds: 120 } as const;
 export const OUTLAYER_GAS = 300n * 10n ** 12n;
+/**
+ * Added to `estimate_execution_cost`, refunded when unused. A check's output is just over the
+ * contract's 900-byte inline limit, and a run paid exactly the estimate fails when OutLayer stores
+ * that larger output ("Execution promise failed"), so the deposit leaves room for it.
+ */
+export const OUTLAYER_DEPOSIT_MARGIN = 10n ** 22n;
 /** How long to wait for the yielded transaction to resume (the contract's yield lasts about 200 blocks). */
 export const OUTLAYER_WAIT_MS = 300_000;
 
@@ -103,7 +109,7 @@ export async function runCheckOnOutLayer(chain: OutLayerChain, cfg: OutLayerConf
     resource_limits: args.resource_limits,
     input_len: new TextEncoder().encode(args.input_data).length,
   });
-  const value = await chain.call(cfg.contract, 'request_execution', args, { deposit: BigInt(cost), gas: OUTLAYER_GAS });
+  const value = await chain.call(cfg.contract, 'request_execution', args, { deposit: BigInt(cost) + OUTLAYER_DEPOSIT_MARGIN, gas: OUTLAYER_GAS });
   return checkCheckerOutput(request, value);
 }
 
