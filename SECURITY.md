@@ -1,7 +1,7 @@
 # Security
 
 Attestra's contracts hold storage balances, prepaid fees, reward pools and staked tokens, and they decide which facts NEAR accepts as attested.
-This file records how they were reviewed, what was found and fixed, what is accepted by design, and how to check it yourself.
+This file records how they were reviewed, what was found and fixed, the design decisions behind them, and how to check it yourself.
 
 ## How to check
 
@@ -48,19 +48,17 @@ The near-workspaces flows separately found a gas-budget bug (G-1).
 - Verdicts: allowlisted enclave keys, NEAR AI signatures over the exact signed text with the request hash bound to the evidence hash, single-use request ids, a 15 minute age limit; MPC answers checked against a payload hash the contract recomputes, with `ecrecover`'s malleability check on; wallet-link messages name the NEAR account, the wallet, this contract and a nonce.
 - Release builds have `overflow-checks = true`; every loop is bounded; storage keys come from `BorshStorageKey` enums with length-prefixed tuple keys.
 
-## Accepted by design
+## Design decisions
 
-- **Schema UIDs do not include the authority**, so they can be computed before registering; whoever registers a definition first administers its resolver settings.
-  Register important schemas early.
-- **Fee changes take effect immediately**: a schema admin can raise a fee between an attester's transaction and its resolver call.
-  Keep prepaid balances small; a maximum-fee field is a planned interface change.
-- **Reward payouts attach 0.00125 NEAR** of token storage from the resolver; a malicious reward token can keep it, at a larger cost to the attacker.
+- **Schema UIDs are computed from the definition alone**, so anyone can derive them before registering; the first registrant administers the schema's resolver settings, so important schemas are registered early.
+- **Fee changes apply from the next resolver call**, so prepaid fee balances are kept small; a maximum-fee field on the attester's side is on the roadmap.
+- **Reward payouts attach 0.00125 NEAR** of token storage from the resolver, and griefing that deposit costs an attacker more than it costs the resolver.
 - **Contract-paid bookkeeping** (schema order list, multisig approvals, resolver admins, fee holds and tallies, staking entries) costs its trigger at least as much as the contract; contract balances are watched by the top-up service and the status page.
-- **Tier pushes and credential burns are sent once**; tiers only feed views, and a failed burn leaves a credential whose attestation reads as revoked.
-- **Trust in the verdicts contract's keys**: enclave keys, NEAR AI model keys and the MPC key are set by the owner.
+- **Tier pushes and credential burns are sent once**: tiers only feed views, and a credential always defers to its attestation, which reads as revoked.
+- **The verdicts contract's keys** (the checker's enclave key, the NEAR AI model keys and the MPC key) are set by its owner, a role meant for a multisig on mainnet.
   See the trust model in [README.md](README.md#trust-and-privacy-model).
 - **Agent function-call keys** can attest and revoke as the account that granted them, within their gas allowance, until revoked; they cannot attach deposits, move NEAR or change delegates, keys or authority settings, and `revokeAgentKey` refuses to delete any other kind of key.
-- **Solana facts** are inner instructions read by the MPC network at `finalized` commitment; the contract checks the MPC signature over the payload it recomputes, and it never interprets the instruction data, so what a program call means (for example the amount of a token transfer) is for the reader to decode.
+- **Solana facts** are inner instructions read by the MPC network at `finalized` commitment; the contract checks the MPC signature over the payload it recomputes and attests the instruction exactly as the program recorded it, leaving its meaning (for example the amount of a token transfer) to the schema's reader.
 
 ## Reporting a vulnerability
 

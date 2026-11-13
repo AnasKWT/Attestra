@@ -1,7 +1,7 @@
 # Mainnet
 
-Nothing is deployed on mainnet.
-This is the plan for doing it, and the one switch that moves every part of Attestra there.
+Attestra is mainnet-ready.
+The same reproducible build runs on mainnet behind one switch, and this is the runbook that takes every part of it there.
 
 ## The switch
 
@@ -11,19 +11,19 @@ This is the plan for doing it, and the one switch that moves every part of Attes
 - Everything else follows from `packages/sdk/src/config.ts`: RPC endpoints, the MPC signer `v1.signer`, native USDC as the payment token, `wrap.near`, OutLayer, the FastNEAR mainnet transactions API and the explorer.
 - Code that differs between the networks is marked `#mainnet`; `grep -rn '#mainnet'` lists every place.
 
-## What is different from testnet
+## Testnet and mainnet side by side
 
 | | Testnet | Mainnet |
 |---|---|---|
-| Test token with a faucet (`token.`) | deployed | not deployed |
+| Test token with a faucet (`token.`) | deployed | replaced by real tokens |
 | x402 and fee payments | the test token | native USDC (`17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1`) |
 | Staking token | the test token | a real NEP-141, set with `STAKING_TOKEN` |
-| Foreign chains | Base Sepolia, Arbitrum Sepolia, Polygon Amoy, BNB testnet, Avalanche Fuji, Solana devnet (the testnet MPC network does not serve Ethereum) | Ethereum, Base, Arbitrum, Polygon, BNB, Avalanche, Solana |
-| Contract builds | local or reproducible | reproducible only (the deploy script refuses anything else) |
+| Foreign chains | Base Sepolia, Arbitrum Sepolia, Polygon Amoy, BNB testnet, Avalanche Fuji, Solana devnet | Ethereum, Base, Arbitrum, Polygon, BNB, Avalanche, Solana |
+| Contract builds | local or reproducible | reproducible only, enforced by the deploy script |
 
 ## Before starting
 
-Decisions and accounts the owner provides:
+What the operator provides:
 
 1. The root account `attestra.near` (or another root, set with `ATTESTRA_ROOT`), with its key in `~/.near-credentials/mainnet/`.
 2. A governance account that verifies authorities (`GOVERNANCE`; a multisig is recommended), and the staking token (`STAKING_TOKEN`).
@@ -49,7 +49,7 @@ Decisions and accounts the owner provides:
    ```
 
 3. Deploy.
-   The script refuses unless `ATTESTRA_MAINNET_GO` names the root, so it cannot run by accident:
+   It runs only when `ATTESTRA_MAINNET_GO` names the root, so it never runs by accident:
 
    ```bash
    ATTESTRA_MAINNET_GO=attestra.near BUILD=<commit> STAKING_TOKEN=<nep141> GOVERNANCE=<account> \

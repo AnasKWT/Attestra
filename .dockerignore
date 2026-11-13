@@ -9,3 +9,5 @@ contracts/target
 internal
 CLAUDE.local.md
 .git
+.secrets
+CLAUDE.md

@@ -27,7 +27,6 @@
     "deploy:testnet": "tsx scripts/deploy.ts testnet",
     "deploy:sandbox": "tsx scripts/deploy.ts sandbox",
     "cli:e2e": "tsx scripts/cli-e2e.ts",
-    "market:listing": "tsx scripts/market-listing.ts",
     "accounts": "tsx scripts/accounts.ts",
     "outlayer:publish": "tsx scripts/outlayer-publish.ts"
   },

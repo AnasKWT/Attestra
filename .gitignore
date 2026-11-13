@@ -28,8 +28,9 @@ playwright-report/
 test-results/
 blob-report/
 
-# Local service state
+# Local service state, sandbox deployments and screenshots
 .data/
+.secrets/
 *.db
 *.db-journal
 
@@ -42,3 +43,6 @@ Thumbs.db
 .claude/
 tools/.venv/
 packages/*/LICENSE
+
+# Agent instructions for this checkout (AGENTS.md is the public map)
+CLAUDE.md

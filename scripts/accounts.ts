@@ -3,12 +3,12 @@
  * treasury (funds the others through the top-up service), relayer, keeper and agent.
  * Idempotent: existing accounts are kept and their keys are read from the keychain.
  *
- *   pnpm accounts testnet                 keys in ~/.near-credentials/testnet/, env in internal/secrets/services.env
+ *   pnpm accounts testnet                 keys in ~/.near-credentials/testnet/, env in .secrets/services.<network>.env
  *   HOLD_FILE=<file> pnpm accounts sandbox   against a node held by `HOLD=<file> pnpm deploy:sandbox`
  *   SCALE=0.5 pnpm accounts testnet          start every account (and the top-up thresholds) at half the plan
  *
  * #mainnet: refuses mainnet unless ATTESTRA_MAINNET_GO names the root, like the deploy script.
- * The env file holds private keys: it lives in gitignored internal/ and is never committed.
+ * The env file holds private keys: it lives in gitignored .secrets/ and is never committed.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -69,7 +69,7 @@ async function main() {
   };
 
   // Keys written by an earlier run, for accounts whose key is not in the keychain (the sandbox's is in memory).
-  const file = join(repo, 'internal/secrets', `services.${NET}.env`);
+  const file = join(repo, '.secrets', `services.${NET}.env`);
   const earlier = new Map(
     (existsSync(file) ? readFileSync(file, 'utf8') : '').split('\n').flatMap((l) => {
       const m = /^([A-Z]+)_PRIVATE_KEY=(.+)$/.exec(l);

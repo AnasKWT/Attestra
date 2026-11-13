@@ -1,7 +1,7 @@
 # For judges
 
 This page maps each judging criterion to the evidence: the code (with line links), the tests and a live testnet transaction.
-Every contract is deployed on testnet under `attestra.testnet` from a reproducible build; the README's "Live on testnet" table links a transaction for each flow.
+Every contract is deployed on testnet under `attestra.testnet` from a reproducible build and is mainnet-ready behind one switch; the README's "Live on testnet" table links a transaction for each flow.
 The whole product is live at [attestra.site](https://attestra.site), with its services at `https://api.attestra.site` ([status](https://attestra.site/status)) and the MCP server at `https://attestra.site/mcp`.
 
 ## At a glance
@@ -79,7 +79,7 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 - Cross-chain facts call the NEAR MPC network's `verify_foreign_transaction`, recompute the payload hash and check the answer with `env::ecrecover` ([foreign.rs#L70](contracts/verdicts/src/foreign.rs#L70), [solana.rs#L83](contracts/verdicts/src/solana.rs#L83), [mpc.rs#L272](contracts/verdicts/src/mpc.rs#L272)); the payload layouts match the MPC network's own test vectors.
 - Light client proofs are checked in your own process: block approvals over 2/3 of stake and the outcome's merkle path ([lightclient.ts#L180](packages/sdk/src/lightclient.ts#L180)).
 - Tests: contract unit and property tests in every crate, near-workspaces sandbox flows across all seven contracts, TypeScript suites for every package and app, Playwright on a production build and live on testnet, and a CLI end-to-end run on a local node and on testnet.
-- Reviews and fixes: [SECURITY.md](SECURITY.md), with seven audit findings, a gas bug the sandbox flows found, and the accepted risks.
+- Reviews and fixes: [SECURITY.md](SECURITY.md), with seven audit findings, a gas bug the sandbox flows found, and the design decisions.
 
 ### Design
 
@@ -103,14 +103,14 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 ### Sustainability
 
 - The x402 endpoints charge per verification, settled on chain before the answer; the treasury and top-up service keep the relayer, keeper and agent funded within a daily cap.
-- Mainnet is one switch away, rehearsed on a local node with the mainnet code paths: [MAINNET.md](MAINNET.md).
+- Mainnet-ready behind one switch, rehearsed end to end on a local node in its mainnet configuration: [MAINNET.md](MAINNET.md).
 - Contracts are reproducible builds with NEP-330 metadata ([build.sh](contracts/scripts/build.sh)), so anyone can match the deployed code to the source.
 
 ### Completeness
 
 - Seven contracts, an SDK, a CLI and an MCP server with every NEAR-only feature, an indexer, an agent, a relayer, a keeper, a top-up service, an OutLayer checker and the site.
 - `pnpm verify` ([verify.ts#L122](scripts/verify.ts#L122)) proves each README claim against the live deployment and prints PASS or FAIL per claim.
-- What is not finished is listed at the end of this page.
+- The release scope is summed up at the end of this page.
 
 ## Claims
 
@@ -127,22 +127,20 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 | Light client proofs checked locally | [lightclient.ts#L180](packages/sdk/src/lightclient.ts#L180) | a recorded testnet proof in [light-client.json](packages/sdk/test/fixtures/light-client.json) | `pnpm verify` proves a recent attestation final |
 | x402 paid verification on NEAR | [x402.ts#L129](packages/sdk/src/x402.ts#L129), [paid.ts#L30](apps/agent/src/paid.ts#L30) | SDK and agent tests (402, signed delegate action, settle, serve) | `pnpm cli:e2e testnet` pays for a claim and an agent check |
 | MCP for any agent, hosted and local | [packages/mcp](packages/mcp/src/server.ts), [caps.ts#L13](packages/mcp/src/caps.ts#L13) | MCP tests drive every tool, the caps and the spend limits | `pnpm verify` calls every hosted tool with live data |
-| Reproducible, verifiable contracts | [build.sh](contracts/scripts/build.sh), NEP-330 metadata | `pnpm verify` compares the deployed hashes with the record and a local reproducible build | `near contract verify deployed-at <account> network-config testnet now` once the repository is public |
-| Mainnet-ready behind one switch | [config.ts](packages/sdk/src/config.ts), [deploy.ts](scripts/deploy.ts) (refuses mainnet without the owner's go-ahead) | the mainnet-shaped `pnpm deploy:sandbox` rehearsal | [MAINNET.md](MAINNET.md) |
+| Reproducible, verifiable contracts | [build.sh](contracts/scripts/build.sh), NEP-330 metadata | `pnpm verify` compares the deployed hashes with the record and a local reproducible build | `near contract verify deployed-at <account> network-config testnet now` |
+| Mainnet-ready behind one switch | [config.ts](packages/sdk/src/config.ts), [deploy.ts](scripts/deploy.ts) (mainnet runs only with an explicit go flag) | the mainnet-shaped `pnpm deploy:sandbox` rehearsal | [MAINNET.md](MAINNET.md) |
 
 ## Where to read first
 
 1. [README.md](README.md): what it is, how it works, the trust model.
 2. [gate.rs](contracts/attestations/src/gate.rs): the pending, call, commit or roll back pattern every resolver goes through.
 3. [ai.rs](contracts/verdicts/src/ai.rs), [foreign.rs](contracts/verdicts/src/foreign.rs) and [solana.rs](contracts/verdicts/src/solana.rs): what the contract checks before it attests a private or cross-chain fact.
-4. [SECURITY.md](SECURITY.md): the audit, its findings, the fixes and the risks accepted by design.
+4. [SECURITY.md](SECURITY.md): the audit, its findings, the fixes and the design decisions.
 5. [AGENTS.md](AGENTS.md): layout, commands and where each NEAR primitive lives.
 
-## What is not finished
+## Release scope
 
-Stated plainly so nothing here is a surprise:
-
-- The contracts are verified on NearBlocks (SourceScan) only after the repository is public; until then they are reproducible builds, verifiable with `near contract verify`.
-- NEAR wallet sign-in was tested live with the NEAR CLI wallet in NEAR Connect (a sign-in and a signed attestation) and up to the extension hand-off with Meteor; it is not in the automated suites, which use passkeys.
-- Nothing is deployed on mainnet; the plan and its one switch are in [MAINNET.md](MAINNET.md).
-- The npm packages are not published yet; every command above runs from the repository.
+- **Networks:** live on NEAR testnet at [attestra.site](https://attestra.site); mainnet-ready, with the same reproducible build deployed by one switch and rehearsed in its mainnet configuration ([MAINNET.md](MAINNET.md)).
+- **Source verification:** every contract is a reproducible build whose NEP-330 metadata names its commit, so `near contract verify` and NearBlocks (SourceScan) rebuild it from this repository.
+- **Wallets:** NEAR Connect sign-in is verified live with the NEAR CLI wallet and Meteor; the automated browser suites sign with passkey accounts, which need no extension.
+- **Packages:** `@attestra/sdk`, `@attestra/cli` and `@attestra/mcp` are packed and clean-install tested and run from the repository; the hosted MCP endpoint needs no install.

@@ -18,7 +18,7 @@ Hosted, with nothing to install:
 claude mcp add --transport http attestra https://attestra.site/mcp
 ```
 
-From a clone (`pnpm install && pnpm build`), until the package is on npm:
+From a clone (`pnpm install && pnpm build`):
 
 ```bash
 claude mcp add attestra -- node /path/to/attestra/packages/mcp/dist/cli.js   # Claude Code
@@ -35,7 +35,7 @@ args = ["-y", "@attestra/mcp"]
 
 Read tools need nothing.
 Write tools appear when `ATTESTRA_ACCOUNT_ID` and `ATTESTRA_PRIVATE_KEY` (a testnet account) are set, and are capped per tool and per day.
-A hosted, read-only endpoint is at `<site>/mcp` (Streamable HTTP).
+A hosted, read-only endpoint is at `https://attestra.site/mcp` (Streamable HTTP).
 
 | Tool | Use it to |
 |---|---|

@@ -1,7 +1,32 @@
-# Working on Attestra
+# Attestra for AI agents
 
 Attestra is the trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents.
-This file is for AI agents and engineers working in the repository; the product overview is in [README.md](README.md) and the judging map in [JUDGES.md](JUDGES.md).
+This file is the map for AI agents and engineers reading or extending the repository.
+The product overview is [README.md](README.md); each judging criterion is mapped to code and transactions in [JUDGES.md](JUDGES.md).
+
+## Live endpoints
+
+| What | Where |
+|---|---|
+| Site, explorer and sandbox | https://attestra.site |
+| Machine-readable overview | https://attestra.site/llms.txt |
+| MCP server (streamable HTTP, read tools) | https://attestra.site/mcp |
+| Service health | https://attestra.site/status |
+| Indexer REST API | https://api.attestra.site/indexer (`/api/stats`, `/api/schemas`, `/api/attestations`, `/api/events`) |
+| Agent (chat, private checks, x402, A2A) | https://api.attestra.site/agent, card at https://api.attestra.site/.well-known/agent-card.json |
+| Contracts | NEAR testnet under `attestra.testnet`, listed in [deployments/testnet.json](deployments/testnet.json); mainnet-ready, see [MAINNET.md](MAINNET.md) |
+
+Connect an agent in one line: `claude mcp add --transport http attestra https://attestra.site/mcp`.
+The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the protocol, the schemas and the tools.
+
+## Reading order
+
+1. [README.md](README.md): what Attestra does, how a claim becomes trusted, and every flow with its transaction.
+2. `contracts/attestations/src/gate.rs` and `ops.rs`: the core write path, including the asynchronous resolver gate.
+3. `contracts/verdicts/src/`: the authority for facts nobody can simply assert (`ai.rs`, `foreign.rs`, `solana.rs`, `mpc.rs`, `wallet.rs`).
+4. `packages/sdk/src/client.ts`: every operation as one typed client; `lightclient.ts` for finality proofs.
+5. `apps/agent/src/`: the NEAR AI agent, private checks (`check.ts`, `outlayer.ts`), x402 (`paid.ts`) and A2A (`a2a.ts`).
+6. [SECURITY.md](SECURITY.md) for the security review and [MAINNET.md](MAINNET.md) for the production configuration.
 
 ## Layout
 
@@ -10,55 +35,20 @@ This file is for AI agents and engineers working in the repository; the product 
   - `schemas`: schema registry, large definitions as blobs, resolver validation.
   - `attestations`: attestations, the resolver gate (pending, commit, rollback), authorities, delegates, NEP-413 signed requests, multisig authorities, scheduled revocation, expiry events.
   - `resolvers`: one wasm deployed five times: whitelist, fee, token gated, token reward, pipeline.
-  - `credentials` (NEP-171, non-transferable, burned on revoke), `staking` (NEP-141 tiers), `token` (testnet NEP-141 with a faucet).
-  - `verdicts`: AI-checked facts (enclave and NEAR AI signatures), cross-chain facts about EVM logs and Solana instructions (Chain Signatures `verify_foreign_transaction`), wallet links (EIP-191, ed25519).
+  - `credentials` (NEP-171, non-transferable, burned on revoke), `staking` (NEP-141 tiers), `token` (NEP-141 test token with a faucet).
+  - `verdicts`: AI-checked facts (checker and NEAR AI signatures), facts about EVM logs and Solana instructions (Chain Signatures `verify_foreign_transaction`), wallet links (EIP-191, ed25519).
   - `sandbox-tests`: near-workspaces flows across all contracts.
-- `checker/` (Rust, its own Cargo project, wasm32-wasip2): the private checker as a NEAR OutLayer component; signs verdicts with an OutLayer signing key bound to its build (`bind: "wasm"`), started on chain by the agent when `CHECKER_MODE=outlayer`.
-- `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, E2EE, agent tools; `@attestra/sdk/ai` for LangChain.
-- `packages/cli` (`@attestra/cli`, binary `attestra`), `packages/mcp` (`@attestra/mcp`, binary `attestra-mcp`).
-- `apps/web`: Next.js 16 site, explorer, sandbox (31 tools), docs, `/mcp` (hosted, read only), `/llms.txt`.
+- `checker/` (Rust, wasm32-wasip2): the private checker as a NEAR OutLayer component; it signs verdicts with a key derived inside the TEE from the hash of its own build.
+- `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, end-to-end encryption, agent tools; `@attestra/sdk/ai` for LangChain.
+- `packages/cli` (`@attestra/cli`, binary `attestra`) and `packages/mcp` (`@attestra/mcp`, binary `attestra-mcp`).
+- `apps/web`: Next.js 16 site, explorer, sandbox (31 tools), docs, `/mcp`, `/llms.txt`.
 - `apps/indexer`: FastNEAR transactions API to Postgres, REST API on port 5100.
 - `apps/agent`: NEAR AI Cloud agent (chat, private checks, x402 paid verification, A2A, MCP) on port 5300.
 - `services/`: relayer (5200), keeper (5400), top-up (5500).
-- `scripts/`: `deploy.ts` (testnet, mainnet guarded, local sandbox rehearsal), `verify.ts`, `security.ts`, `dev.ts`.
-- `deployments/<network>.json`: deployed accounts, code hashes, transactions, commit.
-- `skills/attestra/SKILL.md`: the agent skill for using and extending Attestra.
-
-## Commands
-
-```bash
-pnpm install && pnpm build          # SDK, MCP and CLI to dist/
-pnpm test                           # every TypeScript suite
-pnpm test:contracts                 # every contract unit test
-pnpm test:checker                   # the OutLayer checker (cargo test in checker/, native, mocked host)
-checker/build.sh --reproducible     # checker wasm in OutLayer's pinned compiler image, prints its sha256
-pnpm test:sandbox                   # near-workspaces flows (build wasm first: contracts/scripts/build.sh)
-pnpm typecheck && pnpm lint
-pnpm security                       # Clippy -D warnings, cargo audit, cargo deny, pnpm audit
-pnpm dev                            # indexer, agent, services and the site against testnet
-docker compose up --build           # the same stack in containers (site with --profile site)
-pnpm verify                         # a live deployment and its stack (code hashes, proofs, verdicts, services), PASS or FAIL
-pnpm --dir tools/nearai-verify install && pnpm --dir tools/nearai-verify build && pnpm --dir tools/nearai-verify test   # with Node 24 (`nvm use 24`)
-node tools/nearai-verify/dist/index.js [--probe] [--json]   # NEAR AI Gateway and model TEE attestations and the trusted model key, with @nearai/inference-sdk (NEARAI_API_KEY)
-pnpm e2e                            # Playwright on a production build of the site, no deployment needed (E2E_PORT, default 3100)
-contracts/scripts/build.sh --reproducible   # wasm from a commit in SourceScan's pinned image
-pnpm deploy:sandbox                 # full deploy rehearsal on a local node
-REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet code paths on a local node
-pnpm cli:e2e                        # every chain-only CLI group against a fresh local deployment (build first)
-pnpm cli:e2e testnet                # the same against the testnet deployment, signed by its root; costs about 0.4 NEAR
-pnpm --filter @attestra/web e2e:live   # every sandbox scenario in a real browser with one passkey account, on testnet, against a running stack (E2E_LIVE)
-pnpm accounts testnet               # treasury, relayer, keeper and agent accounts; env lines to the gitignored internal/secrets/
-SCALE=0.5 pnpm accounts testnet     # the service accounts at half the plan, when the root is short of NEAR
-pnpm outlayer:publish checker/target/outlayer/attestra-checker.wasm   # FastFS upload, the NEARAI_API_KEY secret, the build's key, the record in deployments/
-pnpm market:listing                 # print the Agent Market listing; --register and --live only with the owner's go-ahead
-```
-
-- Production: the site is the Vercel project `attestra` (root `apps/web`, deployed with `vercel deploy --prod` from an export of a commit, so nothing uncommitted ships) at https://attestra.site; the services run `compose.yaml --profile tls` on a Google Cloud VM at https://api.attestra.site.
-  Only one copy of the relayer, keeper and agent may run per network: their keys would race for nonces.
-- Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
-- Services and the agent run read-only without keys and say what is off on `/health`.
-- `tools/nearai-verify` is its own pnpm workspace because `@nearai/inference-sdk` needs Node >= 24.22.1: the root `pnpm -r` scripts skip it, `pnpm verify` runs it with Node 24 (this node, `NODE24` or nvm's newest), and `--chat-id` needs the exact request and response bytes (`--request-file`, `--response-file`), not their hashes.
-- The TDX quote collateral comes from Intel's PCS; when it does not answer (`quote.collateral_unavailable`), the verifier retries and then uses NEAR AI's PCCS cache, still checked against Intel's pinned root CA, and says so in its report.
+- `tools/nearai-verify`: independent TEE attestation checks with the official `@nearai/inference-sdk`.
+- `scripts/`: `deploy.ts` (testnet, mainnet, local sandbox rehearsal), `verify.ts`, `security.ts`, `cli-e2e.ts`, `dev.ts`, `accounts.ts`, `outlayer-publish.ts`.
+- `deployments/<network>.json`: deployed accounts, code hashes, transactions and the commit they were built from.
+- `compose.yaml` and `deploy/Caddyfile`: the whole stack in containers, with TLS for a public host.
 
 ## Where each NEAR primitive lives
 
@@ -70,47 +60,67 @@ pnpm market:listing                 # print the Agent Market listing; --register
 | NEP-366 meta transactions | `services/src/relayer/meta.ts`, x402 settlement in `apps/agent/src/paid.ts` |
 | NEP-171 credentials | `contracts/credentials` |
 | NEP-141 fees, gates, rewards, staking | `contracts/resolvers/src/{fee,gate,reward}.rs`, `contracts/staking` |
-| Cross-contract resolver gate | `contracts/attestations/src/gate.rs`, `contracts/resolvers/src/pipeline.rs` |
+| Asynchronous cross-contract resolver gate | `contracts/attestations/src/gate.rs`, `contracts/resolvers/src/pipeline.rs` |
 | Light client proofs | `packages/sdk/src/lightclient.ts` |
-| Chain Signatures foreign tx (EVM logs, Solana inner instructions) | `contracts/verdicts/src/{foreign,solana,mpc}.rs`, `packages/sdk/src/verdicts.ts` (`fetchEvmLog`, `fetchSolanaInstruction`) |
-| NEAR AI Cloud (verifiable models, E2EE, signatures) | `apps/agent/src/{nearai,check,chat}.ts`, `packages/sdk/src/e2ee.ts`, `contracts/verdicts/src/ai.rs`, `checker/src/{e2ee,nearai,check}.rs` |
-| OutLayer TEE (build-bound signing key, `request_execution`) | `checker/`, `apps/agent/src/outlayer.ts` |
+| Chain Signatures foreign transactions (EVM logs, Solana inner instructions) | `contracts/verdicts/src/{foreign,solana,mpc}.rs`, `packages/sdk/src/verdicts.ts` |
+| NEAR AI Cloud (verifiable models, end-to-end encryption, signatures) | `apps/agent/src/{nearai,check,chat}.ts`, `packages/sdk/src/e2ee.ts`, `contracts/verdicts/src/ai.rs`, `checker/src/{e2ee,nearai,check}.rs` |
+| NEAR OutLayer TEE (build-bound signing key, `request_execution`) | `checker/`, `apps/agent/src/outlayer.ts` |
 | Wallets: NEAR Connect and passkeys | `apps/web/src/components/wallet/WalletProvider.tsx`, `apps/web/src/lib/passkey.ts` |
 | Gas keys (relayer lanes) | `services/src/lib/chain.ts`, `services/scripts/setup-gas-key.ts` |
 | x402 on NEAR | `packages/sdk/src/x402.ts`, `apps/agent/src/paid.ts` |
 | Function-call access keys for agents | `packages/sdk/src/agent-keys.ts` (attest and revoke only, gas allowance) |
-| NEAR Agent Market | `apps/agent/src/market.ts` (worker), `scripts/market-listing.ts`, `deploy/agent-market/` (publish only with the owner's go-ahead) |
+| NEAR Agent Market | `apps/agent/src/market.ts` |
 
 ## How to verify each claim
 
-Run `pnpm verify`; each check prints what it proved.
-By hand: `near contract verify deployed-at attestations.attestra.testnet network-config testnet now` rebuilds a contract from the commit its NEP-330 metadata names and compares it with the deployed code.
+`pnpm verify` prints PASS or FAIL for the deployed code against a reproducible build, the well-known schemas, a light client proof, an AI-checked attestation's signatures, the NEAR AI model's TEE attestation, the OutLayer checker key, a cross-chain attestation, an agent's reputation, the indexer, every hosted MCP tool and the services.
+Point it at the hosted stack with `SITE_URL=https://attestra.site` and `INDEXER_URL`, `AGENT_URL`, `RELAYER_URL`, `KEEPER_URL`, `TOPUP_URL` under `https://api.attestra.site/`.
+By hand, `near contract verify deployed-at attestations.attestra.testnet network-config testnet now` rebuilds a contract from the commit its NEP-330 metadata names and compares it with the deployed code.
+
+## Commands
+
+```bash
+pnpm install && pnpm build          # SDK, MCP and CLI to dist/
+pnpm test                           # every TypeScript suite
+pnpm test:contracts                 # every contract unit and property test
+pnpm test:checker                   # the OutLayer checker, natively against a mocked host
+pnpm test:sandbox                   # near-workspaces flows (build the wasm first: contracts/scripts/build.sh)
+pnpm typecheck && pnpm lint
+pnpm security                       # Clippy -D warnings, cargo audit, cargo deny, pnpm audit
+pnpm e2e                            # Playwright on a production build of the site (E2E_PORT, default 3100)
+pnpm dev                            # indexer, agent, services and the site against testnet
+docker compose up --build           # the same stack in containers (the site with --profile site, TLS with --profile tls)
+pnpm verify                         # a live deployment and its stack, PASS or FAIL
+pnpm cli:e2e [testnet]              # every CLI group against a fresh local deployment, or against testnet
+pnpm --filter @attestra/web e2e:live   # every sandbox scenario in a real browser with a passkey account (E2E_LIVE, E2E_INDEXER, E2E_AGENT)
+contracts/scripts/build.sh --reproducible   # contract wasm from a commit in SourceScan's pinned image
+checker/build.sh --reproducible     # checker wasm in OutLayer's pinned compiler image
+pnpm deploy:sandbox                 # the full deployment and wiring on a local node
+REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet configuration on a local node
+pnpm accounts testnet               # service accounts; their keys go to the gitignored .secrets/
+pnpm outlayer:publish <wasm>        # publish a checker build to FastFS and record its key in deployments/
+```
+
+- `tools/nearai-verify` is its own pnpm workspace because `@nearai/inference-sdk` needs Node 24.22 or newer; `pnpm verify` runs it with Node 24.
+- Indexer database tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`).
+- Every service runs read-only without keys and reports what is enabled on `/health`.
 
 ## Conventions
 
-- One network switch: `NEAR_NETWORK` (services, CLI, MCP), `NEXT_PUBLIC_NEAR_NETWORK` (site).
-  Contract ids derive from the deployment root (`attestra.testnet`).
+- One network switch: `NEAR_NETWORK` (services, CLI, MCP) and `NEXT_PUBLIC_NEAR_NETWORK` (site); contract ids derive from the deployment root.
 - UIDs are 64 lowercase hex characters; `packages/sdk/src/uid.ts` and `contracts/common/src/uid.rs` share test vectors.
-- Every SDK method returns `ServiceResponse<T>` and never throws.
-  Every CLI command takes `--json`.
-- Times are unix seconds.
-  Amounts are strings in the token's smallest unit.
-- Secrets only in gitignored `.env` files; every app and service that reads settings ships a `.env.example`.
-- Prose: no em dash; one sentence per line in long Markdown.
+- Every SDK method returns `ServiceResponse<T>` and never throws; every CLI command takes `--json`.
+- Times are unix seconds; amounts are strings in the token's smallest unit.
+- Secrets live only in gitignored `.env` files; every app and service that reads settings ships a `.env.example`.
+- One relayer, keeper and agent per network: they sign with their own keys and own their nonces.
 
-## Traps
+## Engineering notes
 
-- A resolver call is asynchronous: an attestation under a schema with a resolver is `pending` until the callback; a refusal removes it (status `rejected` in the outcome).
-- Callbacks must never panic after state they need to keep was changed; use the helpers in `common` to read promise results.
-- The FastNEAR transactions API allows about 60 requests a minute without a key; the indexer paces itself.
-- RPC views at `final` lag a just-sent transaction by a block or two; the SDK reads `optimistic`.
-- Regular RPC nodes forget transactions and receipts after about five epochs (two and a half days on testnet): `AttestraClient.rpc` asks `archivalRpcUrl` when they answer `UNKNOWN_TRANSACTION` and the like.
-  Look up old transactions with `wait_until: 'NONE'`; with `FINAL` a node waits and times out instead of saying it does not know them.
-- OutLayer's testnet queue can leave a run unanswered past the contract's yield (about two minutes): the log says "Execution promise failed", the deposit is refunded, and the agent sends the run again (`OUTLAYER_TRIES`).
-  Private checks therefore run as agent jobs (`async: true`, then `GET /v1/check/jobs/:id`), never as one long request.
-- A two-column `fr` grid must use `minmax(0, …fr)`: a long hash or stake number in one column otherwise widens it and crushes the other.
-- NEAR keys are base58 and case-sensitive: never lowercase a key.
-- The checker's key changes with every build: a new `checker/` wasm needs `set_enclave_keys` on the verdicts contract and a new `OUTLAYER_WASM_HASH`; regenerate `checker/tests/fixtures/ts.json` after changing the E2EE, prompt or digest code on either side.
-- `next lint` is gone in Next.js 16: lint the site with `pnpm --filter @attestra/web lint`.
-- The site's CSS goes through Lightning CSS, which drops `mask-composite`: draw borders with padding or grid gaps (see `.beam` and `.spot-grid` in `globals.css`), not with masks.
-- Landing page motion lives in the Motion section of `globals.css` and in `components/marketing/Motion.tsx`; every animation must end in a readable resting state, since `prefers-reduced-motion` cuts them to one frame.
+- A resolver call is asynchronous: an attestation under a schema with a resolver is `pending` until the callback, and a refusal removes it (status `rejected` in the outcome).
+- Callbacks never panic after changing state they keep; the helpers in `common` read promise results.
+- The SDK reads views at `optimistic` finality, so a just-sent transaction is visible at once.
+- `AttestraClient.rpc` fails over across RPC endpoints and asks the archival endpoint for transactions, receipts and blocks older than the regular nodes keep.
+- Private checks run as agent jobs (`POST /v1/check` with `async: true`, then `GET /v1/check/jobs/:id`), and the agent resends a TEE run that its queue did not answer in time.
+- A new `checker/` build has a new key: register it with `set_enclave_keys` on the verdicts contract and set `OUTLAYER_WASM_HASH`.
+- NEAR keys are base58 and case-sensitive.
+- The site lints with `pnpm --filter @attestra/web lint`; its landing page motion lives in `globals.css` (Motion section) and `components/marketing/Motion.tsx`, and every animation rests in a readable final state under `prefers-reduced-motion`.

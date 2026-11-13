@@ -4,7 +4,7 @@
  * opens at its upper-right corner, where the long stroke leaves it. Two colours, no gradients, so it
  * reads the same at 16 px and on paper. The cut is a mask (any background) on the site and in
  * icon.svg, and a halo in the ground colour where the ground is known (share cards, app icons).
- * icon.svg and tools/make_brand.sh carry the same geometry; a unit test keeps icon.svg in step.
+ * icon.svg and the brand files in assets/brand carry the same geometry; a unit test keeps icon.svg in step.
  */
 export const MARK = {
   viewBox: '0 0 64 64',

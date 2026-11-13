@@ -7,7 +7,7 @@
  * reviews and delegations from the chain. The same checks are sold per call over x402 at /v1/paid.
  *
  * It polls its assignments with its `aat_` token (MARKET_AGENT_TOKEN). The listing itself is made
- * by scripts/market-listing.ts and goes live only with the owner's go-ahead.
+ * when the agent is registered on the market and goes live once its listing is published.
  */
 
 import type { AttestraClient } from '@attestra/sdk';

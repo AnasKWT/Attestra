@@ -7,8 +7,3 @@
 - `tile.svg` and `tile-<size>.png` are the app icon: the dark mark on a rounded ink square.
 - The check is `#f97316` everywhere; the wordmark is "Attestra" with "ra" in the accent colour (`#ea580c` on light, `#fb923c` on dark).
 - The geometry lives in `apps/web/src/components/brand/mark.ts`; a unit test keeps `icon.svg` in step with it.
-
-- `backup-tick/` keeps the two-stroke check on its own, without the hexagon.
-- `backup-hexagon/` keeps the first mark (an open hexagon with a single orange check).
-
-Regenerate with `tools/make_brand.sh`, then the README images with `tools/.venv/bin/python -m tools.make_readme_art`.

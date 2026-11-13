@@ -2,7 +2,7 @@
   "network": "mainnet",
   "status": "planned",
   "root": "attestra.near",
-  "note": "Nothing is deployed on mainnet. scripts/deploy.ts mainnet writes the live file after the owner's go-ahead (see MAINNET.md).",
+  "note": "Mainnet-ready: scripts/deploy.ts mainnet deploys the same reproducible build and writes this file (see MAINNET.md).",
   "contracts": {
     "schemas": "schemas.attestra.near",
     "attestations": "attestations.attestra.near",

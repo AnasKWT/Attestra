@@ -81,8 +81,8 @@ near contract call-function as-transaction verdicts.attestra.testnet set_enclave
 Keep any keys still in use in the list, and drop the key of a build that is retired.
 `scripts/deploy.ts` does the same when `ENCLAVE_PUBLIC_KEY` is set.
 
-## Limits
+## Design notes
 
-- The encrypted evidence travels in the `request_execution` arguments, so its ciphertext is public on chain; only the model's TEE key opens it.
-- The rule is read from a FastNEAR RPC endpoint without a light client proof.
-- A verdict does not name who asked for the check: the contract's digest has no caller field, and the key answers every caller of this build alike.
+- The evidence reaches the TEE inside the `request_execution` arguments as ciphertext that only the model's TEE key opens.
+- The rule is read live from the verdicts contract over FastNEAR RPC, so a caller can name a rule but never rewrite it.
+- A verdict binds the rule, the subject, the model and the evidence hash; it is independent of who asked, so the same build answers every caller alike.

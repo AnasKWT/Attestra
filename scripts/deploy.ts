@@ -3,13 +3,13 @@
  * Idempotent: existing accounts are kept, initialized contracts are not re-initialized, and
  * configuration steps run only when the chain differs from the plan.
  *
- *   tsx scripts/deploy.ts sandbox                    a local sandbox node (rehearsal; writes internal/deployments/sandbox.json)
+ *   tsx scripts/deploy.ts sandbox                    a local sandbox node (rehearsal; writes .data/deployments/sandbox.json)
  *   REHEARSE=mainnet BUILD=<commit> tsx scripts/deploy.ts sandbox
  *                                                    the mainnet code paths on a local node: reproducible wasm only, no faucet
- *                                                    token, a stand-in NEP-141 for USDC and staking (internal/deployments/sandbox-mainnet.json)
+ *                                                    token, a stand-in NEP-141 for USDC and staking (.data/deployments/sandbox-mainnet.json)
  *   BUILD=<commit> tsx scripts/deploy.ts testnet     the reproducible build of <commit> (target/near-reproducible/<commit>)
  *   UPGRADE=1 BUILD=<commit> tsx scripts/deploy.ts testnet   also redeploy code that changed (state is kept)
- *   tsx scripts/deploy.ts mainnet                    #mainnet: refuses unless ATTESTRA_MAINNET_GO=<root> (the owner's yes)
+ *   tsx scripts/deploy.ts mainnet                    #mainnet: refuses unless ATTESTRA_MAINNET_GO=<root> (an explicit go)
  *
  * Keys: the root account's key comes from the NEAR CLI keychain (~/.near-credentials/<network>/<root>.json);
  * every sub-account gets a fresh full-access key saved there too.
@@ -330,7 +330,7 @@ async function main() {
   }
 
   // 5. record
-  const out = NET === 'sandbox' ? join(repo, `internal/deployments/${MAINNET_SHAPE ? 'sandbox-mainnet' : 'sandbox'}.json`) : join(repo, `deployments/${NET}.json`);
+  const out = NET === 'sandbox' ? join(repo, `.data/deployments/${MAINNET_SHAPE ? 'sandbox-mainnet' : 'sandbox'}.json`) : join(repo, `deployments/${NET}.json`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
   log(`wrote ${out}`);

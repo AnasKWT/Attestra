@@ -7,7 +7,7 @@ import { chromium, defineConfig, devices } from '@playwright/test';
  * contracts were not deployed and refuses connections to the indexer and the other services.
  *
  *   pnpm e2e          every suite except the screenshot sweep
- *   pnpm e2e:shots    full-page screenshots of every route to internal/qa/shots/
+ *   pnpm e2e:shots    full-page screenshots of every route to .data/shots/
  *   pnpm e2e:live     e2e/live.spec.ts against a running stack on testnet (E2E_LIVE, default
  *                     http://localhost:3100, with the indexer, relayer, agent and keeper up): one real
  *                     passkey, funded with 1 NEAR from the testnet root key in ~/.near-credentials and

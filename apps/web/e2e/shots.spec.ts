@@ -1,10 +1,10 @@
-/** Screenshot sweep (@shots, run with `pnpm e2e:shots`): every route in light, dark and at 375px, saved to internal/qa/shots/. */
+/** Screenshot sweep (@shots, run with `pnpm e2e:shots`): every route in light, dark and at 375px, saved to .data/shots/. */
 
 import { fileURLToPath } from 'node:url';
 import { NOT_FOUND, PAGES } from './routes';
 import { expect, settled, test } from './support';
 
-const OUT = fileURLToPath(new URL('../../../internal/qa/shots/', import.meta.url));
+const OUT = fileURLToPath(new URL('../../../.data/shots/', import.meta.url));
 
 const VARIANTS = [
   { name: 'light', theme: 'light', viewport: { width: 1440, height: 900 } },

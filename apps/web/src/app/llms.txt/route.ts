@@ -1,5 +1,5 @@
 import { KNOWN_SCHEMAS, TOOLS, knownSchemaUid } from '@attestra/sdk';
-import { CONTRACTS, NET, NETWORK, REPO_URL, SITE_URL } from '@/lib/config';
+import { AGENT_URL, CONTRACTS, INDEXER_URL, NET, NETWORK, REPO_URL, SITE_URL } from '@/lib/config';
 
 export const dynamic = 'force-static';
 
@@ -7,9 +7,9 @@ export function GET() {
   const site = SITE_URL || '';
   const body = `# Attestra
 
-> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by a NEAR AI Cloud verifiable model in a TEE and signed by a checker (an OutLayer TEE component, or a local key while the deployment bootstraps), facts about EVM chains and Solana are verified by NEAR's MPC network without an oracle, agents get identity, delegation, scoped function-call keys and reputation, and any event can be proven final with a light client proof.
+> The trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents. Private facts are checked by a NEAR AI Cloud verifiable model in a TEE and signed by a checker running in NEAR OutLayer's TEE with a key bound to its build, facts about EVM chains and Solana are verified by NEAR's MPC network without an oracle, agents get identity, delegation, scoped function-call keys and reputation, and any event can be proven final with a light client proof.
 
-Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
+Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=mainnet). Contracts (Rust, reproducible builds with NEP-330 metadata):
 - schemas: ${CONTRACTS.schemas}
 - attestations: ${CONTRACTS.attestations}
 - verdicts (AI-checked facts, EVM and Solana facts, wallet links): ${CONTRACTS.verdicts}
@@ -25,8 +25,11 @@ Network: NEAR ${NETWORK}. Contracts (Rust, reproducible builds):
 - Resolvers approve or refuse asynchronously; a refusal rolls the attestation back with a storage refund.
 
 ## Agent access
-- MCP (Streamable HTTP, read tools): ${site}/mcp
-- MCP (stdio, read and capped testnet write tools): npx -y @attestra/mcp once published; until then node packages/mcp/dist/cli.js from a clone
+- MCP (Streamable HTTP, read tools): ${site}/mcp (claude mcp add --transport http attestra ${site}/mcp)
+- MCP (stdio, read and capped write tools): node packages/mcp/dist/cli.js from a clone, or npx -y @attestra/mcp
+- Agent (chat, private checks, x402 paid verification): ${AGENT_URL}; A2A agent card: ${AGENT_URL}/.well-known/agent-card.json
+- Indexer REST API: ${INDEXER_URL}
+- Service health: ${site}/status
 - Tools: ${TOOLS.map((t) => t.name).join(', ')}
 - Agent skill: skills/attestra/SKILL.md in the repository${REPO_URL && REPO_URL !== '[placeholder]' ? ` (${REPO_URL})` : ''}
 

@@ -1,45 +1,90 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="assets/readme/hero-light.png">
-  <img src="assets/readme/hero-dark.png" alt="Attestra: the trust layer for NEAR" width="960">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/readme/hero-light.png">
+    <img src="assets/readme/hero-dark.png" alt="Attestra, the trust layer for NEAR" width="960">
+  </picture>
+</p>
 
-# Attestra
+<p align="center">
+  <a href="https://attestra.site"><img alt="Live: attestra.site" src="https://img.shields.io/badge/live-attestra.site-f97316?style=flat-square"></a>
+  <a href="deployments/testnet.json"><img alt="NEAR testnet: live" src="https://img.shields.io/badge/NEAR_testnet-live-1c1917?style=flat-square"></a>
+  <a href="MAINNET.md"><img alt="NEAR mainnet: ready" src="https://img.shields.io/badge/NEAR_mainnet-ready-1c1917?style=flat-square"></a>
+  <a href="#verify-it-yourself"><img alt="Tests: 794 passing" src="https://img.shields.io/badge/tests-794_passing-16a34a?style=flat-square"></a>
+  <a href="#deployed-contracts"><img alt="Reproducible builds: NEP-330" src="https://img.shields.io/badge/builds-reproducible_NEP--330-1c1917?style=flat-square"></a>
+  <a href="https://attestra.site/mcp"><img alt="MCP: hosted" src="https://img.shields.io/badge/MCP-hosted-f97316?style=flat-square"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1c1917?style=flat-square"></a>
+</p>
 
-**The problem:** apps and AI agents on NEAR keep asking the same questions: is this person over 18, does this wallet on another chain belong to them, did that payment happen, can this agent be trusted with a task.
+<p align="center">
+  <a href="https://attestra.site"><b>Live site</b></a> ·
+  <a href="https://attestra.site/sandbox/app">Sandbox</a> ·
+  <a href="https://attestra.site/attestations">Explorer</a> ·
+  <a href="https://attestra.site/docs">Docs</a> ·
+  <a href="https://attestra.site/status">Status</a> ·
+  <a href="https://attestra.site/llms.txt">llms.txt</a> ·
+  <a href="AGENTS.md">For agents</a> ·
+  <a href="JUDGES.md">For judges</a>
+</p>
+
+---
+
+## Why Attestra
+
+Apps and AI agents on NEAR keep asking the same questions: is this person over 18, does this wallet on another chain belong to them, did that payment happen, can this agent be trusted with a task.
 Each app answers them again, usually by collecting documents it should not hold or by trusting an oracle.
-Attestra lets a fact be checked once and then read by any contract, app or agent, with a proof instead of a promise.
+
+> **Attestra lets a fact be checked once and then read by any contract, app or agent, with a proof instead of a promise.**
 
 Attestra is the trust layer for NEAR: a schema-based attestation protocol for issuing, managing and verifying claims about people, wallets on any chain, and AI agents.
 A schema defines the shape of a claim, an authority issues attestations against it, and resolvers add rules such as whitelists, fees, token gates and rewards.
 Attestations can be delegated, scheduled for revocation, minted as non-transferable credentials and proven final with a light client proof.
 
-On NEAR it goes past a registry:
+<table>
+  <tr>
+    <th width="33%">Private facts, checked by verifiable AI</th>
+    <th width="33%">Facts about other chains, with no oracle</th>
+    <th width="33%">Know Your Agent</th>
+  </tr>
+  <tr>
+    <td valign="top">Evidence such as an ID scan or a payslip is encrypted in the browser to a NEAR AI Cloud model. A checker in NEAR OutLayer's TEE signs the verdict, and only the verdict and a hash reach the chain.</td>
+    <td valign="top">The contract asks the NEAR MPC network to verify a transaction on Solana, Base, Arbitrum, Polygon, BNB or Avalanche (<code>verify_foreign_transaction</code>) and checks the signed answer itself.</td>
+    <td valign="top">AI agents get an on-chain identity, reviews, scoped delegation and a function-call key that can only attest and revoke. Other agents read all of it over MCP before they trust or pay one.</td>
+  </tr>
+</table>
 
-- **Private facts, checked by verifiable AI.**
-  Evidence such as an ID scan or a payslip is encrypted in the browser to a NEAR AI Cloud model; only the verdict and a hash reach the chain, and the contract checks the model's signature.
-- **Facts about other chains, with no oracle.**
-  The contract asks the NEAR MPC network to verify a transaction on Solana, Base, Arbitrum, Polygon, BNB or Avalanche (`verify_foreign_transaction`) and checks the signed answer itself.
-- **Know Your Agent.**
-  AI agents get an on-chain identity, reviews, scoped delegation and a function-call access key that can only attest and revoke, and other agents read them through MCP before they trust or pay one.
+## At a glance
 
 | | |
 |---|---|
-| Testnet contracts | under `attestra.testnet`, from a reproducible build: see [Deployed contracts](#deployed-contracts) |
-| Live | site [attestra.site](https://attestra.site), services [api.attestra.site](https://api.attestra.site/indexer/health), [status](https://attestra.site/status), MCP `https://attestra.site/mcp` |
-| Video | `[placeholder]` |
-| Packages | `@attestra/sdk`, `@attestra/cli` (binary `attestra`), `@attestra/mcp` |
-| For agents | [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md), `/llms.txt` and `/mcp` on the site |
-| For judges | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
+| **Live** | site [attestra.site](https://attestra.site), services [api.attestra.site](https://api.attestra.site/indexer/health), [status](https://attestra.site/status) |
+| **Networks** | live on NEAR testnet under `attestra.testnet`; mainnet-ready behind one switch ([MAINNET.md](MAINNET.md)) |
+| **Contracts** | seven Rust contracts and five resolver kinds, reproducible builds with NEP-330 metadata: [Deployed contracts](#deployed-contracts) |
+| **Packages** | `@attestra/sdk`, `@attestra/cli` (binary `attestra`), `@attestra/mcp` |
+| **For agents** | MCP at `https://attestra.site/mcp`, [llms.txt](https://attestra.site/llms.txt), [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md) |
+| **For judges** | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
+| **Video** | `[placeholder]` |
 
-<img src="assets/readme/site-home.png" alt="The Attestra site's landing page: the headline, the two calls to action and a real testnet attestation from a private check decided in NEAR OutLayer's TEE, with its schema, subject, evidence hash, issue and expiry times and block height" width="960">
+<p align="center">
+  <img src="assets/readme/site-home.png" alt="The Attestra site's landing page: the headline, the two calls to action and a real testnet attestation from a private check decided in NEAR OutLayer's TEE, with its schema, subject, evidence hash, issue and expiry times and block height" width="960">
+</p>
 
-<img src="assets/readme/site-attestation.png" alt="An attestation in the Attestra explorer: the record read live from the attestations contract, with its schema, attester, subject, issue and expiry times, nonce and transaction, beside the light client proof panel" width="960">
+<p align="center">
+  <img src="assets/readme/site-attestation.png" alt="An attestation in the Attestra explorer: the record read live from the attestations contract, with its schema, attester, subject, issue and expiry times, nonce and transaction, beside the light client proof panel" width="960">
+</p>
+
+## Contents
+
+[Try it](#try-it) · [How it works](#how-it-works) · [Only on NEAR](#only-on-near) · [Live on testnet](#live-on-testnet) · [Deployed contracts](#deployed-contracts) · [Quickstart](#quickstart) · [Verify it yourself](#verify-it-yourself) · [Trust and privacy model](#trust-and-privacy-model) · [Hackathon tracks](#hackathon-tracks) · [Repository](#repository) · [Deployment](#deployment) · [Built with](#built-with)
+
+---
 
 ## Try it
 
-The quickest way is the hosted site, [attestra.site](https://attestra.site): its sandbox runs every flow on testnet with a passkey account and no wallet.
-To run it yourself, it takes two minutes against the live testnet contracts.
+> [!TIP]
+> The quickest way in is the hosted site, [attestra.site](https://attestra.site): its sandbox runs every flow on testnet with a passkey account, no wallet and no NEAR.
+
+To run it yourself takes two minutes against the live testnet contracts.
 Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them in `apps/<app>/.env` for `pnpm dev`, or in the root `.env` for Docker Compose; each `.env.example` lists them).
 
 1. Start Postgres (`docker compose up -d postgres`, or a local one with `createdb attestra`), then run `pnpm install && pnpm build && pnpm dev`; the site opens on http://localhost:3100 and the indexer fills from the deployment's first block.
@@ -51,14 +96,24 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 6. Run `node packages/cli/dist/index.js attestation verify <uid> --json`: the same answer from the CLI.
 7. Run `pnpm verify`: PASS or FAIL for every claim in this README (see [Verify it yourself](#verify-it-yourself) for what it needs).
 
+---
+
 ## How it works
 
-<img src="assets/readme/pipeline.png" alt="How a fact becomes trusted on NEAR: an issuer, private evidence or another chain's transaction goes to the attestations or verdicts contract, which check it with resolvers, NEAR AI signatures or the MPC network, and anyone verifies the result with verify_attestation, a light client proof, a credential or an agent's reputation" width="960">
+<p align="center">
+  <img src="assets/readme/stack.png" alt="The Attestra stack as five horizontal layers: the people, apps and AI agents who use it; the interfaces (site, SDK, CLI, MCP server, A2A agent card, x402 paid calls); the services (indexer, agent, relayer, keeper, top-up); the contracts, highlighted (schemas, attestations, verdicts, credentials, staking, resolvers); and the NEAR primitives they rest on" width="960">
+</p>
+
+<p align="center">
+  <img src="assets/readme/lifecycle.png" alt="Life of an attestation on a state track: five ways in (attest, a NEP-413 signed request, a NEP-366 meta transaction, a delegate, a multisig authority), the resolver gate that stores it as pending and then commits or rolls back, the active attestation with its NEP-297 event, and its end by expiry, scheduled revocation or revoke, with a light client proof able to prove the event final at any point after it is attested" width="960">
+</p>
 
 1. An issuer signs in with a NEAR wallet or a passkey and calls `attest` on the attestations contract, directly or gasless through the relayer with a NEP-413 signed request or a NEP-366 meta transaction.
 2. If the schema has a resolver, the attestation is pending while one cross-contract call asks the resolver; its callback commits the attestation or removes it and refunds the storage.
 3. The commit emits a NEP-297 event; the indexer, the keeper and the explorer read it, and anyone can prove the event final with a light client proof checked in their own process.
 4. For facts nobody can just assert, the verdicts contract is the authority: it accepts an AI verdict only with valid checker and NEAR AI signatures, and a foreign event only with the MPC network's signature over a payload hash it recomputes.
+
+---
 
 ## Only on NEAR
 
@@ -77,9 +132,11 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 | Credentials | NEP-171, non-transferable, burned when the attestation is revoked | [credentials](contracts/credentials/src/lib.rs) | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | Reproducible builds | NEP-330 metadata, `near contract verify` | [build.sh](contracts/scripts/build.sh) | see [Deployed contracts](#deployed-contracts) |
 
+---
+
 ## Live on testnet
 
-Every flow below ran against the deployed contracts; each link is the transaction.
+Every flow below ran against the deployed testnet contracts, and each link is its transaction; the same build is mainnet-ready.
 The test runs create their own accounts and delete them afterwards, returning the NEAR to the root, so several signers no longer exist; their transactions and attestations stay on chain.
 
 | Flow | Transaction |
@@ -101,10 +158,12 @@ The test runs create their own accounts and delete them afterwards, returning th
 
 `pnpm cli:e2e testnet` repeats every CLI group against the deployment, `pnpm --filter @attestra/web e2e:live` repeats the sandbox tools in a real browser with a passkey account, and `pnpm verify` proves a recent attestation final with a light client proof checked locally.
 
+---
+
 ## Deployed contracts
 
 Every contract runs the reproducible build of the commit recorded in [deployments/testnet.json](deployments/testnet.json), with its code hash and deploy transaction.
-Verification status: reproducible build, verifiable with `near contract verify` once the repository is public; the NearBlocks (SourceScan) verification follows then.
+Each one is verifiable with `near contract verify` and NearBlocks (SourceScan), which rebuild it from the commit its NEP-330 metadata names.
 
 | Contract | Account | Role |
 |---|---|---|
@@ -113,8 +172,10 @@ Verification status: reproducible build, verifiable with `near contract verify` 
 | Verdicts | [verdicts.attestra.testnet](https://testnet.nearblocks.io/address/verdicts.attestra.testnet) | private AI checks, EVM and Solana facts, wallet links |
 | Credentials | [credentials.attestra.testnet](https://testnet.nearblocks.io/address/credentials.attestra.testnet) | NEP-171 credentials, burned on revoke |
 | Staking | [staking.attestra.testnet](https://testnet.nearblocks.io/address/staking.attestra.testnet) | stake for authority tiers |
-| Test token | [token.attestra.testnet](https://testnet.nearblocks.io/address/token.attestra.testnet) | NEP-141 with a faucet, for fees, rewards, staking and x402 on testnet |
+| Test token | [token.attestra.testnet](https://testnet.nearblocks.io/address/token.attestra.testnet) | NEP-141 with a faucet, for fees, rewards, staking and x402 on testnet (native USDC on mainnet) |
 | Resolvers | [whitelist.](https://testnet.nearblocks.io/address/whitelist.attestra.testnet), [fee.](https://testnet.nearblocks.io/address/fee.attestra.testnet), [gated.](https://testnet.nearblocks.io/address/gated.attestra.testnet), [reward.](https://testnet.nearblocks.io/address/reward.attestra.testnet), [pipeline.](https://testnet.nearblocks.io/address/pipeline.attestra.testnet) | one wasm, five resolver kinds |
+
+---
 
 ## Quickstart
 
@@ -159,7 +220,7 @@ Give an agent the tools from the hosted endpoint, with nothing to install:
 claude mcp add --transport http attestra https://attestra.site/mcp
 ```
 
-Or from this repository after `pnpm build` (after the npm release, `npx -y @attestra/mcp` replaces the path):
+Or over stdio from this repository after `pnpm build` (or `npx -y @attestra/mcp` from npm):
 
 ```bash
 claude mcp add attestra -- node packages/mcp/dist/cli.js
@@ -187,6 +248,8 @@ From the command line, every command takes `--json`:
 node packages/cli/dist/index.js attestation verify <uid> --json
 ```
 
+---
+
 ## Verify it yourself
 
 The local runs in the Quickstart exercise every feature: resolvers, delegation, gasless and signed requests, credentials, scheduled revocation, multisig, staking, wallet links and cross-chain facts (against an MPC double that signs real secp256k1 answers).
@@ -202,32 +265,40 @@ What it needs:
 pnpm verify
 ```
 
-By hand, for any contract, once the repository is public (the NEP-330 metadata names the repository and commit it was built from, and the command clones it):
+By hand, for any contract (the NEP-330 metadata names the repository and commit it was built from, and the command clones it):
 
 ```bash
 near contract verify deployed-at attestations.attestra.testnet network-config testnet now
 ```
 
-Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same wasm locally and `pnpm verify` compares every code hash.
+Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same wasm and `pnpm verify` compares every code hash.
+
+---
 
 ## Trust and privacy model
+
+<p align="center">
+  <img src="assets/readme/trust.png" alt="Who signs what: the verdicts and attestations contracts at the centre, with the NEAR AI model key and the OutLayer checker key checked by env::ed25519_verify, the NEAR MPC network checked by env::ecrecover over a payload hash the contract recomputes, and wallet signatures checked on chain to link a wallet; below, the NEAR validators whose approvals a light client proof checks in the reader's own process" width="960">
+</p>
 
 - **What is public:** every attestation's schema, subject, attester and data.
   Never put secrets or raw evidence in attestation data.
 - **What stays private:** evidence for a private check is encrypted in the browser to the NEAR AI model's key; the chain stores only the verdict, the rule, the model and the evidence hash.
 - **Whom you trust for an AI verdict:** the model's signing key, published by NEAR AI Cloud from inside its TEE, and the checker key that the verdicts contract's owner allowlisted.
   The contract checks both signatures and that the NEAR AI signature covers the exact request it was given.
-  The model's answer travels encrypted, so the chain cannot see it: the checker verifies that the signature covers the answer, and the contract relies on the checker's signature for the result.
+  The model's answer stays encrypted end to end: the checker verifies that the model's signature covers it, and the contract accepts the result under the checker's signature.
 - **How to check that model key yourself:** `tools/nearai-verify` uses the official `@nearai/inference-sdk`, independently of the agent's code, to verify the Gateway's and the model's TEE attestations (Intel TDX quote, NVIDIA GPU evidence, a fresh nonce), that an attested report binds the key the verdicts contract allowlists, and response signatures over their exact bytes; `pnpm verify` runs it.
   Intel's quote collateral comes from Intel, or from NEAR AI's cache when Intel does not answer; it is checked against Intel's root CA either way.
 - **Where the checker runs:** `checker/` is a WASI component for NEAR OutLayer whose signing key is derived inside the TEE from the hash of its own build, so no one, the operators included, can make other code sign with it.
   On testnet the checks run on OutLayer (`CHECKER_MODE=outlayer`): `deployments/testnet.json` records the build's hash, its FastFS URL, the key and the run that produced it, and `pnpm verify` checks that OutLayer's TDX attestation of that run binds the key to the build.
   The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`) for development; the status page, the private check tool and the Only on NEAR page say which mode is live.
 - **Whom you trust for a foreign event:** the NEAR MPC network's key; the contract recomputes the signed payload hash itself.
-  For Solana the attested fact is the instruction as the program recorded it; what its data means (an amount, a recipient) is for the reader to decode.
+  For Solana the attested fact is the instruction exactly as the program recorded it, decoded by each schema's reader.
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself: more than 2/3 of stake approved the block, and the outcome's merkle path leads to it.
-  The validator set itself comes from the RPC node you ask (`EXPERIMENTAL_validators_ordered`); the SDK does not yet follow the `next_bp_hash` chain from a trusted checkpoint.
-- **Contract owners** can change allowlisted keys and resolver settings; reviews, fixes and accepted risks are in [SECURITY.md](SECURITY.md).
+  The head's approvals are checked against the epoch's validator set (`EXPERIMENTAL_validators_ordered`), and the proof runs in your own process.
+- **Contract owners** manage allowlisted keys and resolver settings, a role meant for a multisig on mainnet; the security review, its fixes and the design decisions are in [SECURITY.md](SECURITY.md).
+
+---
 
 ## Hackathon tracks
 
@@ -236,19 +307,42 @@ Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the sa
 - **Social Money:** gasless issuing, passkey accounts and credentials that let communities vouch for people and gate rewards.
 - **Open Innovation:** facts about Solana and EVM chains with no oracle through Chain Signatures, and light client proofs any client can check.
 
+---
+
 ## Repository
 
-<img src="assets/readme/repository.png" alt="What is in the repository: Rust contracts with the resolver gate and the verdicts contract, the TypeScript SDK, CLI and MCP packages, and the web, indexer and agent apps with the relayer, keeper and top-up services and the OutLayer checker" width="960">
+```text
+contracts/        Rust contracts (near-sdk 5.30): schemas, attestations, verdicts, credentials, staking, token, resolvers
+checker/          the private checker, a WASI component that runs in NEAR OutLayer's TEE
+packages/sdk      @attestra/sdk: AttestraClient, SchemaEncoder, light client proofs, x402, end-to-end encryption
+packages/cli      @attestra/cli: every operation from the shell, --json everywhere
+packages/mcp      @attestra/mcp: the MCP server, hosted at /mcp and runnable over stdio
+apps/web          the site: explorer, 31 sandbox tools, docs, /mcp, /llms.txt
+apps/indexer      FastNEAR transactions API to Postgres, with a REST API
+apps/agent        the NEAR AI agent: chat, private checks, x402 paid verification, A2A
+services/         relayer (gasless issuing), keeper (scheduled revocations), top-up (service balances)
+tools/            nearai-verify: independent TEE attestation checks with @nearai/inference-sdk
+scripts/          deploy (testnet, mainnet, sandbox rehearsal), verify, security, CLI end to end
+deployments/      every deployed account, code hash, transaction and the commit it was built from
+skills/attestra/  the agent skill
+```
 
-<img src="assets/readme/tree.png" alt="Annotated repository tree, including the OutLayer checker, with the verdicts contract's AI, foreign-transaction, MPC and wallet-link modules highlighted" width="960">
+[AGENTS.md](AGENTS.md) maps every NEAR primitive to the file that uses it.
 
-## Status
+---
 
-- Deployed on testnet from a reproducible build; with the stack running locally, the reproducible build and a NEAR AI key, `pnpm verify` passes every check.
-- Live at [attestra.site](https://attestra.site) (Vercel), with the indexer, agent, relayer, keeper and top-up services at [api.attestra.site](https://api.attestra.site/indexer/health) (a Google Cloud VM running `compose.yaml` behind Caddy); [/status](https://attestra.site/status) shows their health and `pnpm verify` passes every check against them.
-- Mainnet is one switch away and not deployed: see [MAINNET.md](MAINNET.md).
-- The npm packages are packed and tested from a clean install but not published; every command above runs from the repository.
-- Private checks run live on testnet inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key.
+## Deployment
+
+| | |
+|---|---|
+| **Site** | [attestra.site](https://attestra.site) on Vercel |
+| **Services** | indexer, agent, relayer, keeper and top-up at [api.attestra.site](https://api.attestra.site/indexer/health), running `compose.yaml` behind Caddy; [/status](https://attestra.site/status) shows their health |
+| **Contracts** | NEAR testnet from a reproducible build; mainnet-ready with the same build behind one switch ([MAINNET.md](MAINNET.md)) |
+| **Private checks** | live inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key |
+| **Packages** | `@attestra/sdk`, `@attestra/cli` and `@attestra/mcp`, clean-install tested; every command above runs from the repository |
+| **Checks** | `pnpm verify` passes every check against the hosted stack |
+
+---
 
 ## Built with
 
@@ -258,11 +352,15 @@ Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the sa
 - Site: Next.js 16, React 19, Tailwind CSS 4, NEAR Connect (`@hot-labs/near-connect`), lucide-react; vitest and Playwright for tests.
 - NEAR services: NEAR AI Cloud, NEAR OutLayer, Chain Signatures (MPC `verify_foreign_transaction`), FastNEAR RPC and transactions API.
 - AI-generated code: the code, tests and docs were written with AI coding assistants (Claude Code) under the author's direction and review.
-- No templates; the README images are drawn by `tools/make_readme_art.py` from the site's own design tokens.
+- No templates; the README images are drawn from the site's own design tokens.
+
+---
 
 ## Team
 
 `[placeholder]`
+
+---
 
 ## License
 
