@@ -9,7 +9,7 @@ attestra attestation verify <uid> --json
 
 Every command takes `--json` and prints one JSON object, so scripts and agents can read it.
 
-Command groups: `schema`, `blob`, `attestation`, `authority`, `storage`, `delegate`, `whitelist`, `fee`, `token-gated`, `token-reward`, `pipeline`, `credential`, `schedule`, `multisig`, `staking`, `token`, `events`, `check`, `chain`, `agent`, `pay`, `ai`.
+Command groups: `schema`, `blob`, `attestation`, `authority`, `storage`, `delegate`, `whitelist`, `fee`, `token-gated`, `token-reward`, `pipeline`, `credential`, `schedule`, `multisig`, `dao`, `staking`, `token`, `events`, `check`, `chain`, `agent`, `pay`, `ai`.
 Run `attestra <group> --help` for the commands in each.
 
 ## Agent keys

@@ -104,5 +104,27 @@
     "key_tx_signer": "agent.attestra.testnet",
     "commit": "64019ba1ab011ac6beea088ded2434fa1d96f34c",
     "build": "checker/build.sh --reproducible"
+  },
+  "dao": {
+    "account": "attestra.sputnik-v2.testnet",
+    "factory": "sputnik-v2.testnet",
+    "council": [
+      "attestra.testnet"
+    ],
+    "approvals": 1,
+    "proposal_bond": "10000000000000000000000",
+    "schema": "6188b4a3c67135eca14a59bd3e0bb69a3e3437170ae52a14b2ba2040f96ed9e0",
+    "created_tx": "8Fj4pP9UfoivLrEtHuQv8ZEZ2Tirh6bzi3DLPL4bNVYA",
+    "example": {
+      "proposal_id": 4,
+      "proposer": "treasury.attestra.testnet",
+      "propose_tx": "Asck7Z98nLKA1KRVy2YBXXeSAjgWnpqghGkwTs1EdNmF",
+      "vote_tx": "FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP",
+      "attestation": "fa281bcc83b5568c88ec2a893388ceba50f856c9b4be96dead5b42c4cc501423"
+    },
+    "reviewers": [
+      "keeper.attestra.testnet"
+    ],
+    "policy_tx": "D3xWKLveLoYE9vqWqRsHwNir1cM7z7pwUr6XSTeEj8gL"
   }
 }

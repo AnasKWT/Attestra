@@ -6,6 +6,7 @@
 
 import { AGENT_KEY_ALLOWANCE_NEAR, AGENT_KEY_GRANTABLE_METHODS, AGENT_KEY_METHODS, invalid, nearToYocto } from './agent-keys';
 import type { AttestraClient } from './client';
+import { DEPLOYMENT_DAOS } from './dao';
 import { SchemaEncoder } from './encoder';
 import { fail } from './errors';
 import { KNOWN_SCHEMAS, knownSchemas } from './schemas';
@@ -191,6 +192,30 @@ export const TOOLS: ToolSpec[] = [
     run: async (_c, a) => ({ ok: true, data: { uid: computeSchemaUid(String(a.definition), (a.resolver as string) || null, Boolean(a.revocable)) } }),
   },
   {
+    name: 'list_dao_proposals',
+    description: 'The newest proposals of a Sputnik DAO that issues attestations (default: the deployment DAO), each with its status, votes and the attestation it asks for, decoded. A DAO-issued attestation names the DAO as its attester.',
+    parameters: { type: 'object', properties: { dao: str('DAO account id, such as attestra.sputnik-v2.testnet'), limit: int('Max proposals, default 10') } },
+    write: false,
+    run: async (c, a) => {
+      const dao = (a.dao as string | undefined) || DEPLOYMENT_DAOS[c.config.network];
+      if (!dao) return unwrap(fail(invalid('give the DAO account id')));
+      const r = await c.getDaoProposals(dao, { limit: Math.min(Number(a.limit ?? 10), 50) });
+      if (!r.success || !r.data) return unwrap(r);
+      const proposals = await Promise.all(
+        r.data.map(async (p) => ({
+          id: p.id,
+          proposer: p.proposer,
+          description: p.description,
+          status: p.status,
+          votes: p.votes,
+          call: p.call,
+          decoded: p.call?.method === 'attest' ? await decodeFor(c, p.call.schemaUid, p.call.data) : null,
+        })),
+      );
+      return { ok: true, data: { dao, proposals } };
+    },
+  },
+  {
     name: 'register_schema',
     description: 'Register a schema. Definition is comma-separated "type name" fields; types: bool, u8..u128, i8..i128, string, account_id, bytes, bytes32, and T[] lists.',
     parameters: {
@@ -228,6 +253,33 @@ export const TOOLS: ToolSpec[] = [
     parameters: { type: 'object', properties: { uid: uid('Attestation UID') }, required: ['uid'] },
     write: true,
     run: async (c, a) => unwrap(await c.revokeAttestation(String(a.uid))),
+  },
+  {
+    name: 'propose_dao_attestation',
+    description: 'Propose that a Sputnik DAO issue an attestation under a schema; when its council approves, the DAO is the attester. Attaches the DAO\'s proposal bond (returned once decided). On the deployment DAO, a membership request about yourself in role member or contributor is approved automatically.',
+    parameters: {
+      type: 'object',
+      properties: {
+        dao: str('DAO account id (default: the deployment DAO)'),
+        schema_uid: uid('Schema UID'),
+        subject: str('Subject of the attestation'),
+        values: { type: 'object', description: 'Field values by name', additionalProperties: true },
+        description: str('What the proposal asks, shown to the council'),
+      },
+      required: ['schema_uid', 'subject', 'values'],
+    },
+    write: true,
+    run: async (c, a, limits) => {
+      const dao = (a.dao as string | undefined) || DEPLOYMENT_DAOS[c.config.network];
+      if (!dao) return unwrap(fail(invalid('give the DAO account id')));
+      const policy = await c.getDaoPolicy(dao);
+      if (!policy.success || !policy.data) return unwrap(policy);
+      if (BigInt(policy.data.proposal_bond) > nearToYocto(limits.maxDepositNear)) return unwrap(fail(invalid(`${dao} asks a bond of ${policy.data.proposal_bond} yoctoNEAR, above the limit of ${limits.maxDepositNear} NEAR`)));
+      const s = await c.getSchema(String(a.schema_uid));
+      if (!s.success || !s.data) return unwrap(s);
+      const data = new SchemaEncoder(s.data.definition).encode(a.values as Record<string, unknown>);
+      return unwrap(await c.proposeDaoAttestation(dao, { schemaUid: String(a.schema_uid), subject: String(a.subject), data, description: a.description as string | undefined, bond: policy.data.proposal_bond }));
+    },
   },
   {
     name: 'rate_agent',

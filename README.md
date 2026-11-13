@@ -105,7 +105,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 </p>
 
 <p align="center">
-  <img src="assets/readme/lifecycle.png" alt="Life of an attestation on a state track: five ways in (attest, a NEP-413 signed request, a NEP-366 meta transaction, a delegate, a multisig authority), the resolver gate that stores it as pending and then commits or rolls back, the active attestation with its NEP-297 event, and its end by expiry, scheduled revocation or revoke, with a light client proof able to prove the event final at any point after it is attested" width="960">
+  <img src="assets/readme/lifecycle.png" alt="Life of an attestation on a state track: six ways in (attest, a NEP-413 signed request, a NEP-366 meta transaction, a delegate, a multisig authority, a Sputnik DAO vote), the resolver gate that stores it as pending and then commits or rolls back, the active attestation with its NEP-297 event, and its end by expiry, scheduled revocation or revoke, with a light client proof able to prove the event final at any point after it is attested" width="960">
 </p>
 
 1. An issuer signs in with a NEAR wallet or a passkey and calls `attest` on the attestations contract, directly or gasless through the relayer with a NEP-413 signed request or a NEP-366 meta transaction.
@@ -129,6 +129,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 | Passkey accounts | WebAuthn PRF to an ed25519 implicit account | [passkey.ts](apps/web/src/lib/passkey.ts) | the same transaction, signed by a passkey account |
 | Resolver gate | an asynchronous cross-contract call with commit or rollback, five resolver kinds in one wasm | [gate.rs](contracts/attestations/src/gate.rs), [resolvers](contracts/resolvers/src/lib.rs) | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) (a refusal) |
 | Light client proofs | block approvals over 2/3 of stake and the outcome's merkle path, checked locally | [lightclient.ts](packages/sdk/src/lightclient.ts) | proves the transactions above; `pnpm verify` runs one |
+| DAO attesters | Sputnik DAO v2: a `FunctionCall` proposal that the council votes on, after which the DAO account itself calls `attest`; on the deployment DAO the keeper is a reviewer that can only vote on function calls, and it votes on membership requests by a fixed rule | [dao.ts](packages/sdk/src/dao.ts), [council.ts](services/src/keeper/council.ts) | `attestra.sputnik-v2.testnet`: proposal [Asck7Z98](https://testnet.nearblocks.io/txns/Asck7Z98nLKA1KRVy2YBXXeSAjgWnpqghGkwTs1EdNmF), approval and attestation [FrssFLjq](https://testnet.nearblocks.io/txns/FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP) |
 | Credentials | NEP-171, non-transferable, burned when the attestation is revoked | [credentials](contracts/credentials/src/lib.rs) | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | Reproducible builds | NEP-330 metadata, `near contract verify` | [build.sh](contracts/scripts/build.sh) | see [Deployed contracts](#deployed-contracts) |
 
@@ -150,6 +151,8 @@ The test runs create their own accounts and delete them afterwards, returning th
 | An Ethereum wallet linked to a NEAR account by its EIP-191 signature | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
 | A resolver refusing an attestation, which is removed and its storage refunded | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
 | A multisig authority reaching its threshold and attesting | [5uWRoyvR](https://testnet.nearblocks.io/txns/5uWRoyvRPEkcpQJSMqkVCtDjioRrKPWbJzyRyd2YGNuQ) |
+| A Sputnik DAO issuing a membership attestation: a member proposed it, the keeper voted as the DAO's reviewer, and the DAO account attested in the same transaction | [FrssFLjq](https://testnet.nearblocks.io/txns/FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP) |
+| The keeper rejecting a request about someone else's account, with the reason as the vote's memo | [F17B8Zmp](https://testnet.nearblocks.io/txns/F17B8ZmpZ9fjpg62PoEPUX9BoZs6jiNcoaUcKNG2RNuc) |
 | A credential minted, then burned when its attestation was revoked | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | A scheduled revocation | [ETjb9aGT](https://testnet.nearblocks.io/txns/ETjb9aGTawxQiNi6TWjQsgGtvm2Mm9caw8WHc7HGfMCm) |
 | A token reward paid by a resolver | [2Pdm1UN8](https://testnet.nearblocks.io/txns/2Pdm1UN8s7hL9k736nZGX5i1CDvHJW33d6bA68Svw4Ak) |
@@ -192,12 +195,12 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (187 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (202 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit and property test (323)
 pnpm test:checker         # the OutLayer checker (24)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
 pnpm cli:e2e              # 95 CLI steps against a fresh local deployment
-pnpm e2e                  # 223 Playwright tests on a production build of the site (E2E_PORT=3102 when pnpm dev holds 3100)
+pnpm e2e                  # 226 Playwright tests on a production build of the site (E2E_PORT=3102 when pnpm dev holds 3100)
 ```
 
 `pnpm dev` starts the site on :3100 with the indexer, agent and services against testnet; `docker compose --profile site up --build` runs the same stack in containers (without `--profile site`, everything but the site).
@@ -305,7 +308,7 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 - **Privacy and Private AI:** private facts checked by verifiable AI with end-to-end encryption; only a verdict and a hash go on chain.
 - **Agent Economy:** Know Your Agent identity, reviews, scoped delegation and function-call keys; MCP and A2A interfaces; x402 paid verification and an Agent Market listing ready to publish.
 - **AI Security and Defense:** function-call keys that can only attest and revoke within a gas allowance, per-tool and per-day caps on the MCP write tools, TEE attestations checked before a verdict is trusted, and reputation an agent can read before it trusts or pays another.
-- **Social Money:** gasless issuing, passkey accounts and credentials that let communities vouch for people and gate rewards.
+- **Social Money:** Sputnik DAOs as attesters, so a community issues membership credentials by proposal and council vote; gasless issuing, passkey accounts, and credentials that let communities vouch for people and gate rewards.
 - **NFTs That Do Something:** NEP-171 credentials that carry an attestation, cannot be transferred, and burn the moment the attestation is revoked.
 - **Open Innovation:** facts about Solana and EVM chains with no oracle through Chain Signatures, and light client proofs any client can check.
 
@@ -319,12 +322,12 @@ checker/          the private checker, a WASI component that runs in NEAR OutLay
 packages/sdk      @attestra/sdk: AttestraClient, SchemaEncoder, light client proofs, x402, end-to-end encryption
 packages/cli      @attestra/cli: every operation from the shell, --json everywhere
 packages/mcp      @attestra/mcp: the MCP server, hosted at /mcp and runnable over stdio
-apps/web          the site: explorer, 31 sandbox tools, docs, /mcp, /llms.txt
+apps/web          the site: explorer, 32 sandbox tools, docs, /mcp, /llms.txt
 apps/indexer      FastNEAR transactions API to Postgres, with a REST API
 apps/agent        the NEAR AI agent: chat, private checks, x402 paid verification, A2A
-services/         relayer (gasless issuing), keeper (scheduled revocations), top-up (service balances)
+services/         relayer (gasless issuing), keeper (scheduled revocations, DAO council votes), top-up (service balances)
 tools/            nearai-verify: independent TEE attestation checks with @nearai/inference-sdk
-scripts/          deploy (testnet, mainnet, sandbox rehearsal), verify, security, CLI end to end
+scripts/          deploy (testnet, mainnet, sandbox rehearsal), the Sputnik DAO setup, verify, security, CLI end to end
 deployments/      every deployed account, code hash, transaction and the commit it was built from
 skills/attestra/  the agent skill
 ```

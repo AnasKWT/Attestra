@@ -58,6 +58,10 @@ The near-workspaces flows separately found a gas-budget bug (G-1).
 - **The verdicts contract's keys** (the checker's enclave key, the NEAR AI model keys and the MPC key) are set by its owner, a role meant for a multisig on mainnet.
   See the trust model in [README.md](README.md#trust-and-privacy-model).
 - **Agent function-call keys** can attest and revoke as the account that granted them, within their gas allowance, until revoked; they cannot attach deposits, move NEAR or change delegates, keys or authority settings, and `revokeAgentKey` refuses to delete any other kind of key.
+- **DAO attesters** issue only through their own Sputnik policy: a passed `FunctionCall` proposal makes the DAO account call `attest`, so no single member can issue in its name.
+  On the deployment DAO the keeper is a reviewer whose role can only vote on function calls, so its key alone cannot change the policy, the council or the DAO's funds (checked on testnet: its vote on a transfer fails with `ERR_PERMISSION_DENIED`).
+  The keeper votes only on membership requests about the proposer, naming the DAO, in an automatic role, with no deposit; every other proposal waits for the council.
+  The DAO pays for what it issues from its own NEP-145 balance on the attestations contract, which the keeper tops up in small steps.
 - **Solana facts** are inner instructions read by the MPC network at `finalized` commitment; the contract checks the MPC signature over the payload it recomputes and attests the instruction exactly as the program recorded it, leaving its meaning (for example the amount of a token transfer) to the schema's reader.
 
 ## Reporting a vulnerability

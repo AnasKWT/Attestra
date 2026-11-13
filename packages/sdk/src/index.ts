@@ -8,7 +8,27 @@
  */
 
 export { AttestraClient } from './client';
-export type { AttestraClientConfig } from './client';
+export type { AttestraClientConfig, DaoVoteResult } from './client';
+export {
+  SPUTNIK_FACTORIES,
+  DEPLOYMENT_DAOS,
+  DAO_ACTION_GAS,
+  DAO_MAX_ACTION_GAS,
+  DAO_CREATE_DEPOSIT,
+  daoAttestProposal,
+  daoRevokeProposal,
+  daoPolicyProposal,
+  parseDaoCall,
+  isSputnikDao,
+  daoCan,
+  daoCouncil,
+  daoApprovalsNeeded,
+  attestingDaoPolicy,
+  sputnikCreateArgs,
+  attestraEvents,
+  receiptFailure,
+} from './dao';
+export type { DaoActionCall, DaoAttestRequest, DaoConfig, DaoPolicy, DaoProposal, DaoProposalInput, DaoProposalKind, DaoProposalStatus, DaoRole, DaoVote, DaoVotePolicy, ParsedDaoCall } from './dao';
 export { AGENT_KEY_METHODS, AGENT_KEY_GRANTABLE_METHODS, AGENT_KEY_ALLOWANCE_NEAR, nearToYocto } from './agent-keys';
 export type { AgentKey } from './agent-keys';
 export * from './types';

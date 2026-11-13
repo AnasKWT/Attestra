@@ -24,6 +24,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { verifySignature } from '../apps/agent/src/nearai';
 import {
   AttestraClient,
+  DEPLOYMENT_DAOS,
   IndexerClient,
   KNOWN_SCHEMAS,
   READ_TOOLS,
@@ -277,6 +278,24 @@ async function main() {
     return `${a.account_id}: ${String(fields.name)} (${String(fields.model)}), ${a.review_count} reviews, average ${a.average_score}`;
   });
 
+  await check('A Sputnik DAO issued an attestation by proposal and council vote', async () => {
+    const dao = DEPLOYMENT_DAOS[network];
+    must(dao, `no deployment DAO on ${network}`);
+    const issued = await idx.listAttestations({ attester: dao, schema: knownSchemaUid('membership'), limit: 20 });
+    must(issued.data.length, `no attestation by ${dao} yet`);
+    const proposals = await c.getDaoProposals(dao, { limit: 100 });
+    must(proposals.success && proposals.data, proposals.error?.message ?? 'the DAO did not answer');
+    for (const a of issued.data) {
+      const onChain = await c.getAttestation(a.uid);
+      if (!onChain.success || onChain.data?.attester !== dao) continue;
+      const p = proposals.data.find((x) => x.status === 'Approved' && x.call?.method === 'attest' && x.call.subject === a.subject && x.call.data === onChain.data!.data);
+      if (!p) continue;
+      const fields = new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(onChain.data.data);
+      return `${a.uid.slice(0, 12)}... by ${dao}: ${a.subject} as ${String(fields.role)}, proposal #${p.id} approved by ${Object.keys(p.votes).join(', ')}`;
+    }
+    throw new Error(`no attestation by ${dao} matches an approved proposal among its latest 100`);
+  });
+
   await check('The indexer is caught up with the chain', async () => {
     const s = await idx.status();
     must(s.caught_up, `lag ${s.lag_blocks} blocks`);
@@ -319,6 +338,7 @@ async function main() {
       linked_account: { caip10: `eip155:1:0x${'0'.repeat(40)}` },
       wallet_link_message: { account_id: c.config.root, chain: 'eip155', address: `0x${'0'.repeat(40)}` },
       list_agent_keys: { account_id: c.config.root },
+      list_dao_proposals: { limit: 2 },
     };
     // Every read tool the SDK defines is called, so a new tool cannot slip past this check.
     const missing = READ_TOOLS.filter((t) => !(t in args));

@@ -1,4 +1,7 @@
-/** The keeper's HTTP API: `/live`, `/health` (last pass, drift, lag, balance) and `POST /v1/run`. */
+/**
+ * The keeper's HTTP API: `/live`, `/health` (last pass, drift, lag, balance, DAO reviews),
+ * `POST /v1/run`, and `POST /v1/dao/review` (review the DAOs' open proposals now).
+ */
 
 import { errorMessage } from '@attestra/sdk';
 import { withTimeout, type ChainReader, type ChainWriter } from '../lib/chain';
@@ -6,10 +9,11 @@ import { baseApp, type HealthReport } from '../lib/http';
 import type { RecentErrors } from '../lib/log';
 import { formatNear } from '../lib/units';
 import type { KeeperConfig } from './config';
+import type { Council } from './council';
 import type { Keeper } from './keeper';
 
-export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; reader: ChainReader; writer: ChainWriter | null; errors: RecentErrors; startedAt?: number }) {
-  const { config, keeper, reader, writer, errors } = deps;
+export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; council?: Council; reader: ChainReader; writer: ChainWriter | null; errors: RecentErrors; startedAt?: number }) {
+  const { config, keeper, council, reader, writer, errors } = deps;
   const startedAt = deps.startedAt ?? Date.now();
 
   async function health(): Promise<HealthReport> {
@@ -49,6 +53,7 @@ export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; re
       max_lag_blocks: config.maxLagBlocks,
       drift: last?.drift ?? [],
       queue: { length: writer?.queueLength() ?? 0 },
+      dao_council: { daos: config.daos, auto_roles: config.daoRoles, last_review: council?.last ?? null },
       recent_errors: errors.list(),
     };
   }
@@ -59,6 +64,15 @@ export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; re
     const last = keeper.last;
     if (last && Date.now() - Date.parse(last.at) < 10_000) return c.json(last);
     return c.json(await keeper.tick());
+  });
+  // Reviews the DAOs' open proposals now (the sandbox calls this right after a proposal), at most every 3 seconds.
+  let reviewedAt = 0;
+  app.post('/v1/dao/review', async (c) => {
+    if (!council || !writer || !config.daos.length) return c.json({ ok: false, error: writer ? 'no DAO to review (KEEPER_DAOS)' : config.idleReason ?? 'read-only' }, 503);
+    if (Date.now() - reviewedAt < 3000 && council.last) return c.json({ ok: true, ...council.last });
+    reviewedAt = Date.now();
+    const reviewed = await council.run();
+    return c.json({ ok: true, at: council.last?.at ?? new Date().toISOString(), reviewed });
   });
   return app;
 }

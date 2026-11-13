@@ -14,7 +14,7 @@ describe('sandbox tool registry', () => {
 
   it('keeps the 25 core tools plus the NEAR groups', () => {
     const core = TOOLS.filter((t) => !['Only on NEAR', 'Agent'].includes(t.group));
-    expect(core.length).toBe(24);
+    expect(core.length).toBe(25);
     expect(TOOLS.filter((t) => t.group === 'Only on NEAR').length).toBe(6);
     expect(toolBySlug('agent-chat')?.group).toBe('Agent');
     expect(toolBySlug('nope')).toBeUndefined();

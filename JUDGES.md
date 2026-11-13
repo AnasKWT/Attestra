@@ -25,10 +25,10 @@ The whole product is live at [attestra.site](https://attestra.site), with its se
 | Contract unit and property tests (`pnpm test:contracts`) | 323 passed |
 | near-workspaces flows on a local node (`pnpm test:sandbox`) | 20 passed |
 | OutLayer checker (`pnpm test:checker`) | 24 passed |
-| TypeScript suites (`pnpm test`) | 187 passed |
+| TypeScript suites (`pnpm test`) | 202 passed |
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
 | CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
-| Playwright on a production build (`pnpm e2e`) | 223 passed |
+| Playwright on a production build (`pnpm e2e`) | 226 passed |
 | Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 17 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
 
@@ -120,6 +120,7 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 | Resolvers gate an attestation asynchronously and roll back on refusal | [gate.rs#L100](contracts/attestations/src/gate.rs#L100), [resolvers](contracts/resolvers/src/lib.rs) | resolver unit tests; sandbox flows incl. a refusal and pipelines with rewards | the sandbox resolver tools |
 | Delegation by grant and by NEP-413 signature, gasless through a relayer | [authority.rs](contracts/attestations/src/authority.rs), [ops.rs#L173](contracts/attestations/src/ops.rs#L173), [relayer](services/src/relayer/app.ts) | unit tests incl. replay and expiry; relayer tests | the live browser run issues gaslessly from a passkey account |
 | Multisig authorities, scheduled revocation, credentials burned on revoke, staking tiers, large schemas | [multisig.rs#L143](contracts/attestations/src/multisig.rs#L143), [credentials](contracts/credentials/src/lib.rs#L161), [staking](contracts/staking/src/lib.rs) | unit tests; sandbox flows incl. a mint and revoke race | `pnpm cli:e2e testnet` |
+| A Sputnik DAO issues attestations by proposal and council vote | [dao.ts](packages/sdk/src/dao.ts), [council.ts](services/src/keeper/council.ts) | SDK tests (building and reading proposals, Sputnik's approval maths); keeper tests (the council rule, one vote per proposal, retries, the DAO's storage top-up) | `pnpm verify` matches a DAO-issued attestation to its approved proposal; the live browser run proposes and is approved |
 | Private facts checked by verifiable AI; evidence never on chain | [ai.rs#L84](contracts/verdicts/src/ai.rs#L84), [checker](checker/src/check.rs#L228), [check.ts#L70](apps/agent/src/check.ts#L70), [e2ee.ts](packages/sdk/src/e2ee.ts) | verdicts unit tests (signatures, age, replay, model match); checker tests with vectors from the TypeScript side; agent tests with real E2EE and signatures | `pnpm verify` checks an AI-checked attestation's two signatures |
 | Facts about other chains with no oracle (EVM logs and Solana instructions) | [foreign.rs#L70](contracts/verdicts/src/foreign.rs#L70), [solana.rs#L83](contracts/verdicts/src/solana.rs#L83), [mpc.rs](contracts/verdicts/src/mpc.rs) | unit and property tests against the MPC's Borsh layout and its own vectors; sandbox flows with an MPC double signing real secp256k1 answers | `pnpm verify` checks a cross-chain attestation and its final event |
 | Wallet links for Ethereum and Solana wallets | [wallet.rs#L93](contracts/verdicts/src/wallet.rs#L93) | unit tests (EIP-191 recovery, ed25519); sandbox flows | `pnpm cli:e2e testnet` |

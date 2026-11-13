@@ -44,6 +44,13 @@ const FEATURES = [
     href: '/sandbox/app/gasless',
   },
   {
+    title: 'Credentials issued by a DAO vote',
+    primitive: 'Sputnik DAO v2 FunctionCall proposals, NEP-145 storage balances',
+    flow: ['A member proposes that the DAO attest a claim, such as their membership, and pays the proposal bond.', 'The council votes; the deciding approval makes the DAO account call attest itself, in the same transaction.', 'The attestation names the DAO as its attester, and the explorer links it to the proposal and the votes that issued it.'],
+    trust: 'No single member can issue in the DAO\'s name: the DAO\'s policy and its council vote are enforced by the Sputnik contract. On the deployment DAO the keeper votes on membership requests by a fixed rule, and everything else waits for a human vote.',
+    href: '/sandbox/app/dao-attestation',
+  },
+  {
     title: 'A trustless audit trail',
     primitive: 'NEP-297 events + light client proofs (EXPERIMENTAL_light_client_proof)',
     flow: ['Every change logs a NEP-297 event in its receipt.', 'The browser checks validator approvals on a light client block (more than 2/3 of stake).', 'It walks the merkle paths from the receipt outcome to that block.'],
@@ -55,7 +62,7 @@ const FEATURES = [
 export default function NearPage() {
   return (
     <>
-      <PageHero eyebrow="Only on NEAR" title={<>Six things a registry <span className="text-mute">elsewhere cannot do.</span></>} intro="Each feature is built on a NEAR primitive as its core. Here is how each works, what it proves, and what it does not.">
+      <PageHero eyebrow="Only on NEAR" title={<>Seven things a registry <span className="text-mute">elsewhere cannot do.</span></>} intro="Each feature is built on a NEAR primitive as its core. Here is how each works, what it proves, and what it does not.">
         <ButtonLink href="/sandbox/app" size="lg">Try them <ArrowRight className="size-4" /></ButtonLink>
       </PageHero>
       <section className="mx-auto max-w-6xl space-y-5 px-4 py-20 sm:px-6">

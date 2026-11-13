@@ -90,6 +90,7 @@ describe('Attestra MCP server', () => {
       linked_account: { caip10: 'eip155:1:0xabc' },
       wallet_link_message: { account_id: 'alice.testnet', chain: 'eip155', address: '0xabc' },
       list_agent_keys: { account_id: 'alice.testnet' },
+      list_dao_proposals: { dao: 'guild.sputnik-v2.testnet', limit: 2 },
       decode_data: { definition: 'string name, u8 level', data: 'AgAAAEJvBw==' },
       compute_schema_uid: { definition: 'string name, u8 level', revocable: true },
     };

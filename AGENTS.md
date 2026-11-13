@@ -41,12 +41,12 @@ The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the pr
 - `checker/` (Rust, wasm32-wasip2): the private checker as a NEAR OutLayer component; it signs verdicts with a key derived inside the TEE from the hash of its own build.
 - `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, end-to-end encryption, agent tools; `@attestra/sdk/ai` for LangChain.
 - `packages/cli` (`@attestra/cli`, binary `attestra`) and `packages/mcp` (`@attestra/mcp`, binary `attestra-mcp`).
-- `apps/web`: Next.js 16 site, explorer, sandbox (31 tools), docs, `/mcp`, `/llms.txt`.
+- `apps/web`: Next.js 16 site, explorer, sandbox (32 tools), docs, `/mcp`, `/llms.txt`.
 - `apps/indexer`: FastNEAR transactions API to Postgres, REST API on port 5100.
 - `apps/agent`: NEAR AI Cloud agent (chat, private checks, x402 paid verification, A2A, MCP) on port 5300.
-- `services/`: relayer (5200), keeper (5400), top-up (5500).
+- `services/`: relayer (5200), keeper (5400, also a Sputnik DAO reviewer), top-up (5500).
 - `tools/nearai-verify`: independent TEE attestation checks with the official `@nearai/inference-sdk`.
-- `scripts/`: `deploy.ts` (testnet, mainnet, local sandbox rehearsal), `verify.ts`, `security.ts`, `cli-e2e.ts`, `dev.ts`, `accounts.ts`, `outlayer-publish.ts`.
+- `scripts/`: `deploy.ts` (testnet, mainnet, local sandbox rehearsal), `dao.ts` (the deployment's Sputnik DAO), `verify.ts`, `security.ts`, `cli-e2e.ts`, `dev.ts`, `accounts.ts`, `outlayer-publish.ts`.
 - `deployments/<network>.json`: deployed accounts, code hashes, transactions and the commit they were built from.
 - `compose.yaml` and `deploy/Caddyfile`: the whole stack in containers, with TLS for a public host.
 
@@ -68,6 +68,7 @@ The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the pr
 | Wallets: NEAR Connect and passkeys | `apps/web/src/components/wallet/WalletProvider.tsx`, `apps/web/src/lib/passkey.ts` |
 | Gas keys (relayer lanes) | `services/src/lib/chain.ts`, `services/scripts/setup-gas-key.ts` |
 | x402 on NEAR | `packages/sdk/src/x402.ts`, `apps/agent/src/paid.ts` |
+| Sputnik DAO attesters (proposal, council vote, the DAO account attests) | `packages/sdk/src/dao.ts`, `services/src/keeper/council.ts`, `apps/web/src/app/sandbox/app/dao-attestation` |
 | Function-call access keys for agents | `packages/sdk/src/agent-keys.ts` (attest and revoke only, gas allowance) |
 | NEAR Agent Market | `apps/agent/src/market.ts` |
 
@@ -98,6 +99,7 @@ checker/build.sh --reproducible     # checker wasm in OutLayer's pinned compiler
 pnpm deploy:sandbox                 # the full deployment and wiring on a local node
 REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox   # the mainnet configuration on a local node
 pnpm accounts testnet               # service accounts; their keys go to the gitignored .secrets/
+pnpm dao setup testnet              # the deployment's Sputnik DAO (keeper and root on its council); `pnpm dao demo` runs a proposal and vote
 pnpm outlayer:publish <wasm>        # publish a checker build to FastFS and record its key in deployments/
 ```
 
@@ -120,6 +122,8 @@ pnpm outlayer:publish <wasm>        # publish a checker build to FastFS and reco
 - Callbacks never panic after changing state they keep; the helpers in `common` read promise results.
 - The SDK reads views at `optimistic` finality, so a just-sent transaction is visible at once.
 - `AttestraClient.rpc` fails over across RPC endpoints and asks the archival endpoint for transactions, receipts and blocks older than the regular nodes keep.
+- A Sputnik DAO attests through a `FunctionCall` proposal: when the council approves, the DAO account calls `attest` and pays from its NEP-145 storage balance on the attestations contract.
+  On the deployment DAO the keeper is a reviewer whose role can only vote on function calls; it votes on membership requests by a fixed rule (`review` in `council.ts`) and leaves every other proposal to the council.
 - Private checks run as agent jobs (`POST /v1/check` with `async: true`, then `GET /v1/check/jobs/:id`), and the agent resends a TEE run that its queue did not answer in time.
 - A new `checker/` build has a new key: register it with `set_enclave_keys` on the verdicts contract and set `OUTLAYER_WASM_HASH`.
 - NEAR keys are base58 and case-sensitive.

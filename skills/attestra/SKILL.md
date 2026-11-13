@@ -54,11 +54,14 @@ A hosted, read-only endpoint is at `https://attestra.site/mcp` (Streamable HTTP)
 | `attest_foreign_instruction` | attest an inner instruction of a finalized Solana transaction the NEAR MPC network verified (devnet on testnet; write, deposit capped) |
 | `register_agent`, `delegate_to_agent` | register an agent you own; let it attest for you within `expires_at` or `max_uses` (write) |
 | `grant_agent_key` | give an agent a function-call key: attestations contract only, attest and revoke methods only, gas allowance capped (write) |
+| `list_dao_proposals` | read a Sputnik DAO's proposals (default: the deployment DAO) with their status, votes and the attestation each asks for, decoded |
+| `propose_dao_attestation` | ask a Sputnik DAO to issue an attestation; once its council approves, the DAO is the attester (write, bond capped) |
 | `paid_verify` | buy a verified claim or agent check from the Attestra agent over x402 (write, payment capped) |
 
 Decision rules:
 - Trust a claim only when `verify_attestation` says `valid: true`; for high stakes also run `prove_attestation`.
 - Trust an agent only with an active identity attestation; weigh `average_score` by `review_count`.
+- An attestation whose attester is a Sputnik DAO (`*.sputnik-v2.testnet`, `*.sputnik-dao.near`) was issued by a passed proposal; `list_dao_proposals` shows the vote.
 - Never put secrets or raw evidence in `create_attestation` values: attestations are public.
   Use `request_private_check`.
 
@@ -79,7 +82,7 @@ For an OpenAI-compatible agent (for example on NEAR AI Cloud, `https://cloud-api
 
 ## CLI
 
-`attestra <group> <command> --json`; groups: schema, blob, attestation, authority, storage, delegate, whitelist, fee, token-gated, token-reward, pipeline, credential, schedule, multisig, staking, token, events, check, chain, agent, pay, ai.
+`attestra <group> <command> --json`; groups: schema, blob, attestation, authority, storage, delegate, whitelist, fee, token-gated, token-reward, pipeline, credential, schedule, multisig, dao, staking, token, events, check, chain, agent, pay, ai.
 Signing commands take `-a <account>` and read the key from `~/.near-credentials/<network>/<account>.json` or `ATTESTRA_PRIVATE_KEY`.
 
 ## Schemas

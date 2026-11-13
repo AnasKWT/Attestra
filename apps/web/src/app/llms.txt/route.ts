@@ -1,4 +1,4 @@
-import { KNOWN_SCHEMAS, TOOLS, knownSchemaUid } from '@attestra/sdk';
+import { DEPLOYMENT_DAOS, KNOWN_SCHEMAS, TOOLS, knownSchemaUid } from '@attestra/sdk';
 import { AGENT_URL, CONTRACTS, INDEXER_URL, NET, NETWORK, REPO_URL, SITE_URL } from '@/lib/config';
 
 export const dynamic = 'force-static';
@@ -18,12 +18,13 @@ Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=ma
 - resolvers: ${Object.values(CONTRACTS.resolvers).join(', ')}
 - token (NEP-141 test token with a faucet, for fees, rewards, staking and x402; native USDC on mainnet): ${CONTRACTS.token}
 - MPC signer used for cross-chain facts: ${NET.mpc}
-
+${DEPLOYMENT_DAOS[NETWORK] ? `- Sputnik DAO attester (membership attestations issued by proposal and council vote; the keeper votes by a fixed rule): ${DEPLOYMENT_DAOS[NETWORK]}\n` : ''}
 ## Concepts
 - Schema: comma-separated "type name" fields (bool, u8..u128, i8..i128, string, account_id, bytes, bytes32, T[]). UID = sha256(borsh(("attestra:schema:v1", definition, resolver, revocable))).
 - Attestation: attester, subject (NEAR account or CAIP-10), Borsh data, expiration, revocation, nonce. UID = sha256(borsh(("attestra:attestation:v1", schema_uid, subject, attester, data, nonce))).
 - Status: pending, active, revoking, revoked, expired (expiry and scheduled revocation computed on read).
 - Resolvers approve or refuse asynchronously; a refusal rolls the attestation back with a storage refund.
+- DAO attesters: a Sputnik DAO issues an attestation through a FunctionCall proposal; once its council approves, the DAO account itself is the attester.
 
 ## Agent access
 - MCP (Streamable HTTP, read tools): ${site}/mcp (claude mcp add --transport http attestra ${site}/mcp)
@@ -40,12 +41,13 @@ Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=ma
 - registerSchema, getSchema, createAttestation, getAttestation, isValid, revokeAttestation
 - addDelegate, attestOnBehalf, signDelegatedAttestation (NEP-413), relaySigned
 - mintCredential, scheduleRevocation, createMultisigAuthority, stake
+- proposeDaoAttestation, voteDaoProposal, getDaoProposals, fundDaoStorage, createSputnikDao (Sputnik DAO attesters)
 - proveAttestation (light client proof, checked locally)
 - requestPrivateCheck, attestForeignEvent (EVM logs), attestForeignInstruction (Solana instructions), linkWallet, registerAgent, rateAgent, grantAgentKey and revokeAgentKey (function-call access keys), paidVerify (x402)
 - Every method returns { success, data?, error?, txHash? } and never throws.
 
 ## CLI (@attestra/cli)
-attestra schema|attestation|authority|storage|delegate|whitelist|fee|token-gated|token-reward|pipeline|credential|schedule|multisig|staking|token|blob|events|check|chain|agent|pay|ai ... --json
+attestra schema|attestation|authority|storage|delegate|whitelist|fee|token-gated|token-reward|pipeline|credential|schedule|multisig|dao|staking|token|blob|events|check|chain|agent|pay|ai ... --json
 
 ## REST API (indexer)
 GET /api/stats, /api/status, /api/schemas, /api/schemas/:uid, /api/attestations?schema&attester&subject&status, /api/attestations/:uid, /api/authorities, /api/authorities/:account, /api/agents, /api/agents/:account, /api/events?event&account&uid, /api/profile/:account, /api/search?q

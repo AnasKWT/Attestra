@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { SchemaEncoder } from '@attestra/sdk';
+import { SchemaEncoder, isSputnikDao, type AttestationRecord } from '@attestra/sdk';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { ProofPanel } from '@/components/explorer/ProofPanel';
@@ -43,7 +43,10 @@ export function AttestationDetail({ uid }: { uid: string }) {
                   <UidLink uid={chain.data.a.schema_uid} kind="schemas" />
                   {chain.data.schema && <span className="ml-2 font-mono text-[11.5px] text-mute">{chain.data.schema.definition.slice(0, 60)}{chain.data.schema.definition.length > 60 ? '...' : ''}</span>}
                 </KeyValue>
-                <KeyValue label="Attester"><AccountLink id={chain.data.a.attester} /></KeyValue>
+                <KeyValue label="Attester">
+                  <AccountLink id={chain.data.a.attester} />
+                  {isSputnikDao(chain.data.a.attester) && <Badge tone="brand" className="ml-2">Sputnik DAO</Badge>}
+                </KeyValue>
                 <KeyValue label="Subject"><AccountLink id={chain.data.a.subject} /></KeyValue>
                 <KeyValue label="Issued">{formatTime(chain.data.a.created_at)}</KeyValue>
                 <KeyValue label="Expires">{chain.data.a.expiration_time ? formatTime(chain.data.a.expiration_time) : 'never'}</KeyValue>
@@ -78,6 +81,7 @@ export function AttestationDetail({ uid }: { uid: string }) {
             </Panel>
           </div>
           <div className="space-y-6">
+            {isSputnikDao(chain.data.a.attester) && <DaoVotePanel a={chain.data.a} />}
             <ProofPanel uid={uid} revoked={chain.data.a.revoked} />
             <Panel>
               <PanelHeader title="Credential" subtitle="Non-transferable NEP-171 token linked to this attestation" />
@@ -98,5 +102,42 @@ export function AttestationDetail({ uid }: { uid: string }) {
         </div>
       )}
     </ExplorerShell>
+  );
+}
+
+/** The DAO proposal whose approval issued a DAO's attestation: who asked, who voted, and what it said. */
+function DaoVotePanel({ a }: { a: AttestationRecord }) {
+  const vote = useAsync(async () => {
+    const r = await reader().getDaoProposals(a.attester, { limit: 100 });
+    if (!r.success || !r.data) throw new Error(r.error?.message ?? 'the DAO did not answer');
+    return r.data.find((p) => p.status === 'Approved' && p.call?.method === 'attest' && p.call.schemaUid === a.schema_uid && p.call.subject === a.subject && p.call.data === a.data) ?? null;
+  }, [a.attester, a.schema_uid, a.subject, a.data]);
+  return (
+    <Panel>
+      <PanelHeader title="DAO vote" subtitle="The Sputnik DAO proposal that issued this attestation, read from the DAO" />
+      <div className="p-5 text-[13.5px]">
+        {vote.loading && <Skeleton className="h-20" />}
+        {vote.error && <p className="text-mute">{vote.error}</p>}
+        {!vote.loading && !vote.error && !vote.data && <p className="text-mute">No approved proposal among the DAO&apos;s latest 100 matches this attestation.</p>}
+        {vote.data && (
+          <dl>
+            <KeyValue label="Proposal" mono>#{vote.data.id}</KeyValue>
+            <KeyValue label="Proposed by"><AccountLink id={vote.data.proposer} /></KeyValue>
+            <KeyValue label="Description">{vote.data.description}</KeyValue>
+            <KeyValue label="Votes">
+              <span className="flex flex-col gap-1.5">
+                {Object.entries(vote.data.votes).map(([who, v]) => (
+                  <span key={who} className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <AccountLink id={who} />
+                    <Badge tone={v === 'Approve' ? 'ok' : 'bad'}>{v}</Badge>
+                  </span>
+                ))}
+              </span>
+            </KeyValue>
+            <KeyValue label="Proposed">{formatTime(Math.floor(Number(BigInt(vote.data.submission_time) / 1_000_000_000n)))}</KeyValue>
+          </dl>
+        )}
+      </div>
+    </Panel>
   );
 }

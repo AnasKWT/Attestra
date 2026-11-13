@@ -16,14 +16,20 @@ import {
   AGENT_KEY_GRANTABLE_METHODS,
   AGENT_KEY_METHODS,
   AttestraClient,
+  DEPLOYMENT_DAOS,
   KNOWN_SCHEMAS,
   NEAR_AI_BASE_URL,
   SchemaEncoder,
   computeSchemaUid,
+  daoApprovalsNeeded,
+  daoCan,
+  daoCouncil,
   keySigner,
+  knownSchemaUid,
   knownSchemas,
   fetchWithRetry,
   openAITools,
+  nearToYocto,
   pickVerifiableModel,
   runTool,
   type MultisigAction,
@@ -330,6 +336,86 @@ multisig.command('execute <proposalId>').description('execute a proposal that re
 multisig.command('cancel <proposalId>').description('cancel a proposal you made').action(wrap(async (id) => out(client().cancelMultisig(num(id)))));
 multisig.command('fetch <multisig>').description('read a multisig\'s members and threshold').action(wrap(async (id) => out(client().getMultisig(id))));
 multisig.command('proposal <proposalId>').description('read a proposal and its approvals').action(wrap(async (id) => out(client().getProposal(num(id)))));
+
+// ─── Sputnik DAO attesters ──────────────────────────────────────────────────
+const dao = program.command('dao').description('Sputnik DAO attesters: a DAO issues attestations by proposal and council vote');
+const daoId = (o: { dao?: string }) => {
+  const id = o.dao ?? DEPLOYMENT_DAOS[client().config.network];
+  if (!id) throw new Error('name the DAO with --dao <account>');
+  return id;
+};
+const daoOpt = '--dao <account>';
+const daoHelp = 'the DAO (default: the deployment DAO, attestra.sputnik-v2.testnet on testnet)';
+dao
+  .command('info').description('a DAO\'s name, purpose, council, approvals needed and proposal bond')
+  .option(daoOpt, daoHelp)
+  .action(
+    wrap(async (o) => {
+      const id = daoId(o);
+      const [config, policy] = await Promise.all([client().getDaoConfig(id), client().getDaoPolicy(id)]);
+      if (!policy.success) return out(Promise.resolve(policy));
+      const pol = policy.data!;
+      // Every named role that can approve a function call: its members, the votes that decide one, and whether it can vote on anything else.
+      const voters = pol.roles.flatMap((r) =>
+        typeof r.kind === 'object' && 'Group' in r.kind && daoCouncil({ ...pol, roles: [r] }).length
+          ? [{ role: r.name, members: r.kind.Group, approvals: daoApprovalsNeeded(pol, r), only_function_calls: !r.permissions.some((p) => p.startsWith('*:')) }]
+          : [],
+      );
+      await out(Promise.resolve({ success: true, data: { dao: id, name: config.data?.name, purpose: config.data?.purpose, voters, proposal_bond_near: Number(BigInt(pol.proposal_bond)) / 1e24, anyone_can_propose: daoCan(pol, 'anyone.near', 'AddProposal') } }));
+    }),
+  );
+dao
+  .command('propose-attest').description('propose that the DAO issue an attestation (it becomes the attester once the council approves)')
+  .option(daoOpt, daoHelp)
+  .requiredOption('-s, --schema <uid>')
+  .requiredOption('--subject <subject>')
+  .option('-v, --values <json>')
+  .option('--data <base64>')
+  .option('--expires <unix>', 'expiration time, unix seconds')
+  .option('-d, --description <text>')
+  .action(wrap(async (o) => out(client().proposeDaoAttestation(daoId(o), { schemaUid: o.schema, subject: o.subject, data: await encodeData(o.schema, o.values, o.data), expirationTime: o.expires ? num(o.expires) : undefined, description: o.description }))));
+dao
+  .command('propose-membership').description('ask the DAO for a membership attestation about yourself (the keeper approves member and contributor)')
+  .option(daoOpt, daoHelp)
+  .option('-r, --role <role>', 'member, contributor, or a role the human council decides', 'member')
+  .action(
+    wrap(async (o) => {
+      const id = daoId(o);
+      const me = client().accountId;
+      if (!me) throw new Error('set an account to propose as (--account or ATTESTRA_ACCOUNT_ID)');
+      const data = new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).encode({ organization: id, role: o.role, since: Math.floor(Date.now() / 1000) });
+      await out(client().proposeDaoAttestation(id, { schemaUid: knownSchemaUid('membership'), subject: me, data, description: `Membership: ${me} as ${o.role}` }));
+    }),
+  );
+dao
+  .command('propose-revoke <uid>').description('propose that the DAO revoke an attestation it issued')
+  .option(daoOpt, daoHelp)
+  .option('-d, --description <text>')
+  .action(wrap(async (uid, o) => out(client().proposeDaoRevocation(daoId(o), uid, { description: o.description }))));
+dao
+  .command('vote <proposalId>').description('vote as a council member; a deciding approval runs the DAO\'s call in the same transaction')
+  .option(daoOpt, daoHelp)
+  .option('--reject', 'vote to reject')
+  .option('--remove', 'vote to remove (spam; the bond is kept)')
+  .option('--memo <text>')
+  .action(wrap(async (id, o) => out(client().voteDaoProposal(daoId(o), num(id), o.remove ? 'VoteRemove' : o.reject ? 'VoteReject' : 'VoteApprove', o.memo))));
+dao
+  .command('proposals').description('the newest proposals, each with the attestation call it makes')
+  .option(daoOpt, daoHelp)
+  .option('-l, --limit <n>', 'how many', '10')
+  .action(wrap(async (o) => out(client().getDaoProposals(daoId(o), { limit: num(o.limit) }))));
+dao.command('proposal <proposalId>').description('one proposal: status, votes and its attestation call').option(daoOpt, daoHelp).action(wrap(async (id, o) => out(client().getDaoProposal(daoId(o), num(id)))));
+dao
+  .command('fund <near>').description('add to the DAO\'s storage balance on the attestations contract, which pays for what it issues')
+  .option(daoOpt, daoHelp)
+  .action(wrap(async (near, o) => out(client().fundDaoStorage(daoId(o), nearToYocto(near)))));
+dao
+  .command('create <name>').description('create a Sputnik DAO that issues attestations: anyone proposes, the council approves (about 6 NEAR)')
+  .requiredOption('--council <accounts>', 'comma-separated; the council may vote on anything')
+  .option('--reviewers <accounts>', 'comma-separated; reviewers (such as a bot) may only vote on function calls, one vote deciding')
+  .option('--approvals <k>', 'council votes a proposal needs', '1')
+  .option('--purpose <text>', 'what the DAO attests', 'Issues attestations its council approves.')
+  .action(wrap(async (name, o) => out(client().createSputnikDao({ name, purpose: o.purpose, council: o.council.split(',').map((a: string) => a.trim()).filter(Boolean), reviewers: o.reviewers ? o.reviewers.split(',').map((a: string) => a.trim()).filter(Boolean) : undefined, approvals: num(o.approvals) }))));
 
 // ─── staking and the test token ─────────────────────────────────────────────
 const staking = program.command('staking').description('authority staking tiers (NEP-141)');

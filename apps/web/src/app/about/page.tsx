@@ -6,9 +6,9 @@ import { AUTHOR, REPO_URL } from '@/lib/config';
 export const metadata = { title: 'About' };
 
 const ROADMAP = [
-  { when: 'Now, on testnet', done: true, items: ['Seven Rust contracts with reproducible builds', 'SDK, CLI and MCP server', 'Explorer, sandbox and agent chat', 'Private AI checks, EVM and Solana facts, Know Your Agent with function-call keys, x402 verification, light client proofs'] },
-  { when: 'Next', done: false, items: ['Independent audit of the contracts', 'Mainnet deployment with native USDC for paid verification', 'Listing the verification agent on the NEAR AI Agent Market', 'Governance by a DAO for authority verification'] },
-  { when: 'Later', done: false, items: ['NEP-655 universal accounts for passkey subjects as SDK support lands', 'More foreign chains as the MPC network enables them', 'Selective disclosure: prove one field of an attestation without the others', 'Attestation-gated access for NEAR Intents and Sputnik DAO proposals'] },
+  { when: 'Now, on testnet', done: true, items: ['Seven Rust contracts with reproducible builds', 'SDK, CLI and MCP server', 'Explorer, sandbox and agent chat', 'Private AI checks, EVM and Solana facts, Know Your Agent with function-call keys, x402 verification, light client proofs', 'Sputnik DAOs as attesters: membership credentials issued by proposal and council vote'] },
+  { when: 'Next', done: false, items: ['Independent audit of the contracts', 'Mainnet deployment with native USDC for paid verification', 'Listing the verification agent on the NEAR AI Agent Market', 'Governance by a Sputnik DAO for authority verification'] },
+  { when: 'Later', done: false, items: ['NEP-655 universal accounts for passkey subjects as SDK support lands', 'More foreign chains as the MPC network enables them', 'Selective disclosure: prove one field of an attestation without the others', 'Attestation-gated access for NEAR Intents and attestation-weighted DAO voting'] },
 ];
 
 export default function About() {

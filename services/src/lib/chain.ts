@@ -14,6 +14,8 @@ import { TGAS } from './units';
 export interface TxResult {
   txHash: string;
   value: unknown;
+  /** The final outcome, for receipt logs (fakes may leave it out). */
+  outcome?: unknown;
 }
 
 export interface ChainReader {
@@ -111,7 +113,7 @@ export class NearWriter implements ChainWriter {
       let tx = this.near.transaction(this.accountId);
       if (this.gasKeySecret) tx = tx.signWith(this.gasKeySecret).useGasKey(lane);
       const outcome = await build(tx).send({ waitUntil: 'EXECUTED_OPTIMISTIC' });
-      return { txHash: txHashOf(outcome), value: successValue(outcome) };
+      return { txHash: txHashOf(outcome), value: successValue(outcome), outcome };
     });
   }
 

@@ -28,6 +28,7 @@
     "deploy:sandbox": "tsx scripts/deploy.ts sandbox",
     "cli:e2e": "tsx scripts/cli-e2e.ts",
     "accounts": "tsx scripts/accounts.ts",
+    "dao": "tsx scripts/dao.ts",
     "outlayer:publish": "tsx scripts/outlayer-publish.ts"
   },
   "devDependencies": {

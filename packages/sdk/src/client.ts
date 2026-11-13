@@ -21,6 +21,25 @@ import { signRequest, type MessageSigner, type SignedRequest } from './nep413';
 import { KNOWN_SCHEMAS, knownSchemaUid } from './schemas';
 import { SchemaEncoder } from './encoder';
 import { computeAttestationUid, computeSchemaUid, normalizeUid } from './uid';
+import {
+  attestingDaoPolicy,
+  attestraEvents,
+  DAO_CREATE_DEPOSIT,
+  daoAttestProposal,
+  daoRevokeProposal,
+  parseDaoCall,
+  receiptFailure,
+  SPUTNIK_FACTORIES,
+  sputnikCreateArgs,
+  type DaoAttestRequest,
+  type DaoConfig,
+  type DaoPolicy,
+  type DaoProposal,
+  type DaoProposalInput,
+  type DaoProposalStatus,
+  type DaoVote,
+  type ParsedDaoCall,
+} from './dao';
 import { fetchEvmLog, fetchSolanaInstruction, type EvmLog, type SolanaInstruction } from './verdicts';
 import { fetchWithRetry, isTransient, RetryableStatus, withRetry } from './retry';
 import { payingFetch, type SettlementResponse } from './x402';
@@ -79,9 +98,21 @@ const CHECK_POLL_MS = 3_000;
 /** RPC error names for data a regular node no longer keeps; the archival endpoint still has it. */
 const PRUNED = new Set(['UNKNOWN_TRANSACTION', 'UNKNOWN_RECEIPT', 'UNKNOWN_TRANSACTION_OR_RECEIPT', 'UNKNOWN_BLOCK', 'GARBAGE_COLLECTED_BLOCK', 'UNKNOWN_CHUNK']);
 
+/** What a council vote did: the proposal's status after it, and the attestation the DAO created or revoked. */
+export interface DaoVoteResult {
+  status: DaoProposalStatus;
+  /** The attestation event the DAO's call emitted (`attestation_created`, `attestation_revoked`, ...), if it ran. */
+  event: string | null;
+  attestationUid: string | null;
+  /** Why the approved call failed, when the status is `Failed`. */
+  failure: string | null;
+}
+
 interface CallResult<T> {
   value: T;
   txHash: string;
+  /** The final transaction outcome, for its receipts and logs. */
+  outcome?: unknown;
 }
 
 function toBase64Data(data: string | Uint8Array): string {
@@ -235,7 +266,7 @@ export class AttestraClient {
       }
     }
     const sent = await this.near.call(contractId, method, args, { signerId, gas, attachedDeposit, waitUntil: 'EXECUTED_OPTIMISTIC' } as never);
-    return { value: decodeSuccessValue(sent) as T, txHash: txHashOf(sent) };
+    return { value: decodeSuccessValue(sent) as T, txHash: txHashOf(sent), outcome: sent };
   }
 
   /** Reads a transaction's status without waiting (a waiting request would hit the RPC's timeout) until it executed. */
@@ -245,7 +276,7 @@ export class AttestraClient {
       await new Promise((r) => setTimeout(r, 3000));
       const outcome = await this.rpc<{ status?: unknown }>('tx', { tx_hash: txHash, sender_account_id: signerId, wait_until: 'NONE' }).catch(() => undefined);
       const status = outcome?.status as Record<string, unknown> | undefined;
-      if (status && typeof status === 'object' && ('SuccessValue' in status || 'Failure' in status)) return { value: decodeSuccessValue(outcome) as T, txHash };
+      if (status && typeof status === 'object' && ('SuccessValue' in status || 'Failure' in status)) return { value: decodeSuccessValue(outcome) as T, txHash, outcome };
     }
     throw new Error(`${method} did not finish within 5 minutes; its transaction is ${txHash}`);
   }
@@ -667,6 +698,115 @@ export class AttestraClient {
     return attempt(async () => {
       const p = await this.view<ProposalRecord | null>(this.contracts.attestations, 'get_proposal', { id });
       return p ?? fail<ProposalRecord>(new Error('proposal not found'), AttestraErrorType.NOT_FOUND);
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────── Sputnik DAO attesters
+
+  async getDaoPolicy(dao: string): Promise<ServiceResponse<DaoPolicy>> {
+    return attempt(() => this.view<DaoPolicy>(dao, 'get_policy'));
+  }
+
+  async getDaoConfig(dao: string): Promise<ServiceResponse<DaoConfig>> {
+    return attempt(() => this.view<DaoConfig>(dao, 'get_config'));
+  }
+
+  /** A proposal, with the attest or revoke call it makes on the attestations contract (`call`, null for anything else). */
+  async getDaoProposal(dao: string, id: number): Promise<ServiceResponse<DaoProposal & { call: ParsedDaoCall | null }>> {
+    return attempt(async () => {
+      const p = await this.view<DaoProposal | null>(dao, 'get_proposal', { id }).catch((e: Error) => {
+        if (/ERR_NO_PROPOSAL/.test(e.message)) return null;
+        throw e;
+      });
+      if (!p) return fail(new Error(`proposal ${id} not found on ${dao}`), AttestraErrorType.NOT_FOUND);
+      return { ...p, call: parseDaoCall(p.kind, this.contracts.attestations) };
+    });
+  }
+
+  /** The newest proposals first, each with its parsed attestations call. */
+  async getDaoProposals(dao: string, p: { limit?: number; before?: number } = {}): Promise<ServiceResponse<Array<DaoProposal & { call: ParsedDaoCall | null }>>> {
+    return attempt(async () => {
+      const limit = Math.min(Math.max(p.limit ?? 20, 1), 100);
+      const end = p.before ?? (await this.view<number>(dao, 'get_last_proposal_id'));
+      const from = Math.max(0, end - limit);
+      const list = end > from ? await this.view<DaoProposal[]>(dao, 'get_proposals', { from_index: from, limit: end - from }) : [];
+      return list.reverse().map((x) => ({ ...x, call: parseDaoCall(x.kind, this.contracts.attestations) }));
+    });
+  }
+
+  /** Adds any proposal to a Sputnik DAO (for example `daoPolicyProposal`), attaching its bond. */
+  async addDaoProposal(dao: string, proposal: DaoProposalInput, bond?: bigint | string): Promise<ServiceResponse<{ proposalId: number; bond: string }>> {
+    return this.write(() => this.sendDaoProposal(dao, proposal, bond));
+  }
+
+  private async sendDaoProposal(dao: string, proposal: DaoProposalInput, bond?: bigint | string): Promise<{ data: { proposalId: number; bond: string }; txHash: string }> {
+    const deposit = bond === undefined ? BigInt((await this.view<DaoPolicy>(dao, 'get_policy')).proposal_bond) : BigInt(bond);
+    const r = await this.callRaw<number>(dao, 'add_proposal', { proposal }, { deposit, gas: 50n * TGAS });
+    if (typeof r.value !== 'number') throw new Error(`${dao} did not return a proposal id`);
+    return { data: { proposalId: r.value, bond: deposit.toString() }, txHash: r.txHash };
+  }
+
+  /**
+   * Proposes that a Sputnik DAO issue an attestation. When the council approves, the DAO calls
+   * `attest` itself and becomes the attester; the DAO's storage balance on the attestations
+   * contract pays (see `fundDaoStorage`). Attaches the DAO's proposal bond, returned once the
+   * proposal is decided.
+   */
+  async proposeDaoAttestation(dao: string, p: DaoAttestRequest & { description?: string; gas?: bigint; bond?: bigint | string }): Promise<ServiceResponse<{ proposalId: number; bond: string }>> {
+    return this.write(() => this.sendDaoProposal(dao, daoAttestProposal(this.contracts.attestations, p), p.bond));
+  }
+
+  /** Proposes that a Sputnik DAO revoke an attestation it issued. */
+  async proposeDaoRevocation(dao: string, uid: string, p: { description?: string; gas?: bigint; bond?: bigint | string } = {}): Promise<ServiceResponse<{ proposalId: number; bond: string }>> {
+    return this.write(() => this.sendDaoProposal(dao, daoRevokeProposal(this.contracts.attestations, uid, p), p.bond));
+  }
+
+  /**
+   * Votes on a DAO proposal as a council member. When the vote decides it, the DAO runs the call in
+   * the same transaction: the result names the attestation it created or revoked, or the failure.
+   */
+  async voteDaoProposal(dao: string, id: number, vote: DaoVote = 'VoteApprove', memo?: string): Promise<ServiceResponse<DaoVoteResult>> {
+    return this.write(async () => {
+      const before = await this.view<DaoProposal>(dao, 'get_proposal', { id });
+      if (before.status !== 'InProgress') throw invalid(`proposal ${id} on ${dao} is already ${before.status}`);
+      // `proposal` pins the vote to the kind read above (newer Sputnik versions require it; older ones ignore it).
+      const r = await this.callRaw<unknown>(dao, 'act_proposal', { id, action: vote, proposal: before.kind, ...(memo ? { memo } : {}) }, { gas: 300n * TGAS });
+      const after = await this.view<DaoProposal>(dao, 'get_proposal', { id });
+      const events = attestraEvents(r.outcome);
+      const hit = events.find((e) => ['attestation_created', 'attestation_pending', 'attestation_revoked', 'attestation_rejected'].includes(e.event));
+      const uid = hit?.data[0]?.uid;
+      return {
+        data: {
+          status: after.status,
+          event: hit?.event ?? null,
+          attestationUid: typeof uid === 'string' ? uid : null,
+          failure: after.status === 'Failed' ? (receiptFailure(r.outcome) ?? 'the DAO call failed') : null,
+        },
+        txHash: r.txHash,
+      };
+    });
+  }
+
+  /** Adds to a DAO's storage balance on the attestations contract, which pays for what it issues. Anyone can. */
+  async fundDaoStorage(dao: string, amount: bigint | string): Promise<ServiceResponse<StorageBalance>> {
+    return this.write(async () => {
+      const r = await this.callRaw<StorageBalance>(this.contracts.attestations, 'storage_deposit', { account_id: dao }, { deposit: BigInt(amount), gas: 30n * TGAS });
+      return { data: r.value, txHash: r.txHash };
+    });
+  }
+
+  /**
+   * Creates a Sputnik DAO with an attesting policy (`attestingDaoPolicy`): anyone proposes calls,
+   * the council approves. The factory keeps about 5 NEAR of the deposit for the DAO's storage.
+   */
+  async createSputnikDao(p: { name: string; purpose: string; council: string[]; reviewers?: string[]; approvals?: number; proposalBond?: bigint; deposit?: bigint }): Promise<ServiceResponse<{ dao: string }>> {
+    return this.write(async () => {
+      const factory = SPUTNIK_FACTORIES[this.config.network];
+      const args = sputnikCreateArgs({ name: p.name, purpose: p.purpose, policy: attestingDaoPolicy(p.council, { approvals: p.approvals, reviewers: p.reviewers, proposalBond: p.proposalBond }) });
+      const r = await this.callRaw<unknown>(factory, 'create', args, { deposit: p.deposit ?? DAO_CREATE_DEPOSIT, gas: 300n * TGAS });
+      const failure = receiptFailure(r.outcome);
+      if (failure) throw new Error(`the factory could not create ${p.name}.${factory}: ${failure}`);
+      return { data: { dao: `${p.name}.${factory}` }, txHash: r.txHash };
     });
   }
 
