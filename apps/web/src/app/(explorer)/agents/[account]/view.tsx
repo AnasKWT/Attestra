@@ -29,7 +29,7 @@ export function AgentDetail({ account }: { account: string }) {
       {error && <Alert tone="warn" title={error.startsWith('not found') ? 'Not an indexed agent' : 'The indexer did not answer'}>{error}</Alert>}
       {loading && <Skeleton className="h-72 w-full" />}
       {data && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="space-y-6">
             <Panel>
               <PanelHeader title="Identity" subtitle="Attested by the owner under the agent identity schema" right={data.identity ? <StatusBadge status={data.identity.status} /> : <Badge tone="warn">no identity</Badge>} />

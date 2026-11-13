@@ -246,7 +246,7 @@ export default function Home() {
       </section>
 
       {/* Developer experience */}
-      <section className={`${SECTION} grid grid-cols-1 items-start gap-12 py-24 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16`}>
+      <section className={`${SECTION} grid grid-cols-1 items-start gap-12 py-24 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16`}>
         <div className="reveal">
           <SectionHeading eyebrow="Build with it" title="One SDK, one CLI, one MCP server." intro={<>Every method returns a ServiceResponse and never throws. Every CLI command takes <span className="whitespace-nowrap">--json</span>. Every read is a tool an agent can call.</>} />
           <ul className="mt-8 border-t border-line">

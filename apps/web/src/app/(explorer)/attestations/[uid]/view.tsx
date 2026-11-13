@@ -34,7 +34,7 @@ export function AttestationDetail({ uid }: { uid: string }) {
       {chain.error && <Alert tone="bad" title="Not found on chain">{chain.error}</Alert>}
       {chain.loading && <Skeleton className="h-64 w-full" />}
       {chain.data && (
-        <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div className="space-y-6">
             <Panel>
               <PanelHeader title="Record" subtitle="Read live from the attestations contract" right={<StatusBadge status={chain.data.a.status} />} />

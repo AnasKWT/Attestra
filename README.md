@@ -129,7 +129,7 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (182 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (185 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit and property test (323)
 pnpm test:checker         # the OutLayer checker (24)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node

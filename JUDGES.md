@@ -24,7 +24,7 @@ Every contract is deployed on testnet under `attestra.testnet` from a reproducib
 | Contract unit and property tests (`pnpm test:contracts`) | 323 passed |
 | near-workspaces flows on a local node (`pnpm test:sandbox`) | 20 passed |
 | OutLayer checker (`pnpm test:checker`) | 24 passed |
-| TypeScript suites (`pnpm test`) | 182 passed |
+| TypeScript suites (`pnpm test`) | 185 passed |
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
 | CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
 | Playwright on a production build (`pnpm e2e`) | 223 passed |

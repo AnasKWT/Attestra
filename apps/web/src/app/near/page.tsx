@@ -60,7 +60,7 @@ export default function NearPage() {
       </PageHero>
       <section className="mx-auto max-w-6xl space-y-5 px-4 py-20 sm:px-6">
         {FEATURES.map((f, i) => (
-          <article key={f.title} className="grid gap-8 rounded-xl border border-line bg-panel p-6 shadow-panel md:grid-cols-[1fr_1.2fr] md:p-8">
+          <article key={f.title} className="grid gap-8 rounded-xl border border-line bg-panel p-6 shadow-panel md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:p-8">
             <div>
               <p className="font-mono text-[12px] text-mute">{String(i + 1).padStart(2, '0')}</p>
               <h2 className="mt-3 text-[1.5rem] font-semibold leading-snug tracking-tight text-fg">{f.title}</h2>

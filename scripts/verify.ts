@@ -200,7 +200,7 @@ async function main() {
     must(att.executed_wasm_sha256 === ck.wasm_hash, `the run's attestation names wasm ${att.executed_wasm_sha256}, not the recorded build`);
     must(att.tdx_quote, 'the run has no TDX quote');
     // 3. The run's output, read from the chain, has that hash and is the key.
-    const out = await rpc<{ status: { SuccessValue?: string } }>('EXPERIMENTAL_tx_status', { tx_hash: ck.key_tx, sender_account_id: ck.key_tx_signer, wait_until: 'FINAL' });
+    const out = await rpc<{ status: { SuccessValue?: string } }>('EXPERIMENTAL_tx_status', { tx_hash: ck.key_tx, sender_account_id: ck.key_tx_signer, wait_until: 'NONE' });
     const output = Buffer.from(out.status.SuccessValue ?? '', 'base64');
     must(createHash('sha256').update(output).digest('hex') === att.output_hash, 'the run\'s output does not match its attested hash');
     must((JSON.parse(output.toString()) as { enclaveKey?: string }).enclaveKey === ck.key, 'the attested output is not the recorded key');

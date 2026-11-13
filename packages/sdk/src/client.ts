@@ -73,6 +73,8 @@ const DEFAULT_GAS = 300n * TGAS;
 /** Deposit attached to a write when the signer's storage balance is low. */
 const TOP_UP = 50n * MILLINEAR;
 const LOW_WATER = 20n * MILLINEAR;
+/** RPC error names for data a regular node no longer keeps; the archival endpoint still has it. */
+const PRUNED = new Set(['UNKNOWN_TRANSACTION', 'UNKNOWN_RECEIPT', 'UNKNOWN_TRANSACTION_OR_RECEIPT', 'UNKNOWN_BLOCK', 'GARBAGE_COLLECTED_BLOCK', 'UNKNOWN_CHUNK']);
 
 interface CallResult<T> {
   value: T;
@@ -150,15 +152,23 @@ export class AttestraClient {
 
   /**
    * Raw JSON-RPC with failover across the configured endpoints, and up to three rounds with backoff
-   * when every endpoint is throttled or down. A contract or RPC error answer is final.
+   * when every endpoint is throttled or down. A contract or RPC error answer is final, except that
+   * data regular nodes have garbage-collected (transactions, receipts and blocks older than about
+   * five epochs) is asked again of the archival endpoint.
    */
   async rpc<T>(method: string, params: unknown): Promise<T> {
-    return withRetry(() => this.rpcRound<T>(method, params), { attempts: 3, baseMs: 500, retryOn: (e) => !(e as { rpc?: boolean }).rpc && isTransient(e) });
+    const call = (urls: string[]) => withRetry(() => this.rpcRound<T>(method, params, urls), { attempts: 3, baseMs: 500, retryOn: (e) => !(e as { rpc?: boolean }).rpc && isTransient(e) });
+    try {
+      return await call(this.config.rpcUrls);
+    } catch (e) {
+      if (!PRUNED.has((e as { cause?: string }).cause ?? '') || this.config.rpcUrls.includes(this.config.archivalRpcUrl)) throw e;
+      return call([this.config.archivalRpcUrl]);
+    }
   }
 
-  private async rpcRound<T>(method: string, params: unknown): Promise<T> {
+  private async rpcRound<T>(method: string, params: unknown, urls: string[]): Promise<T> {
     let last: unknown;
-    for (const url of this.config.rpcUrls) {
+    for (const url of urls) {
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -170,7 +180,7 @@ export class AttestraClient {
         if (json.error) {
           const name = json.error.cause?.name ?? '';
           if (name === 'TOO_MANY_REQUESTS' || name === 'TIMEOUT_ERROR') throw new Error(`RPC ${url}: ${name}`);
-          throw Object.assign(new Error(`${json.error.message ?? 'RPC error'}: ${JSON.stringify(json.error.data ?? json.error.cause)}`), { rpc: true });
+          throw Object.assign(new Error(`${json.error.message ?? 'RPC error'}: ${JSON.stringify(json.error.data ?? json.error.cause)}`), { rpc: true, cause: name });
         }
         return json.result as T;
       } catch (e) {

@@ -102,6 +102,8 @@ By hand: `near contract verify deployed-at attestations.attestra.testnet network
 - Callbacks must never panic after state they need to keep was changed; use the helpers in `common` to read promise results.
 - The FastNEAR transactions API allows about 60 requests a minute without a key; the indexer paces itself.
 - RPC views at `final` lag a just-sent transaction by a block or two; the SDK reads `optimistic`.
+- Regular RPC nodes forget transactions and receipts after about five epochs (two and a half days on testnet): `AttestraClient.rpc` asks `archivalRpcUrl` when they answer `UNKNOWN_TRANSACTION` and the like. Look up old transactions with `wait_until: 'NONE'`; with `FINAL` a node waits and times out instead of saying it does not know them.
+- A two-column `fr` grid must use `minmax(0, …fr)`: a long hash or stake number in one column otherwise widens it and crushes the other.
 - NEAR keys are base58 and case-sensitive: never lowercase a key.
 - The checker's key changes with every build: a new `checker/` wasm needs `set_enclave_keys` on the verdicts contract and a new `OUTLAYER_WASM_HASH`; regenerate `checker/tests/fixtures/ts.json` after changing the E2EE, prompt or digest code on either side.
 - `next lint` is gone in Next.js 16: lint the site with `pnpm --filter @attestra/web lint`.
