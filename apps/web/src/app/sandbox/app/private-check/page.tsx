@@ -55,10 +55,10 @@ export default function PrivateCheck() {
       }
     >
       <ActionCard
-       
         title="Check a private fact"
         subtitle="A pass becomes an attestation under the private AI check schema"
         label="Encrypt and check"
+        busyNote="Running in the TEE. This can take a few minutes when the OutLayer queue is busy."
         disabled={!subject || (!evidence && !isGithub) || (isGithub && !github)}
         action={() => need(w.client).requestPrivateCheck({ ruleId: rule, subject: subject.trim(), evidence, github: github || undefined })}
         render={(d) => (

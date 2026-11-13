@@ -5,7 +5,7 @@ import type { Near } from 'near-kit';
 import { createApp, outlayerSettings } from '../src/app';
 import { loadConfig } from '../src/config';
 import { NearAi } from '../src/nearai';
-import { checkCheckerOutput, checkerRequest, decodeReturnValue, nearChain, OUTLAYER_DEPOSIT_MARGIN, OUTLAYER_GAS, requestExecutionArgs, runCheckOnOutLayer, type CheckerRequest, type OutLayerChain, type OutLayerConfig } from '../src/outlayer';
+import { checkCheckerOutput, checkerRequest, decodeReturnValue, nearChain, OUTLAYER_DEPOSIT_MARGIN, OUTLAYER_GAS, OUTLAYER_TRIES, requestExecutionArgs, runCheckOnOutLayer, type CheckerRequest, type OutLayerChain, type OutLayerConfig } from '../src/outlayer';
 
 const HASH = 'ab'.repeat(32);
 const cfg: OutLayerConfig = {
@@ -168,6 +168,59 @@ describe('agent in outlayer mode', () => {
     const out = checkerOutput(sent);
     expect(submitted).toEqual([{ method: 'submit_ai_verdict', args: { verdict: out.verdict, enclave_key: out.enclaveKey, enclave_signature: out.enclaveSignature, nearai: out.nearai } }]);
     expect(((await res.json()) as { tx_hash: string }).tx_hash).toBe('Tx2');
+  });
+
+  /** An app whose OutLayer chain answers each run with the next of `answers` ('drop': no output). */
+  function appWith(answers: Array<'drop' | 'ok' | 'refuse'>) {
+    const config = { ...loadConfig(env), nearAiKey: 'k' };
+    const models = (async () => Response.json({ models: [{ modelId: 'z-ai/glm-5.3-flash', metadata: { verifiable: true } }] })) as unknown as typeof fetch;
+    const client = {
+      contracts: { verdicts: 'verdicts.attestra.testnet' },
+      async view() {
+        return [{ id: 'age_over_18', claim: 'is at least 18 years old', enabled: true }];
+      },
+      async callRaw() {
+        return { value: { uid: 'u', status: 'attested' }, txHash: 'Tx3' };
+      },
+    } as unknown as AttestraClient;
+    let n = 0;
+    const { chain, calls } = fakeChain((input) => {
+      const a = answers[Math.min(n++, answers.length - 1)];
+      return a === 'drop' ? null : a === 'refuse' ? { error: 'unknown or disabled rule x' } : checkerOutput(input);
+    });
+    const app = createApp({ config, ai: new NearAi('k', models), client, near: {} as Near, startedAt: Date.now(), outlayer: chain });
+    return { app, runs: () => calls.filter((c) => c.method === 'request_execution').length };
+  }
+  const body = JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef' });
+
+  it('sends a run OutLayer dropped again, up to its tries, but never a checker refusal', async () => {
+    const twice = appWith(['drop', 'drop', 'ok']);
+    expect((await twice.app.request('/v1/check', { method: 'POST', body })).status).toBe(200);
+    expect(twice.runs()).toBe(OUTLAYER_TRIES);
+
+    const always = appWith(['drop']);
+    const res = await always.app.request('/v1/check', { method: 'POST', body });
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { error: string }).error).toMatch(/no output/);
+    expect(always.runs()).toBe(OUTLAYER_TRIES);
+
+    const refused = appWith(['refuse', 'ok']);
+    expect((await refused.app.request('/v1/check', { method: 'POST', body })).status).toBe(502);
+    expect(refused.runs()).toBe(1);
+  });
+
+  it('answers an async check with a job id and serves its result when it is done', async () => {
+    const { app } = appWith(['drop', 'ok']);
+    const res = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ ...JSON.parse(body), async: true }) });
+    expect(res.status).toBe(202);
+    const { job } = (await res.json()) as { job: string };
+    let state: { status: string; tx_hash?: string } = { status: 'pending' };
+    for (let i = 0; i < 50 && state.status === 'pending'; i++) {
+      state = (await (await app.request(`/v1/check/jobs/${job}`)).json()) as typeof state;
+      if (state.status === 'pending') await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(state).toMatchObject({ status: 'done', tx_hash: 'Tx3' });
+    expect((await app.request('/v1/check/jobs/nope')).status).toBe(404);
   });
 
   it('says why checks are off when the wasm is not configured', async () => {

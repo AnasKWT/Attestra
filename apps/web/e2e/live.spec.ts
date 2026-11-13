@@ -523,13 +523,15 @@ test.describe('live on testnet with one passkey account', () => {
   });
 
   test('a private AI check attests a pass with only the evidence hash', async () => {
+    // A busy OutLayer queue can drop a run; the agent sends it again, up to three runs.
+    test.setTimeout(720_000);
     await open('/sandbox/app/private-check');
     const health = (await (await fetch(`${AGENT}/health`)).json()) as { checker: { mode: 'local' | 'outlayer' } };
     await expect(page.getByText(health.checker.mode === 'outlayer' ? 'Live: OutLayer TEE' : 'Live: local mode (bootstrap key)')).toBeVisible();
     await page.locator('#rule').selectOption('age_over_18');
     await page.locator('#sub').fill(me.accountId);
     await page.locator('#ev').fill(EVIDENCE);
-    const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 200_000 });
+    const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 660_000 });
     if (r.tx) run.tx.private_check = r.tx;
     const uid = await uidIn(r.card);
     const att = await reader.getAttestation(uid);

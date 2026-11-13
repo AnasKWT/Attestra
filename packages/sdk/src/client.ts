@@ -73,6 +73,9 @@ const DEFAULT_GAS = 300n * TGAS;
 /** Deposit attached to a write when the signer's storage balance is low. */
 const TOP_UP = 50n * MILLINEAR;
 const LOW_WATER = 20n * MILLINEAR;
+/** How long a private check job may run (three TEE runs that each wait out the queue), and how often it is polled. */
+const CHECK_WAIT_MS = 10 * 60_000;
+const CHECK_POLL_MS = 3_000;
 /** RPC error names for data a regular node no longer keeps; the archival endpoint still has it. */
 const PRUNED = new Set(['UNKNOWN_TRANSACTION', 'UNKNOWN_RECEIPT', 'UNKNOWN_TRANSACTION_OR_RECEIPT', 'UNKNOWN_BLOCK', 'GARBAGE_COLLECTED_BLOCK', 'UNKNOWN_CHUNK']);
 
@@ -960,13 +963,24 @@ export class AttestraClient {
       const model = (await keyRes.json()) as { model: string; public_key: string };
       const encrypted = p.evidence ? encryptForModel(p.evidence, model.public_key) : '';
       // A check spends NEAR AI credits and a transaction: retried only when the agent did not take it.
+      // It runs as a job (the TEE queue can take minutes); an agent without jobs answers at once.
       const res = await fetchWithRetry(`${this.agentUrl}/v1/check`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rule_id: p.ruleId, subject: p.subject, encrypted_evidence: encrypted, model: model.model, github: p.github ?? null }),
+        body: JSON.stringify({ rule_id: p.ruleId, subject: p.subject, encrypted_evidence: encrypted, model: model.model, github: p.github ?? null, async: true }),
       }, { write: true });
-      const body = (await res.json()) as { outcome?: Outcome; verdict?: Record<string, unknown>; nearai?: Record<string, unknown>; tx_hash?: string; error?: string };
-      if (!res.ok || !body.outcome) throw new Error(body.error ?? `agent answered ${res.status}`);
+      type CheckBody = { status?: string; job?: string; outcome?: Outcome; verdict?: Record<string, unknown>; nearai?: Record<string, unknown>; tx_hash?: string; error?: string };
+      let body = (await res.json()) as CheckBody;
+      if (!res.ok && res.status !== 202) throw new Error(body.error ?? `agent answered ${res.status}`);
+      for (const deadline = Date.now() + CHECK_WAIT_MS; res.status === 202 && body.status === 'pending'; ) {
+        if (Date.now() > deadline) throw new Error(`the check is still running after ${CHECK_WAIT_MS / 60_000} minutes (job ${body.job})`);
+        await new Promise((r) => setTimeout(r, CHECK_POLL_MS));
+        const poll = await fetchWithRetry(`${this.agentUrl}/v1/check/jobs/${body.job}`);
+        const job = body.job;
+        body = { ...((await poll.json()) as CheckBody), job };
+        if (!poll.ok) throw new Error(body.error ?? `agent answered ${poll.status} for check job ${job}`);
+      }
+      if (!body.outcome) throw new Error(body.error ?? 'the agent returned no outcome');
       return ok({ outcome: body.outcome, verdict: body.verdict ?? {}, nearai: body.nearai ?? {}, verifyUrl: NEAR_AI_VERIFY_URL, txHash: body.tx_hash }, body.tx_hash);
     });
   }

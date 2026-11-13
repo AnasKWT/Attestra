@@ -59,6 +59,7 @@ export function ActionCard<T>({
   label,
   disabled,
   render,
+  busyNote,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -67,6 +68,8 @@ export function ActionCard<T>({
   label: string;
   disabled?: boolean;
   render?: (data: T) => ReactNode;
+  /** Shown beside the button while the action runs, for actions that can take a while. */
+  busyNote?: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<ServiceResponse<T> | null>(null);
@@ -95,6 +98,7 @@ export function ActionCard<T>({
             {busy && <Loader2 className="size-4 animate-spin" />}
             {label}
           </Button>
+          {busy && busyNote && <p className="text-[12.5px] text-mute" role="status">{busyNote}</p>}
         </div>
         {res && <Result res={res} render={render} />}
       </form>

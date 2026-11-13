@@ -27,6 +27,13 @@ export const OUTLAYER_GAS = 300n * 10n ** 12n;
  * that larger output ("Execution promise failed"), so the deposit leaves room for it.
  */
 export const OUTLAYER_DEPOSIT_MARGIN = 10n ** 22n;
+/** Runs per check: a busy testnet worker queue can leave a run unanswered past the contract's yield. */
+export const OUTLAYER_TRIES = 3;
+
+/** True for a run OutLayer never answered (refunded): worth sending again, unlike a checker refusal. */
+export function isDroppedRun(e: unknown): boolean {
+  return /produced no output/.test(String((e as Error)?.message ?? e));
+}
 /** How long to wait for the yielded transaction to resume (the contract's yield lasts about 200 blocks). */
 export const OUTLAYER_WAIT_MS = 300_000;
 

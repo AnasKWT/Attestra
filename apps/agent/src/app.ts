@@ -10,8 +10,11 @@ import { chat, type ChatTurn } from './chat';
 import { publicKeyOf, runCheck, type Rule } from './check';
 import type { AgentConfig } from './config';
 import { NearAi, VERIFY_URL } from './nearai';
-import { checkerRequest, nearChain, runCheckOnOutLayer, type OutLayerChain, type OutLayerConfig } from './outlayer';
+import { checkerRequest, isDroppedRun, nearChain, OUTLAYER_TRIES, runCheckOnOutLayer, type OutLayerChain, type OutLayerConfig } from './outlayer';
 import { paid, requirements } from './paid';
+
+/** How long a finished check job can still be read. */
+const JOB_TTL_MS = 60 * 60_000;
 
 export interface AgentDeps {
   config: AgentConfig;
@@ -106,9 +109,54 @@ export function createApp(d: AgentDeps) {
     }
   });
 
+  type CheckBody = { rule_id?: string; subject?: string; encrypted_evidence?: string; github?: string | null; model?: string; async?: boolean };
+  type CheckResult = { outcome: Outcome; verdict: unknown; nearai: unknown; tx_hash?: string };
+  /** Runs one check and submits its verdict. An OutLayer run that the worker dropped is tried again. */
+  const runChecked = async (rule: Rule, id: string, body: CheckBody): Promise<CheckResult> => {
+    let out;
+    if (outlayer && typeof outlayer !== 'string') {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          out = await runCheckOnOutLayer(
+            d.outlayer ?? nearChain(d.near!, d.config.accountId),
+            outlayer,
+            checkerRequest({
+              requestId: bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
+              ruleId: rule.id,
+              subject: body.subject!,
+              model: id,
+              encryptedEvidence: body.encrypted_evidence ?? '',
+              github: body.github,
+            }),
+          );
+          break;
+        } catch (e) {
+          if (attempt >= OUTLAYER_TRIES || !isDroppedRun(e)) throw e;
+          console.warn(`${new Date().toISOString()} OutLayer dropped check run ${attempt} of ${OUTLAYER_TRIES}; trying again`);
+        }
+      }
+    } else {
+      out = await runCheck(d.ai, id, d.config.checkerKey!, { rule, subject: body.subject!, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github }, { githubToken: d.config.githubToken });
+    }
+    const r = await d.client.callRaw<Outcome>(d.client.contracts.verdicts, 'submit_ai_verdict', {
+      verdict: out.verdict,
+      enclave_key: out.enclaveKey,
+      enclave_signature: out.enclaveSignature,
+      nearai: out.nearai,
+    });
+    return { outcome: r.value, verdict: out.verdict, nearai: { ...out.nearai, model: id }, tx_hash: r.txHash };
+  };
+
+  // A check through OutLayer can take minutes when its queue is busy: `async: true` answers 202 with
+  // a job id at once, and the caller polls GET /v1/check/jobs/:id instead of holding a connection.
+  const jobs = new Map<string, { status: 'pending' | 'done' | 'failed'; result?: CheckResult; error?: string; at: number }>();
+  const pruneJobs = () => {
+    for (const [k, j] of jobs) if (Date.now() - j.at > JOB_TTL_MS) jobs.delete(k);
+  };
+
   app.post('/v1/check', async (c) => {
     if (!d.ai.configured || checkerOff || !d.near) return c.json({ error: 'private checks are not configured on this agent' }, 503);
-    const body = (await c.req.json().catch(() => ({}))) as { rule_id?: string; subject?: string; encrypted_evidence?: string; github?: string | null; model?: string };
+    const body = (await c.req.json().catch(() => ({}))) as CheckBody;
     if (!body.rule_id || !body.subject) return c.json({ error: 'rule_id and subject are required' }, 400);
     try {
       const rules = (await d.client.view<Rule[]>(d.client.contracts.verdicts, 'get_rules')) ?? [];
@@ -117,31 +165,27 @@ export function createApp(d: AgentDeps) {
       const id = await model();
       if (body.model && body.model !== id) return c.json({ error: `encrypt to ${id}, the model this agent uses` }, 409);
       stats.checks++;
-      const out =
-        outlayer && typeof outlayer !== 'string'
-          ? await runCheckOnOutLayer(
-              d.outlayer ?? nearChain(d.near, d.config.accountId),
-              outlayer,
-              checkerRequest({
-                requestId: bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
-                ruleId: rule.id,
-                subject: body.subject,
-                model: id,
-                encryptedEvidence: body.encrypted_evidence ?? '',
-                github: body.github,
-              }),
-            )
-          : await runCheck(d.ai, id, d.config.checkerKey!, { rule, subject: body.subject, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github }, { githubToken: d.config.githubToken });
-      const r = await d.client.callRaw<Outcome>(d.client.contracts.verdicts, 'submit_ai_verdict', {
-        verdict: out.verdict,
-        enclave_key: out.enclaveKey,
-        enclave_signature: out.enclaveSignature,
-        nearai: out.nearai,
-      });
-      return c.json({ outcome: r.value, verdict: out.verdict, nearai: { ...out.nearai, model: id }, tx_hash: r.txHash });
+      if (body.async) {
+        pruneJobs();
+        const job = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+        jobs.set(job, { status: 'pending', at: Date.now() });
+        runChecked(rule, id, body).then(
+          (result) => jobs.set(job, { status: 'done', result, at: Date.now() }),
+          (e) => jobs.set(job, { status: 'failed', error: fail(e), at: Date.now() }),
+        );
+        return c.json({ job, status: 'pending' }, 202);
+      }
+      return c.json(await runChecked(rule, id, body));
     } catch (e) {
       return c.json({ error: fail(e) }, 502);
     }
+  });
+
+  app.get('/v1/check/jobs/:job', (c) => {
+    const j = jobs.get(c.req.param('job'));
+    if (!j) return c.json({ error: 'unknown or expired check job' }, 404);
+    if (j.status === 'done') return c.json({ status: 'done', ...j.result });
+    return c.json(j.status === 'failed' ? { status: 'failed', error: j.error } : { status: 'pending' });
   });
 
   // ─── paid verification (x402) ────────────────────────────────────────
