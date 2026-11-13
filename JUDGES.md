@@ -29,7 +29,7 @@ The whole product is live at [attestra.site](https://attestra.site), with its se
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
 | CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
 | Playwright on a production build (`pnpm e2e`) | 226 passed |
-| Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 17 passed |
+| Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 18 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
 
 Every network call retries transient failures with exponential backoff and full jitter, and writes retry only on answers that prove nothing was processed ([retry.ts](packages/sdk/src/retry.ts)).

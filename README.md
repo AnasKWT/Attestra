@@ -10,7 +10,7 @@
   <a href="https://attestra.site"><img alt="Live: attestra.site" src="https://img.shields.io/badge/live-attestra.site-f97316?style=flat-square"></a>
   <a href="deployments/testnet.json"><img alt="NEAR testnet: live" src="https://img.shields.io/badge/NEAR_testnet-live-1c1917?style=flat-square"></a>
   <a href="MAINNET.md"><img alt="NEAR mainnet: ready" src="https://img.shields.io/badge/NEAR_mainnet-ready-1c1917?style=flat-square"></a>
-  <a href="#verify-it-yourself"><img alt="Tests: 794 passing" src="https://img.shields.io/badge/tests-794_passing-16a34a?style=flat-square"></a>
+  <a href="#verify-it-yourself"><img alt="Tests: 813 passing" src="https://img.shields.io/badge/tests-813_passing-16a34a?style=flat-square"></a>
   <a href="#deployed-contracts"><img alt="Reproducible builds: NEP-330" src="https://img.shields.io/badge/builds-reproducible_NEP--330-1c1917?style=flat-square"></a>
   <a href="https://attestra.site/mcp"><img alt="MCP: hosted" src="https://img.shields.io/badge/MCP-hosted-f97316?style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1c1917?style=flat-square"></a>
