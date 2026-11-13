@@ -12,6 +12,12 @@ Install this skill for Claude Code or Codex with `npx skills add ./skills/attest
 
 ## Fastest path for an agent: MCP
 
+Hosted, with nothing to install:
+
+```bash
+claude mcp add --transport http attestra https://attestra.site/mcp
+```
+
 From a clone (`pnpm install && pnpm build`), until the package is on npm:
 
 ```bash

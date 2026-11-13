@@ -2,6 +2,7 @@
 
 This page maps each judging criterion to the evidence: the code (with line links), the tests and a live testnet transaction.
 Every contract is deployed on testnet under `attestra.testnet` from a reproducible build; the README's "Live on testnet" table links a transaction for each flow.
+The whole product is live at [attestra.site](https://attestra.site), with its services at `https://api.attestra.site` ([status](https://attestra.site/status)) and the MCP server at `https://attestra.site/mcp`.
 
 ## At a glance
 
@@ -24,11 +25,11 @@ Every contract is deployed on testnet under `attestra.testnet` from a reproducib
 | Contract unit and property tests (`pnpm test:contracts`) | 323 passed |
 | near-workspaces flows on a local node (`pnpm test:sandbox`) | 20 passed |
 | OutLayer checker (`pnpm test:checker`) | 24 passed |
-| TypeScript suites (`pnpm test`) | 185 passed |
+| TypeScript suites (`pnpm test`) | 187 passed |
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
 | CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
 | Playwright on a production build (`pnpm e2e`) | 223 passed |
-| Playwright live on testnet with a passkey account (`e2e:live`) | 17 passed |
+| Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 17 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
 
 Every network call retries transient failures with exponential backoff and full jitter, and writes retry only on answers that prove nothing was processed ([retry.ts](packages/sdk/src/retry.ts)).
@@ -59,6 +60,14 @@ Against the testnet deployment, with the stack running (`pnpm dev`):
 pnpm verify               # the deployment's code, schemas, proofs, verdicts, agents, indexer, MCP tools and services, PASS or FAIL
 pnpm cli:e2e testnet      # every CLI group on testnet, including the indexer, agent, NEAR AI and x402 ones (needs a funded root key)
 pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser with a passkey account, on testnet (funds it from the root key in ~/.near-credentials)
+```
+
+Against the hosted deployment, with nothing running locally:
+
+```bash
+A=https://api.attestra.site
+SITE_URL=https://attestra.site INDEXER_URL=$A/indexer AGENT_URL=$A/agent RELAYER_URL=$A/relayer KEEPER_URL=$A/keeper TOPUP_URL=$A/topup pnpm verify
+E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --filter @attestra/web e2e:live
 ```
 
 ## By criterion

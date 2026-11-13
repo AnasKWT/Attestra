@@ -26,7 +26,8 @@ On NEAR it goes past a registry:
 | | |
 |---|---|
 | Testnet contracts | under `attestra.testnet`, from a reproducible build: see [Deployed contracts](#deployed-contracts) |
-| Demo | site and video: `[placeholder]` |
+| Live | site [attestra.site](https://attestra.site), services [api.attestra.site](https://api.attestra.site/indexer/health), [status](https://attestra.site/status), MCP `https://attestra.site/mcp` |
+| Video | `[placeholder]` |
 | Packages | `@attestra/sdk`, `@attestra/cli` (binary `attestra`), `@attestra/mcp` |
 | For agents | [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md), `/llms.txt` and `/mcp` on the site |
 | For judges | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
@@ -37,7 +38,8 @@ On NEAR it goes past a registry:
 
 ## Try it
 
-Two minutes, against the live testnet contracts.
+The quickest way is the hosted site, [attestra.site](https://attestra.site): its sandbox runs every flow on testnet with a passkey account and no wallet.
+To run it yourself, it takes two minutes against the live testnet contracts.
 Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them in `apps/<app>/.env` for `pnpm dev`, or in the root `.env` for Docker Compose; each `.env.example` lists them).
 
 1. Start Postgres (`docker compose up -d postgres`, or a local one with `createdb attestra`), then run `pnpm install && pnpm build && pnpm dev`; the site opens on http://localhost:3100 and the indexer fills from the deployment's first block.
@@ -129,7 +131,7 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (185 tests; 3 indexer database tests skip without Postgres)
+pnpm test                 # every TypeScript suite (187 tests; 3 indexer database tests skip without Postgres)
 pnpm test:contracts       # every contract unit and property test (323)
 pnpm test:checker         # the OutLayer checker (24)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
@@ -151,7 +153,13 @@ const att = await client.getAttestation('<uid>');
 if (valid.data?.valid) console.log('active', att.data);
 ```
 
-Give an agent the tools, from this repository after `pnpm build` (the hosted endpoint is `/mcp` on the site; after the npm release, `npx -y @attestra/mcp` replaces the path):
+Give an agent the tools from the hosted endpoint, with nothing to install:
+
+```bash
+claude mcp add --transport http attestra https://attestra.site/mcp
+```
+
+Or from this repository after `pnpm build` (after the npm release, `npx -y @attestra/mcp` replaces the path):
 
 ```bash
 claude mcp add attestra -- node packages/mcp/dist/cli.js
@@ -237,7 +245,7 @@ Until then, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the sa
 ## Status
 
 - Deployed on testnet from a reproducible build; with the stack running locally, the reproducible build and a NEAR AI key, `pnpm verify` passes every check.
-- The site and services run locally against testnet; they are not hosted publicly yet.
+- Live at [attestra.site](https://attestra.site) (Vercel), with the indexer, agent, relayer, keeper and top-up services at [api.attestra.site](https://api.attestra.site/indexer/health) (a Google Cloud VM running `compose.yaml` behind Caddy); [/status](https://attestra.site/status) shows their health and `pnpm verify` passes every check against them.
 - Mainnet is one switch away and not deployed: see [MAINNET.md](MAINNET.md).
 - The npm packages are packed and tested from a clean install but not published; every command above runs from the repository.
 - Private checks run live on testnet inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key.

@@ -53,6 +53,8 @@ pnpm outlayer:publish checker/target/outlayer/attestra-checker.wasm   # FastFS u
 pnpm market:listing                 # print the Agent Market listing; --register and --live only with the owner's go-ahead
 ```
 
+- Production: the site is the Vercel project `attestra` (root `apps/web`, deployed with `vercel deploy --prod` from an export of a commit, so nothing uncommitted ships) at https://attestra.site; the services run `compose.yaml --profile tls` on a Google Cloud VM at https://api.attestra.site.
+  Only one copy of the relayer, keeper and agent may run per network: their keys would race for nonces.
 - Indexer tests use `TEST_DATABASE_URL` (default `postgres://localhost:5432/attestra_test`); under `CI` without it they are skipped.
 - Services and the agent run read-only without keys and say what is off on `/health`.
 - `tools/nearai-verify` is its own pnpm workspace because `@nearai/inference-sdk` needs Node >= 24.22.1: the root `pnpm -r` scripts skip it, `pnpm verify` runs it with Node 24 (this node, `NODE24` or nvm's newest), and `--chat-id` needs the exact request and response bytes (`--request-file`, `--response-file`), not their hashes.
@@ -102,7 +104,10 @@ By hand: `near contract verify deployed-at attestations.attestra.testnet network
 - Callbacks must never panic after state they need to keep was changed; use the helpers in `common` to read promise results.
 - The FastNEAR transactions API allows about 60 requests a minute without a key; the indexer paces itself.
 - RPC views at `final` lag a just-sent transaction by a block or two; the SDK reads `optimistic`.
-- Regular RPC nodes forget transactions and receipts after about five epochs (two and a half days on testnet): `AttestraClient.rpc` asks `archivalRpcUrl` when they answer `UNKNOWN_TRANSACTION` and the like. Look up old transactions with `wait_until: 'NONE'`; with `FINAL` a node waits and times out instead of saying it does not know them.
+- Regular RPC nodes forget transactions and receipts after about five epochs (two and a half days on testnet): `AttestraClient.rpc` asks `archivalRpcUrl` when they answer `UNKNOWN_TRANSACTION` and the like.
+  Look up old transactions with `wait_until: 'NONE'`; with `FINAL` a node waits and times out instead of saying it does not know them.
+- OutLayer's testnet queue can leave a run unanswered past the contract's yield (about two minutes): the log says "Execution promise failed", the deposit is refunded, and the agent sends the run again (`OUTLAYER_TRIES`).
+  Private checks therefore run as agent jobs (`async: true`, then `GET /v1/check/jobs/:id`), never as one long request.
 - A two-column `fr` grid must use `minmax(0, …fr)`: a long hash or stake number in one column otherwise widens it and crushes the other.
 - NEAR keys are base58 and case-sensitive: never lowercase a key.
 - The checker's key changes with every build: a new `checker/` wasm needs `set_enclave_keys` on the verdicts contract and a new `OUTLAYER_WASM_HASH`; regenerate `checker/tests/fixtures/ts.json` after changing the E2EE, prompt or digest code on either side.
