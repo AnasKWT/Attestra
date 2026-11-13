@@ -97,7 +97,8 @@ async function txOf(scope: Locator): Promise<string | undefined> {
 /** Submits an ActionCard and waits for its result; fails with the page's own error text. */
 async function submit(title: string, label: string, opts: { expectError?: boolean; timeout?: number } = {}): Promise<{ card: Locator; tx?: string; text: string }> {
   const card = form(title);
-  const ok = card.getByRole('status');
+  // The result panel; a card's busy note is a status line too, so it is told apart by its element.
+  const ok = card.locator('div[role="status"]');
   const bad = card.getByRole('alert');
   // The public RPC rate-limits this IP now and then (other projects share it): a 429, or in the browser a
   // response without CORS headers ("Not reachable"), so try again. Every flow here tolerates a repeat.
@@ -460,9 +461,12 @@ test.describe('live on testnet with one passkey account', () => {
     expect(approved.success, approved.error?.message).toBe(true);
     if (approved.txHash) run.tx.multisig_approve = approved.txHash;
     expect(approved.data?.status).toBe('created');
-    const att = await reader.getAttestation(approved.data!.uid);
-    expect(att.data?.attester).toBe(msId);
-    expect(att.data?.subject).toBe(subject);
+    // This process reads through another RPC than the one that sent the approval; it can trail by a block or throttle.
+    await eventually(async () => {
+      const att = await reader.getAttestation(approved.data!.uid);
+      expect(att.data?.attester, att.error?.message).toBe(msId);
+      expect(att.data?.subject).toBe(subject);
+    }, 60_000);
 
     const read = await submit('Read', 'Read proposal and multisig');
     expect(read.text).toMatch(/executed/i);
@@ -484,11 +488,13 @@ test.describe('live on testnet with one passkey account', () => {
     expect(review.text).toMatch(/Approved/);
     const href = await review.card.getByRole('status').locator('a[href^="/attestations/"]').first().getAttribute('href');
     const uid = href!.split('/attestations/')[1];
-    const att = await reader.getAttestation(uid);
-    expect(att.data?.attester).toBe(DAO);
-    expect(att.data?.subject).toBe(me.accountId);
-    expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(att.data!.data)).toMatchObject({ organization: DAO, role: 'contributor' });
-    expect((await reader.getDaoProposal(DAO, pid)).data?.status).toBe('Approved');
+    await eventually(async () => {
+      const att = await reader.getAttestation(uid);
+      expect(att.data?.attester, att.error?.message).toBe(DAO);
+      expect(att.data?.subject).toBe(me.accountId);
+      expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(att.data!.data)).toMatchObject({ organization: DAO, role: 'contributor' });
+      expect((await reader.getDaoProposal(DAO, pid)).data?.status).toBe('Approved');
+    }, 60_000);
 
     // The explorer names the DAO as the attester and shows the vote that issued it.
     await open(`/attestations/${uid}`, { signIn: false });

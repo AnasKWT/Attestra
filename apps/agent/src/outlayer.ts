@@ -135,15 +135,39 @@ export function decodeReturnValue(outcome: unknown): unknown {
 }
 
 /** Minimal near-kit surface the chain adapter uses. */
+interface SignableTx {
+  sign(): Promise<unknown>;
+  /** Null until signed. */
+  getHash(): Promise<string | null> | string | null;
+  send(opts: { waitUntil: string }): Promise<unknown>;
+}
+
 interface NearLike {
   view<T>(contractId: string, method: string, args: object): Promise<T | undefined>;
   call(contractId: string, method: string, args: object, options: object): Promise<unknown>;
   getTransactionStatus(txHash: string, senderAccountId: string, waitUntil?: string): Promise<unknown>;
+  /** near-kit's builder: signing first gives the hash before sending, so any timeout can be followed. */
+  transaction?(signerId: string): { functionCall(contractId: string, method: string, args: object, options: object): SignableTx };
+}
+
+/**
+ * The RPC stopped waiting but the transaction may still run: near-kit's TimeoutError, or an HTTP 408
+ * or 504 from the RPC (FastNEAR answers 408 when a yield outlasts its wait).
+ */
+export function isWaitTimeout(e: unknown): boolean {
+  const err = e as { name?: string; statusCode?: number; message?: string };
+  return err?.name === 'TimeoutError' || err?.statusCode === 408 || err?.statusCode === 504 || /\bHTTP (408|504)\b|TIMEOUT_ERROR/.test(err?.message ?? '');
+}
+
+/** The RPC has not seen the transaction yet (it may still be on its way to a node). */
+function notSeenYet(e: unknown): boolean {
+  return /UNKNOWN_TRANSACTION|doesn't exist|does not exist/i.test((e as { message?: string })?.message ?? '');
 }
 
 /**
  * `OutLayerChain` over near-kit. `request_execution` yields until the worker resolves the run, which
- * can outlast the RPC's wait: on a timeout the transaction is followed by its hash until it executed.
+ * can outlast the RPC's wait: the transaction is signed first, so on a timeout (near-kit's, or an
+ * HTTP 408 or 504 from the RPC) it is followed by its hash until it executed.
  */
 export function nearChain(near: NearLike, signerId: string, opts: { waitMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number } = {}): OutLayerChain {
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -156,20 +180,26 @@ export function nearChain(near: NearLike, signerId: string, opts: { waitMs?: num
     },
     async call(contractId, method, args, { deposit, gas }) {
       const deadline = now() + (opts.waitMs ?? OUTLAYER_WAIT_MS);
+      const options = { gas: `${gas / 10n ** 12n} Tgas`, attachedDeposit: `${deposit} yocto` };
       let txHash: string | undefined;
       try {
-        return decodeReturnValue(
-          await near.call(contractId, method, args, { signerId, gas: `${gas / 10n ** 12n} Tgas`, attachedDeposit: `${deposit} yocto`, waitUntil: 'EXECUTED_OPTIMISTIC' }),
-        );
+        if (near.transaction) {
+          const tx = near.transaction(signerId).functionCall(contractId, method, args, options);
+          await tx.sign();
+          txHash = (await tx.getHash()) ?? undefined;
+          return decodeReturnValue(await tx.send({ waitUntil: 'EXECUTED_OPTIMISTIC' }));
+        }
+        return decodeReturnValue(await near.call(contractId, method, args, { signerId, ...options, waitUntil: 'EXECUTED_OPTIMISTIC' }));
       } catch (e) {
-        txHash = (e as { name?: string; transactionHash?: string }).name === 'TimeoutError' ? (e as { transactionHash?: string }).transactionHash : undefined;
+        if (!isWaitTimeout(e)) throw e;
+        txHash = (e as { transactionHash?: string }).transactionHash ?? txHash;
         if (!txHash) throw e;
       }
       for (;;) {
         try {
           return decodeReturnValue(await near.getTransactionStatus(txHash, signerId, 'EXECUTED_OPTIMISTIC'));
         } catch (e) {
-          if ((e as { name?: string }).name !== 'TimeoutError' || now() > deadline) throw e;
+          if (!(isWaitTimeout(e) || notSeenYet(e)) || now() > deadline) throw e;
         }
         await sleep(2_000);
       }

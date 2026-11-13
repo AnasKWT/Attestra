@@ -120,6 +120,34 @@ describe('OutLayer checker requests', () => {
     expect(JSON.parse(seen[0])).toEqual({ signerId: 'agent.attestra.testnet', gas: '300 Tgas', attachedDeposit: '7 yocto', waitUntil: 'EXECUTED_OPTIMISTIC' });
     expect(seen.slice(1)).toEqual(Array(3).fill('TxHash1 agent.attestra.testnet EXECUTED_OPTIMISTIC'));
 
+    // Signed first: an HTTP 408 from the RPC (no hash in the error) is followed by the hash it already knows.
+    const sent: string[] = [];
+    let first = true;
+    const signing = {
+      ...near,
+      transaction: (signer: string) => ({
+        functionCall: (c: string, m: string, _a: object, o: object) => ({
+          sign: async () => sent.push(`sign ${signer} ${c}.${m} ${JSON.stringify(o)}`),
+          getHash: () => 'TxHash2',
+          send: async () => Promise.reject(Object.assign(new Error('HTTP 408: Request Timeout'), { name: 'NetworkError', statusCode: 408 })),
+        }),
+      }),
+      async getTransactionStatus(txHash: string) {
+        sent.push(`status ${txHash}`);
+        if (first) {
+          first = false;
+          throw new Error('Server error: UNKNOWN_TRANSACTION');
+        }
+        return { status: { SuccessValue: value } };
+      },
+    };
+    const followed = (await nearChain(signing as unknown as NearLike, 'agent.attestra.testnet', { sleep: async () => {} }).call('outlayer.testnet', 'request_execution', {}, { deposit: 7n, gas: OUTLAYER_GAS })) as ReturnType<typeof checkerOutput>;
+    expect(followed.verdict.request_id).toBe(request.request_id);
+    expect(sent).toEqual(['sign agent.attestra.testnet outlayer.testnet.request_execution {"gas":"300 Tgas","attachedDeposit":"7 yocto"}', 'status TxHash2', 'status TxHash2']);
+    // Any other failure is final, with nothing followed.
+    const refused = { ...signing, transaction: () => ({ functionCall: () => ({ sign: async () => {}, getHash: () => 'TxHash3', send: async () => Promise.reject(new Error('Smart contract panicked: not enough deposit')) }) }) };
+    await expect(nearChain(refused as unknown as NearLike, 'a', { sleep: async () => {} }).call('o', 'm', {}, { deposit: 0n, gas: 0n })).rejects.toThrow('not enough deposit');
+
     let clock = 0;
     const stuck = nearChain({ ...near, getTransactionStatus: async () => Promise.reject(Object.assign(new Error('still waiting'), { name: 'TimeoutError' })) } as unknown as NearLike, 'a', { sleep: async () => void (clock += 2_000), now: () => clock, waitMs: 5_000 });
     await expect(stuck.call('o', 'm', {}, { deposit: 0n, gas: 0n })).rejects.toThrow('still waiting');
