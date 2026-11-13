@@ -30,7 +30,8 @@ Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=ma
 - Agent (chat, private checks, x402 paid verification): ${AGENT_URL}; A2A agent card: ${AGENT_URL}/.well-known/agent-card.json
 - Indexer REST API: ${INDEXER_URL}
 - Service health: ${site}/status
-- Tools: ${TOOLS.map((t) => t.name).join(', ')}
+- Read tools (hosted and stdio): ${TOOLS.filter((t) => !t.write).map((t) => t.name).join(', ')}
+- Write tools (stdio, with the caller's key and per-tool caps): ${TOOLS.filter((t) => t.write).map((t) => t.name).join(', ')}
 - Agent skill: skills/attestra/SKILL.md in the repository${REPO_URL && REPO_URL !== '[placeholder]' ? ` (${REPO_URL})` : ''}
 
 ## SDK (TypeScript, @attestra/sdk)
