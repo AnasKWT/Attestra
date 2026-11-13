@@ -11,7 +11,8 @@ describe('CLI config', () => {
     expect(resolveConfig({ network: 'testnet' }, env).network).toBe('testnet');
     expect(resolveConfig({ account: 'flag.near' }, env).accountId).toBe('flag.near');
     expect(resolveConfig({}, env).indexerUrl).toBe('http://idx');
-    expect(resolveConfig({}, {}).indexerUrl).toBe('http://localhost:5100');
+    expect(resolveConfig({}, {}).indexerUrl).toBe('https://api.attestra.site/indexer');
+    expect(resolveConfig({ network: 'mainnet' }, {}).indexerUrl).toBe('http://localhost:5100');
     expect(() => resolveConfig({ network: 'devnet' }, {})).toThrow(/testnet or mainnet/);
   });
 

@@ -19,9 +19,10 @@ export interface CliOptions {
   agent?: string;
 }
 
-export const DEFAULT_INDEXER = 'http://localhost:5100';
-export const DEFAULT_RELAYER = 'http://localhost:5200';
-export const DEFAULT_AGENT = 'http://localhost:5300';
+/** The hosted testnet services, so every command works with nothing running locally. */
+export const HOSTED_TESTNET = { indexer: 'https://api.attestra.site/indexer', relayer: 'https://api.attestra.site/relayer', agent: 'https://api.attestra.site/agent' } as const;
+/** A local stack (`pnpm dev` or Docker Compose), the default on mainnet. */
+export const LOCAL = { indexer: 'http://localhost:5100', relayer: 'http://localhost:5200', agent: 'http://localhost:5300' } as const;
 
 export function credentialsPath(network: string, accountId: string, home = homedir()): string {
   return join(home, '.near-credentials', network, `${accountId}.json`);
@@ -44,14 +45,15 @@ export function resolveConfig(opts: CliOptions, env: NodeJS.ProcessEnv = process
   if (network !== 'testnet' && network !== 'mainnet') throw new Error(`network must be testnet or mainnet, got ${network}`);
   const accountId = opts.account ?? env.ATTESTRA_ACCOUNT_ID;
   const privateKey = env.ATTESTRA_PRIVATE_KEY ?? (accountId ? keychainKey(network, accountId, home) : undefined);
+  const services = network === 'testnet' ? HOSTED_TESTNET : LOCAL;
   return {
     network,
     accountId,
     privateKey,
     root: opts.root ?? env.ATTESTRA_ROOT,
     rpcUrl: opts.rpc ?? env.ATTESTRA_RPC_URL,
-    indexerUrl: opts.indexer ?? env.ATTESTRA_INDEXER_URL ?? DEFAULT_INDEXER,
-    relayerUrl: opts.relayer ?? env.ATTESTRA_RELAYER_URL ?? DEFAULT_RELAYER,
-    agentUrl: opts.agent ?? env.ATTESTRA_AGENT_URL ?? DEFAULT_AGENT,
+    indexerUrl: opts.indexer ?? env.ATTESTRA_INDEXER_URL ?? services.indexer,
+    relayerUrl: opts.relayer ?? env.ATTESTRA_RELAYER_URL ?? services.relayer,
+    agentUrl: opts.agent ?? env.ATTESTRA_AGENT_URL ?? services.agent,
   };
 }

@@ -43,6 +43,6 @@ Each call also stays within a spend limit, checked before anything is sent:
 
 ## Settings
 
-`NEAR_NETWORK` (`testnet` or `mainnet`), `ATTESTRA_ROOT`, `ATTESTRA_RPC_URL`, `ATTESTRA_INDEXER_URL`, `ATTESTRA_AGENT_URL`, `ATTESTRA_RELAYER_URL`.
+`NEAR_NETWORK` (`testnet` or `mainnet`), `ATTESTRA_ROOT`, `ATTESTRA_RPC_URL`, `ATTESTRA_INDEXER_URL`, `ATTESTRA_AGENT_URL`, `ATTESTRA_RELAYER_URL` (on testnet they default to the hosted services at `https://api.attestra.site`).
 
 License: MIT.

@@ -123,7 +123,7 @@ export default function Docs() {
           <section className="space-y-5">
             <H2 id="quick-start">Quick start</H2>
             <p className="text-[14.5px] text-soft">The packages are prepared for npm as <InlineCode>@attestra/sdk</InlineCode>, <InlineCode>@attestra/cli</InlineCode> and <InlineCode>@attestra/mcp</InlineCode>. From a clone of the repository:</p>
-            <CodeWindow title="terminal" code={`pnpm install && pnpm build\n\n# read anything, no keys needed\npnpm --filter @attestra/cli exec attestra schema known\npnpm --filter @attestra/cli exec attestra attestation fetch <uid>\n\n# write with a testnet account from the NEAR CLI keychain\npnpm --filter @attestra/cli exec attestra -a you.testnet schema create \\\n  -d "string name, u8 level" --revocable`} />
+            <CodeWindow title="terminal" code={`pnpm install && pnpm build\n\n# read anything, no keys needed\nnode packages/cli/dist/index.js schema known\nnode packages/cli/dist/index.js attestation fetch <uid>\n\n# write with a testnet account from the NEAR CLI keychain\nnode packages/cli/dist/index.js -a you.testnet schema create \\\n  -d "string name, u8 level" --revocable`} />
             <CodeWindow title="read.ts" code={`import { AttestraClient } from '@attestra/sdk';\n\nconst client = new AttestraClient({ network: 'testnet' });\nconst r = await client.getAttestation(uid);\nif (r.success) console.log(r.data.status); // active, revoked, expired...`} />
           </section>
 

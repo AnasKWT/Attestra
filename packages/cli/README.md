@@ -31,8 +31,8 @@ The key comes from `ATTESTRA_PRIVATE_KEY`, or from the NEAR CLI keychain at `~/.
 | `--network` | `ATTESTRA_NETWORK` or `NEAR_NETWORK` | `testnet` |
 | `--root` | `ATTESTRA_ROOT` | `attestra.testnet` |
 | `--rpc` | `ATTESTRA_RPC_URL` | the network's RPC |
-| `--indexer` | `ATTESTRA_INDEXER_URL` | `http://localhost:5100` |
-| `--relayer` | `ATTESTRA_RELAYER_URL` | `http://localhost:5200` |
-| `--agent` | `ATTESTRA_AGENT_URL` | `http://localhost:5300` |
+| `--indexer` | `ATTESTRA_INDEXER_URL` | `https://api.attestra.site/indexer` on testnet, `http://localhost:5100` on mainnet |
+| `--relayer` | `ATTESTRA_RELAYER_URL` | `https://api.attestra.site/relayer` on testnet, `http://localhost:5200` on mainnet |
+| `--agent` | `ATTESTRA_AGENT_URL` | `https://api.attestra.site/agent` on testnet, `http://localhost:5300` on mainnet |
 
 License: MIT.

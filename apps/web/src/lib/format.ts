@@ -16,7 +16,7 @@ export function shortAccount(id: string | null | undefined): string {
 
 export function formatTime(secs: number | null | undefined): string {
   if (!secs) return 'never';
-  return new Date(secs * 1000).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(secs * 1000).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 }
 
 export function timeAgo(secs: number | null | undefined, now = Date.now() / 1000): string {

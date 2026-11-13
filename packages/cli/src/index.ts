@@ -100,7 +100,7 @@ schema
   .action(wrap(async (o) => out(client().registerSchema({ definition: o.definition, revocable: o.revocable, resolver: o.resolver }))));
 schema.command('fetch <uid>').description('read a schema').action(wrap(async (uid) => out(client().getSchema(uid))));
 schema
-  .command('list')
+  .command('list').description('list registered schemas from the indexer')
   .option('--authority <account>', 'only this authority')
   .option('--limit <n>', 'max results', '25')
   .action(wrap(async (o) => out(client().listSchemas({ authority: o.authority, limit: num(o.limit) }))));
@@ -129,7 +129,7 @@ blob
 // ─── attestation ────────────────────────────────────────────────────────────
 const attestation = program.command('attestation').description('issue, read and revoke attestations');
 attestation
-  .command('create')
+  .command('create').description('issue an attestation under a schema')
   .requiredOption('-s, --schema <uid>', 'schema UID')
   .requiredOption('--subject <subject>', 'NEAR account or CAIP-10 id (eip155:1:0x...)')
   .option('-v, --values <json>', 'field values as JSON (or @file.json)')
@@ -143,7 +143,7 @@ attestation
     }),
   );
 attestation
-  .command('fetch <uid>')
+  .command('fetch <uid>').description('read an attestation with its decoded data and status')
   .option('--decode', 'decode the data with its schema', true)
   .action(
     wrap(async (uid) => {
@@ -162,23 +162,23 @@ attestation
   );
 attestation.command('verify <uid>').description('is it valid right now?').action(wrap(async (uid) => out(client().isValid(uid))));
 attestation
-  .command('list')
+  .command('list').description('list attestations from the indexer, filtered by schema, attester, subject or status')
   .option('--attester <account>')
   .option('--subject <subject>')
   .option('--schema <uid>')
   .option('--status <status>')
   .option('--limit <n>', 'max results', '25')
   .action(wrap(async (o) => out(client().listAttestations({ attester: o.attester, subject: o.subject, schemaUid: o.schema, status: o.status, limit: num(o.limit) }))));
-attestation.command('revoke <uid>').action(wrap(async (uid) => out(client().revokeAttestation(uid))));
+attestation.command('revoke <uid>').description('revoke an attestation you issued').action(wrap(async (uid) => out(client().revokeAttestation(uid))));
 
 // ─── authority ──────────────────────────────────────────────────────────────
 const authority = program.command('authority').description('authorities (issuers)');
 authority
-  .command('register')
+  .command('register').description('register yourself as an authority with metadata')
   .requiredOption('-m, --metadata <text>', 'who you are')
   .option('-k, --kind <kind>', 'organization, person, agent, verifier or other')
   .action(wrap(async (o) => out(client().registerAuthority(o.metadata, o.kind))));
-authority.command('fetch <account>').action(wrap(async (a) => out(client().getAuthority(a))));
+authority.command('fetch <account>').description('read an authority\'s record, verification and staking tier').action(wrap(async (a) => out(client().getAuthority(a))));
 authority
   .command('verify <account>')
   .description('governance only')
@@ -193,13 +193,13 @@ storage
   .description('contract is schemas or attestations')
   .option('--for <account>', 'deposit for another account')
   .action(wrap(async (c, amount, o) => out(client().storageDeposit(c, amount, o.for))));
-storage.command('balance <contract> <account>').action(wrap(async (c, a) => out(client().storageBalance(c, a))));
-storage.command('withdraw <contract> [yocto]').action(wrap(async (c, amount) => out(client().storageWithdraw(c, amount))));
+storage.command('balance <contract> <account>').description('an account\'s NEP-145 storage balance on a contract').action(wrap(async (c, a) => out(client().storageBalance(c, a))));
+storage.command('withdraw <contract> [yocto]').description('withdraw unused storage deposit').action(wrap(async (c, amount) => out(client().storageWithdraw(c, amount))));
 
 // ─── delegate ───────────────────────────────────────────────────────────────
 const delegate = program.command('delegate').description('delegation: on-chain grants and NEP-413 signed requests');
 delegate
-  .command('add <delegate>')
+  .command('add <delegate>').description('let another account attest for you, with a scope and an expiry')
   .option('--schemas <uids>', 'comma-separated schema UIDs (default: any)')
   .option('--expires <unix>', 'expiry')
   .option('--max-uses <n>', 'max attestations')
@@ -210,9 +210,9 @@ delegate
       out(client().addDelegate(d, { schemas: o.schemas?.split(','), expiresAt: o.expires ? num(o.expires) : undefined, maxUses: o.maxUses ? num(o.maxUses) : undefined, canRevoke: o.canRevoke, label: o.label })),
     ),
   );
-delegate.command('remove <delegate>').action(wrap(async (d) => out(client().removeDelegate(d))));
-delegate.command('list <authority>').action(wrap(async (a) => out(client().getDelegates(a))));
-delegate.command('check <authority> <delegate>').action(wrap(async (a, d) => out(client().isDelegate(a, d))));
+delegate.command('remove <delegate>').description('remove a delegate').action(wrap(async (d) => out(client().removeDelegate(d))));
+delegate.command('list <authority>').description('list an authority\'s delegates').action(wrap(async (a) => out(client().getDelegates(a))));
+delegate.command('check <authority> <delegate>').description('is this account a delegate of that authority right now?').action(wrap(async (a, d) => out(client().isDelegate(a, d))));
 delegate
   .command('attest')
   .description('attest for an authority as its delegate')
@@ -224,7 +224,7 @@ delegate
   .action(wrap(async (o) => out(client().attestOnBehalf({ authority: o.authority, schemaUid: o.schema, subject: o.subject, data: await encodeData(o.schema, o.values, o.data) }))));
 delegate.command('revoke <uid>').description('revoke for an authority as its delegate').action(wrap(async (uid) => out(client().revokeOnBehalf(uid))));
 delegate.command('add-key <publicKey>').description('register a key that may sign requests for you').action(wrap(async (k) => out(client().addSignerKey(k))));
-delegate.command('keys <account>').action(wrap(async (a) => out(client().getSignerKeys(a))));
+delegate.command('keys <account>').description('the account\'s registered NEP-413 signer keys').action(wrap(async (a) => out(client().getSignerKeys(a))));
 delegate
   .command('sign')
   .description('sign a delegated attestation off chain (key from ATTESTRA_SIGNER_KEY); prints the request')
@@ -255,29 +255,29 @@ delegate
 
 // ─── resolvers ──────────────────────────────────────────────────────────────
 const whitelist = program.command('whitelist').description('whitelist resolver (per schema)');
-whitelist.command('add <schema> <account>').action(wrap(async (s, a) => out(client().whitelistAdd(s, a))));
-whitelist.command('remove <schema> <account>').action(wrap(async (s, a) => out(client().whitelistRemove(s, a))));
-whitelist.command('check <schema> <account>').action(wrap(async (s, a) => out(client().whitelistCheck(s, a))));
-whitelist.command('info').action(wrap(async () => out(client().resolverInfo(client().contracts.resolvers.whitelist))));
+whitelist.command('add <schema> <account>').description('allow an attester under a schema').action(wrap(async (s, a) => out(client().whitelistAdd(s, a))));
+whitelist.command('remove <schema> <account>').description('remove an attester from a schema').action(wrap(async (s, a) => out(client().whitelistRemove(s, a))));
+whitelist.command('check <schema> <account>').description('is this attester allowed under that schema?').action(wrap(async (s, a) => out(client().whitelistCheck(s, a))));
+whitelist.command('info').description("the whitelist resolver's kind and settings (resolver_info)").action(wrap(async () => out(client().resolverInfo(client().contracts.resolvers.whitelist))));
 
 const fee = program.command('fee').description('fee resolver (NEAR or NEP-141, prepaid)');
-fee.command('set-fee <schema> <amount>').option('--token <account>', 'NEP-141 (default NEAR)').action(wrap(async (s, a, o) => out(client().feeSetFee(s, a, o.token))));
-fee.command('get-fee <schema>').action(wrap(async (s) => out(client().feeGetFee(s))));
-fee.command('deposit <amount>').option('--token <account>').action(wrap(async (a, o) => out(client().feeDeposit(a, o.token))));
-fee.command('balance <account>').option('--token <account>').action(wrap(async (a, o) => out(client().feeGetBalance(a, o.token))));
-fee.command('collected <schema>').option('--token <account>').action(wrap(async (s, o) => out(client().feeCollected(s, o.token))));
+fee.command('set-fee <schema> <amount>').description('set the fee a schema charges, in NEAR or a listed NEP-141 token').option('--token <account>', 'NEP-141 (default NEAR)').action(wrap(async (s, a, o) => out(client().feeSetFee(s, a, o.token))));
+fee.command('get-fee <schema>').description('read a schema\'s fee').action(wrap(async (s) => out(client().feeGetFee(s))));
+fee.command('deposit <amount>').description('prepay fees in NEAR or a NEP-141 token').option('--token <account>').action(wrap(async (a, o) => out(client().feeDeposit(a, o.token))));
+fee.command('balance <account>').description('an account\'s prepaid fee balance').option('--token <account>').action(wrap(async (a, o) => out(client().feeGetBalance(a, o.token))));
+fee.command('collected <schema>').description('fees a schema has collected').option('--token <account>').action(wrap(async (s, o) => out(client().feeCollected(s, o.token))));
 fee.command('withdraw <schema>').description('schema admin takes collected fees').option('--token <account>').action(wrap(async (s, o) => out(client().feeWithdraw(s, o.token))));
 fee.command('refund').description('take back unused prepaid balance').option('--token <account>').option('--amount <amount>').action(wrap(async (o) => out(client().feeWithdrawBalance(o.token, o.amount))));
 
 const gated = program.command('token-gated').description('token-gated resolver (NEP-141 balance)');
-gated.command('set-config <schema> <token> <minBalance>').action(wrap(async (s, t, m) => out(client().tokenGatedSetConfig(s, t, m))));
-gated.command('get-config <schema>').action(wrap(async (s) => out(client().tokenGatedGetConfig(s))));
+gated.command('set-config <schema> <token> <minBalance>').description('gate a schema on a minimum NEP-141 balance').action(wrap(async (s, t, m) => out(client().tokenGatedSetConfig(s, t, m))));
+gated.command('get-config <schema>').description('read a schema\'s token gate').action(wrap(async (s) => out(client().tokenGatedGetConfig(s))));
 
 const reward = program.command('token-reward').description('token reward resolver (pays NEP-141 to subjects)');
-reward.command('set-config <schema> <token> <amount>').action(wrap(async (s, t, a) => out(client().tokenRewardSetConfig(s, t, a))));
-reward.command('fund <schema> <token> <amount>').action(wrap(async (s, t, a) => out(client().tokenRewardFund(s, t, a))));
-reward.command('get-config <schema>').action(wrap(async (s) => out(client().tokenRewardGetConfig(s))));
-reward.command('distributed <schema> <account>').action(wrap(async (s, a) => out(client().tokenRewardGetDistributed(s, a))));
+reward.command('set-config <schema> <token> <amount>').description('pay a NEP-141 reward to the subject of each attestation').action(wrap(async (s, t, a) => out(client().tokenRewardSetConfig(s, t, a))));
+reward.command('fund <schema> <token> <amount>').description('fund a schema\'s reward pool').action(wrap(async (s, t, a) => out(client().tokenRewardFund(s, t, a))));
+reward.command('get-config <schema>').description('read a schema\'s reward settings').action(wrap(async (s) => out(client().tokenRewardGetConfig(s))));
+reward.command('distributed <schema> <account>').description('rewards an account has received under a schema').action(wrap(async (s, a) => out(client().tokenRewardGetDistributed(s, a))));
 
 const pipeline = program.command('pipeline').alias('cross-contract').description('pipeline resolver (chained cross-contract resolvers)');
 pipeline.command('set <schema> <resolvers>').description('resolvers comma-separated, in order').action(wrap(async (s, r) => out(client().pipelineSetResolvers(s, r.split(',')))));
@@ -285,14 +285,14 @@ pipeline.command('get <schema>').action(wrap(async (s) => out(client().pipelineG
 
 // ─── credential ─────────────────────────────────────────────────────────────
 const credential = program.command('credential').description('NEP-171 non-transferable credentials');
-credential.command('mint <attestationUid>').action(wrap(async (u) => out(client().mintCredential(u))));
-credential.command('fetch <attestationUid>').action(wrap(async (u) => out(client().getCredential(u))));
-credential.command('list <owner>').action(wrap(async (o) => out(client().listCredentials(o))));
+credential.command('mint <attestationUid>').description('mint the non-transferable NEP-171 credential for an attestation').action(wrap(async (u) => out(client().mintCredential(u))));
+credential.command('fetch <attestationUid>').description('read an attestation\'s credential').action(wrap(async (u) => out(client().getCredential(u))));
+credential.command('list <owner>').description('list an account\'s credentials').action(wrap(async (o) => out(client().listCredentials(o))));
 
 // ─── schedule ───────────────────────────────────────────────────────────────
 const schedule = program.command('schedule').description('scheduled revocations');
 schedule
-  .command('revoke <uid>')
+  .command('revoke <uid>').description('schedule a revocation for a later time')
   .option('--at <unix>', 'revoke at (unix seconds)')
   .option('--in <seconds>', 'revoke in N seconds')
   .action(
@@ -301,19 +301,19 @@ schedule
       await out(client().scheduleRevocation(uid, at));
     }),
   );
-schedule.command('status <uid>').action(wrap(async (uid) => out(client().getScheduledRevocation(uid))));
-schedule.command('finalize <uid>').action(wrap(async (uid) => out(client().finalizeRevocation(uid))));
+schedule.command('status <uid>').description('an attestation\'s scheduled revocation, if any').action(wrap(async (uid) => out(client().getScheduledRevocation(uid))));
+schedule.command('finalize <uid>').description('record a scheduled revocation that is due').action(wrap(async (uid) => out(client().finalizeRevocation(uid))));
 
 // ─── multisig ───────────────────────────────────────────────────────────────
 const multisig = program.command('multisig').description('k-of-n multisig authorities');
 multisig
-  .command('create')
+  .command('create').description('create a k-of-n multisig authority')
   .requiredOption('--members <accounts>', 'comma-separated')
   .requiredOption('--threshold <k>')
   .requiredOption('-m, --metadata <text>')
   .action(wrap(async (o) => out(client().createMultisigAuthority({ members: o.members.split(','), threshold: num(o.threshold), metadata: o.metadata }))));
 multisig
-  .command('propose-attest <multisig>')
+  .command('propose-attest <multisig>').description('propose an attestation for the multisig to approve')
   .requiredOption('-s, --schema <uid>')
   .requiredOption('--subject <subject>')
   .option('-v, --values <json>')
@@ -324,27 +324,27 @@ multisig
       await out(client().proposeMultisig(ms, action));
     }),
   );
-multisig.command('propose-revoke <multisig> <uid>').action(wrap(async (ms, uid) => out(client().proposeMultisig(ms, { type: 'revoke', uid }))));
-multisig.command('approve <proposalId>').action(wrap(async (id) => out(client().approveMultisig(num(id)))));
-multisig.command('execute <proposalId>').action(wrap(async (id) => out(client().executeMultisig(num(id)))));
-multisig.command('cancel <proposalId>').action(wrap(async (id) => out(client().cancelMultisig(num(id)))));
-multisig.command('fetch <multisig>').action(wrap(async (id) => out(client().getMultisig(id))));
-multisig.command('proposal <proposalId>').action(wrap(async (id) => out(client().getProposal(num(id)))));
+multisig.command('propose-revoke <multisig> <uid>').description('propose a revocation for the multisig to approve').action(wrap(async (ms, uid) => out(client().proposeMultisig(ms, { type: 'revoke', uid }))));
+multisig.command('approve <proposalId>').description('approve a proposal as a member').action(wrap(async (id) => out(client().approveMultisig(num(id)))));
+multisig.command('execute <proposalId>').description('execute a proposal that reached its threshold').action(wrap(async (id) => out(client().executeMultisig(num(id)))));
+multisig.command('cancel <proposalId>').description('cancel a proposal you made').action(wrap(async (id) => out(client().cancelMultisig(num(id)))));
+multisig.command('fetch <multisig>').description('read a multisig\'s members and threshold').action(wrap(async (id) => out(client().getMultisig(id))));
+multisig.command('proposal <proposalId>').description('read a proposal and its approvals').action(wrap(async (id) => out(client().getProposal(num(id)))));
 
 // ─── staking and the test token ─────────────────────────────────────────────
 const staking = program.command('staking').description('authority staking tiers (NEP-141)');
 staking.command('stake <amount>').description('amount in the smallest unit').action(wrap(async (a) => out(client().stake(a))));
-staking.command('unstake <amount>').action(wrap(async (a) => out(client().unstake(a))));
-staking.command('info <account>').action(wrap(async (a) => out(client().getStake(a))));
-staking.command('tiers').action(wrap(async () => out(client().getTiers())));
+staking.command('unstake <amount>').description('withdraw staked tokens').action(wrap(async (a) => out(client().unstake(a))));
+staking.command('info <account>').description('an account\'s stake and tier').action(wrap(async (a) => out(client().getStake(a))));
+staking.command('tiers').description('the stake each tier needs').action(wrap(async () => out(client().getTiers())));
 const token = program.command('token').description('the testnet test token');
 token.command('faucet').description('1,000 test tokens, once an hour').action(wrap(async () => out(client().faucet())));
-token.command('balance <account>').action(wrap(async (a) => out(client().tokenBalance(a))));
+token.command('balance <account>').description('an account\'s test token balance').action(wrap(async (a) => out(client().tokenBalance(a))));
 
 // ─── events (audit trail) ───────────────────────────────────────────────────
 const events = program.command('events').description('NEP-297 audit trail and light client proofs');
 events
-  .command('list')
+  .command('list').description('list protocol events from the indexer')
   .option('--event <name>')
   .option('--account <account>')
   .option('--uid <uid>')
@@ -356,13 +356,13 @@ events
   .option('--revoked', 'prove the revocation event instead', false)
   .action(wrap(async (uid, o) => out(client().proveAttestation(uid, o.revoked ? 'attestation_revoked' : 'attestation_created'))));
 events
-  .command('prove-receipt <receiptId> <receiver>')
+  .command('prove-receipt <receiptId> <receiver>').description('prove any receipt final with a light client proof')
   .action(wrap(async (r, recv) => out(client().proveReceipt(r, recv))));
 
 // ─── only on NEAR ───────────────────────────────────────────────────────────
 const check = program.command('check').description('private facts checked by verifiable AI (NEAR AI Cloud + enclave)');
 check
-  .command('run <ruleId>')
+  .command('run <ruleId>').description('run a private AI check: evidence encrypted to the model, verdict attested on chain')
   .requiredOption('--subject <subject>')
   .option('--evidence <text>', 'private evidence (or @file)')
   .option('--github <login>', 'GitHub login for github_contributor')
@@ -372,7 +372,7 @@ check
       await out(client().requestPrivateCheck({ ruleId: rule, subject: o.subject, evidence, github: o.github }));
     }),
   );
-check.command('rules').action(wrap(async () => out(client().verdictsConfig())));
+check.command('rules').description('the private-check rules the verdicts contract accepts').action(wrap(async () => out(client().verdictsConfig())));
 
 const chain = program.command('chain').description('facts about other chains, without an oracle');
 chain
@@ -380,7 +380,7 @@ chain
   .description('chain is eip155 or solana; prints the text the wallet signs')
   .action(wrap(async (c, a) => out(client().linkWalletMessage(client().accountId ?? '', c, a))));
 chain.command('link <chain> <address> <signature>').description('link a wallet to your NEAR account').action(wrap(async (c, a, s) => out(client().linkWallet(c, a, s))));
-chain.command('linked <caip10>').action(wrap(async (c) => out(client().linkedAccount(c))));
+chain.command('linked <caip10>').description('the NEAR account a wallet on another chain is linked to').action(wrap(async (c) => out(client().linkedAccount(c))));
 chain
   .command('attest-event')
   .description('verify an EVM log with Chain Signatures foreign-transaction verification and attest it')
@@ -402,7 +402,7 @@ chain
 
 const agent = program.command('agent').description('Know Your Agent: identity, delegation, scoped access keys and reputation');
 agent
-  .command('register <agent>')
+  .command('register <agent>').description('register an agent you own: an identity attestation with its model, capabilities and endpoint')
   .requiredOption('--name <name>')
   .requiredOption('--model <model>')
   .option('--capabilities <list>', 'comma-separated', '')
@@ -414,17 +414,17 @@ agent
     ),
   );
 agent
-  .command('delegate <agent>')
+  .command('delegate <agent>').description('delegate to an agent with a scope and an expiry, so it can attest for you')
   .option('--schemas <uids>')
   .option('--expires <unix>')
   .option('--max-uses <n>')
   .action(wrap(async (a, o) => out(client().delegateToAgent(a, { schemas: o.schemas?.split(','), expiresAt: o.expires ? num(o.expires) : undefined, maxUses: o.maxUses ? num(o.maxUses) : undefined }))));
 agent
-  .command('rate <agent> <score>')
+  .command('rate <agent> <score>').description('rate an agent you hired: a review attestation with a score from 1 to 5')
   .option('--comment <text>')
   .option('--job <ref>')
   .action(wrap(async (a, s, o) => out(client().rateAgent({ agent: a, score: num(s), comment: o.comment, jobRef: o.job }))));
-agent.command('profile <agent>').action(wrap(async (a) => out(client().getAgentProfile(a))));
+agent.command('profile <agent>').description('an agent\'s identity, reviews, average score and delegations').action(wrap(async (a) => out(client().getAgentProfile(a))));
 agent
   .command('grant-key <publicKey>')
   .description('add a function-call access key the agent holds: only the attestations contract, only --methods, only --allowance of gas')
@@ -435,8 +435,8 @@ agent.command('revoke-key <publicKey>').description('delete an agent key from yo
 agent.command('keys <account>').description("the account's agent keys for the attestations contract").action(wrap(async (a) => out(client().agentKeys(a))));
 
 const pay = program.command('pay').description('paid verification over x402 (test token on testnet)');
-pay.command('verify-claim <uid>').action(wrap(async (uid) => out(client().paidVerify('claim', uid))));
-pay.command('verify-agent <agent>').action(wrap(async (a) => out(client().paidVerify('agent', a))));
+pay.command('verify-claim <uid>').description('pay the agent over x402 to verify a claim and prove its event final').action(wrap(async (uid) => out(client().paidVerify('claim', uid))));
+pay.command('verify-agent <agent>').description('pay the agent over x402 to check an agent\'s identity and reputation').action(wrap(async (a) => out(client().paidVerify('agent', a))));
 
 // ─── data helpers ───────────────────────────────────────────────────────────
 program
@@ -453,7 +453,8 @@ program
   .action(
     wrap(async () => {
       const c = client();
-      await out(Promise.resolve({ success: true, data: { network: c.network, account: c.accountId ?? null, contracts: c.contracts, rpc: c.config.rpcUrls[0] } }));
+      const r = resolveConfig(program.opts() as CliOptions);
+      await out(Promise.resolve({ success: true, data: { network: c.network, account: c.accountId ?? null, contracts: c.contracts, rpc: c.config.rpcUrls[0], indexer: r.indexerUrl, relayer: r.relayerUrl, agent: r.agentUrl } }));
     }),
   );
 

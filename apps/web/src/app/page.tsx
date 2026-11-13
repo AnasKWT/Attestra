@@ -66,9 +66,11 @@ const USE_CASES = [
 ];
 
 const TRACKS = [
-  { title: 'Social Money', body: 'Reputation-based access and programmable rewards: token-gated and token-reward resolvers, governance-verified authorities, membership credentials.' },
   { title: 'Privacy and Private AI', body: 'Facts checked by a NEAR AI Cloud verifiable model in a TEE with end-to-end encryption; only hashes are stored.' },
   { title: 'Agent Economy', body: 'Identity, scoped delegation and reputation for agents, and verification sold per call over x402.' },
+  { title: 'AI Security and Defense', body: 'Function-call keys that can only attest and revoke, capped MCP write tools, TEE attestations checked on chain, and reputation before an agent is trusted or paid.' },
+  { title: 'Social Money', body: 'Reputation-based access and programmable rewards: token-gated and token-reward resolvers, governance-verified authorities, membership credentials.' },
+  { title: 'NFTs That Do Something', body: 'NEP-171 credentials that carry an attestation: non-transferable, minted on request and burned the moment the attestation is revoked.' },
   { title: 'Open Innovation', body: 'Attestations about wallets on any chain, verified by Chain Signatures without an oracle, and light client proofs in the browser.' },
 ];
 
@@ -290,9 +292,9 @@ export default function Home() {
       <section className="border-t border-line bg-soft py-24">
         <div className={SECTION}>
           <div className="reveal">
-            <SectionHeading eyebrow="Where it fits" title="Built for four NEAR Hackathon tracks." />
+            <SectionHeading eyebrow="Where it fits" title="Built for six NEAR Hackathon tracks." />
           </div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {TRACKS.map((t, i) => (
               <div key={t.title} className="reveal rounded-xl border border-line bg-panel p-5 shadow-panel transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand-500/40 hover:shadow-float" style={d(i)}>
                 <h3 className="text-[15.5px] font-semibold text-fg">{t.title}</h3>

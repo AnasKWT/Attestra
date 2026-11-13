@@ -11,6 +11,8 @@ export interface PaidDeps {
   near: Near | null;
   agentAccount: string;
   net: NetworkConfig;
+  /** The agent's public base URL (AGENT_PUBLIC_URL); the challenge names the resource under it, not under the proxy's internal address. */
+  publicUrl?: string;
 }
 
 export function requirements(deps: PaidDeps, amount: string, description: string): x402.PaymentRequirements {
@@ -27,9 +29,16 @@ export function requirements(deps: PaidDeps, amount: string, description: string
 }
 
 /** Handles one paid request: returns a 402 challenge, a 402 refusal, or runs `serve` after settlement. */
+/** The URL a client should call: the request's path and query under the public base URL when one is set. */
+export function publicResource(requestUrl: string, publicUrl?: string): string {
+  if (!publicUrl) return requestUrl;
+  const u = new URL(requestUrl);
+  return `${publicUrl.replace(/\/+$/, '')}${u.pathname}${u.search}`;
+}
+
 export async function paid(req: Request, deps: PaidDeps, reqs: x402.PaymentRequirements, serve: () => Promise<unknown>): Promise<Response> {
   const header = req.headers.get(x402.X402_HEADERS.signature);
-  const challenge: x402.PaymentRequired = { x402Version: x402.X402_VERSION, resource: { url: req.url, description: reqs.description, mimeType: 'application/json' }, accepts: [reqs] };
+  const challenge: x402.PaymentRequired = { x402Version: x402.X402_VERSION, resource: { url: publicResource(req.url, deps.publicUrl), description: reqs.description, mimeType: 'application/json' }, accepts: [reqs] };
   if (!header) {
     return Response.json({ ...challenge, error: 'payment required' }, { status: 402, headers: { [x402.X402_HEADERS.required]: x402.encodeHeader(challenge) } });
   }

@@ -38,13 +38,16 @@ function toolCapsFromEnv(env: NodeJS.ProcessEnv): Record<string, number> {
 }
 
 export function optionsFromEnv(env: NodeJS.ProcessEnv = process.env): McpOptions {
+  const network = (env.NEAR_NETWORK ?? env.ATTESTRA_NETWORK ?? 'testnet') as Network;
+  // The hosted testnet services answer with nothing running locally; mainnet uses a local stack.
+  const base = network === 'testnet' ? 'https://api.attestra.site' : null;
   return {
-    network: (env.NEAR_NETWORK ?? env.ATTESTRA_NETWORK ?? 'testnet') as Network,
+    network,
     root: env.ATTESTRA_ROOT || undefined,
     rpcUrl: env.ATTESTRA_RPC_URL || undefined,
-    indexerUrl: env.ATTESTRA_INDEXER_URL || 'http://localhost:5100',
-    agentUrl: env.ATTESTRA_AGENT_URL || 'http://localhost:5300',
-    relayerUrl: env.ATTESTRA_RELAYER_URL || 'http://localhost:5200',
+    indexerUrl: env.ATTESTRA_INDEXER_URL || (base ? `${base}/indexer` : 'http://localhost:5100'),
+    agentUrl: env.ATTESTRA_AGENT_URL || (base ? `${base}/agent` : 'http://localhost:5300'),
+    relayerUrl: env.ATTESTRA_RELAYER_URL || (base ? `${base}/relayer` : 'http://localhost:5200'),
     accountId: env.ATTESTRA_ACCOUNT_ID || undefined,
     privateKey: env.ATTESTRA_PRIVATE_KEY || undefined,
     readOnly: env.MCP_READ_ONLY === '1',

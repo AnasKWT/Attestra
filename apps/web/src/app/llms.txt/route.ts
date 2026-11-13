@@ -16,6 +16,7 @@ Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=ma
 - credentials (NEP-171, non-transferable): ${CONTRACTS.credentials}
 - staking (NEP-141 tiers): ${CONTRACTS.staking}
 - resolvers: ${Object.values(CONTRACTS.resolvers).join(', ')}
+- token (NEP-141 test token with a faucet, for fees, rewards, staking and x402; native USDC on mainnet): ${CONTRACTS.token}
 - MPC signer used for cross-chain facts: ${NET.mpc}
 
 ## Concepts

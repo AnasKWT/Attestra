@@ -145,6 +145,11 @@ describe('agent HTTP API (idle, no keys)', () => {
     const req = x402.decodeHeader<x402.PaymentRequired>(res.headers.get('PAYMENT-REQUIRED')!);
     expect(req.accepts[0]).toMatchObject({ scheme: 'exact', network: 'near:testnet', asset: 'token.attestra.testnet', payTo: 'agent.attestra.testnet' });
     expect((await app.request('/v1/paid/verify-claim?uid=bad')).status).toBe(400);
+
+    // Behind a proxy that strips a path prefix, the challenge names the public URL a client can call.
+    const proxied = createApp({ config: { ...config, publicUrl: 'https://api.example.com/agent' }, ai: new NearAi(undefined), client: new AttestraClient({ network: 'testnet' }), near: null, startedAt: Date.now() });
+    const challenge = await proxied.request(`http://agent:5300/v1/paid/verify-claim?uid=${'ab'.repeat(32)}`);
+    expect(x402.decodeHeader<x402.PaymentRequired>(challenge.headers.get('PAYMENT-REQUIRED')!).resource.url).toBe(`https://api.example.com/agent/v1/paid/verify-claim?uid=${'ab'.repeat(32)}`);
     const bad = await app.request(`/v1/paid/verify-agent?agent=a.testnet`, { headers: { 'PAYMENT-SIGNATURE': x402.encodeHeader({ x402Version: 2, scheme: 'exact', network: 'near:testnet', payload: { signedDelegateAction: 'AA' } }) } });
     expect(bad.status).toBe(402);
   });

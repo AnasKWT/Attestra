@@ -130,7 +130,7 @@ export function Alert({ tone = 'info', title, children }: { tone?: Tone; title?:
   return (
     <div className={`rounded-lg border px-4 py-3 text-[13.5px] ${TONES[tone]}`}>
       {title && <p className="mb-0.5 font-semibold">{title}</p>}
-      <div className="leading-relaxed">{children}</div>
+      <div className="leading-relaxed [overflow-wrap:anywhere]">{children}</div>
     </div>
   );
 }

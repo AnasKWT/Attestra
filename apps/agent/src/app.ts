@@ -189,7 +189,7 @@ export function createApp(d: AgentDeps) {
   });
 
   // ─── paid verification (x402) ────────────────────────────────────────
-  const paidDeps = { near: d.near, agentAccount: d.config.accountId, net: d.config.net };
+  const paidDeps = { near: d.near, agentAccount: d.config.accountId, net: d.config.net, publicUrl: d.config.publicUrl };
   app.get('/v1/paid/verify-claim', async (c) => {
     const uid = c.req.query('uid') ?? '';
     if (!/^(0x)?[0-9a-fA-F]{64}$/.test(uid)) return c.json({ error: 'uid must be 64 hex characters' }, 400);

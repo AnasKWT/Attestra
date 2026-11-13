@@ -93,7 +93,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 3. Open **Sandbox**, then **Light Client Proof**, paste that attestation's UID and press **Load**, then **Prove it**: the proof runs in your browser and shows each check (block approvals over 2/3 of stake, the merkle path, the event in the logs).
 4. Open **Sandbox**, then **Gasless Issuing**, sign in with **New here? Create a passkey account**, and issue a membership: you see its UID and "The relayer paid", with a NearBlocks link to the transaction (the relayer needs `RELAYER_ACCOUNT_ID` and `RELAYER_PRIVATE_KEY`, a funded testnet account).
 5. Open **Sandbox**, then **Agent Chat**, and ask "Which well-known schemas does Attestra have?": the answer shows the tool it called and "signature verified by" its NEAR AI model, linked to the verification centre (the agent needs `NEARAI_API_KEY`).
-6. Run `node packages/cli/dist/index.js attestation verify <uid> --json`: the same answer from the CLI.
+6. Run `node packages/cli/dist/index.js attestation fetch <uid> --json`: the same decoded record from the CLI (`attestation verify` answers just `valid`, and `events prove` runs the light client proof).
 7. Run `pnpm verify`: PASS or FAIL for every claim in this README (see [Verify it yourself](#verify-it-yourself) for what it needs).
 
 ---
@@ -121,7 +121,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 |---|---|---|---|
 | Private AI checks | NEAR AI Cloud verifiable models, end-to-end encryption, a checker in NEAR OutLayer's TEE with a key bound to its build, both signatures checked with `env::ed25519_verify` | [ai.rs](contracts/verdicts/src/ai.rs), [checker](checker/src/check.rs), [outlayer.ts](apps/agent/src/outlayer.ts) | run on OutLayer [GSXM8bdD](https://testnet.nearblocks.io/txns/GSXM8bdDuKr1vDqQ9Go4kXKPfsfbgHfuYqETLtkdBKat), verdict [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1), the checker's key from its attested run [6n3rj51G](https://testnet.nearblocks.io/txns/6n3rj51Gb7XN1QV3pF6tyiUYrYsPr2i2dto42Am98Ru3) |
 | Facts about EVM chains | Chain Signatures `verify_foreign_transaction` on an EVM log, answer checked with `env::ecrecover` | [foreign.rs](contracts/verdicts/src/foreign.rs), [mpc.rs](contracts/verdicts/src/mpc.rs) | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
-| Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3q5wPWqX](https://testnet.nearblocks.io/txns/3q5wPWqXMDTVxLdBkKpxJZetHHRQVARiNVZTKhTB2Fta) |
+| Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) |
 | Wallet links | EIP-191 and ed25519 signatures verified on chain | [wallet.rs](contracts/verdicts/src/wallet.rs) | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
 | Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts) | `agent.attestra.testnet`: identity [4BBKBgVK](https://testnet.nearblocks.io/txns/4BBKBgVKNfNYGCgm5RkV95v5XqWWearzuR8mDXPYYNhy), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), function-call key [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
 | Paid verification | x402 on NEAR: a signed delegate action carrying `ft_transfer`, settled on chain before the answer | [x402.ts](packages/sdk/src/x402.ts), [paid.ts](apps/agent/src/paid.ts) | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
@@ -146,7 +146,7 @@ The test runs create their own accounts and delete them afterwards, returning th
 | Signing in with a NEAR wallet through NEAR Connect (the NEAR CLI wallet) and issuing an attestation it signed | [9jAv1M46](https://testnet.nearblocks.io/txns/9jAv1M46gvTbg4TQC2HVSFnuU1Zwax7CwT2Ed6JdbUYH) |
 | A Base Sepolia event verified by the NEAR MPC network (`verify_foreign_transaction`) and attested by the verdicts contract | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
 | A Solana devnet instruction verified by the NEAR MPC network (`verify_foreign_transaction` with the SVM extractor) and attested | [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) |
-| The same request before the block was final: the MPC timed out, the contract emitted `foreign_tx_failed` and refunded | [GLnfjP7C](https://testnet.nearblocks.io/txns/GLnfjP7CKz1HiHoTTvQNSqpdFQoN41WJJ93NkVjabBMH) |
+| A request for a block that was not yet final: the MPC request timed out, the contract emitted `foreign_tx_failed` and refunded the deposit | [GLnfjP7C](https://testnet.nearblocks.io/txns/GLnfjP7CKz1HiHoTTvQNSqpdFQoN41WJJ93NkVjabBMH) |
 | An Ethereum wallet linked to a NEAR account by its EIP-191 signature | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
 | A resolver refusing an attestation, which is removed and its storage refunded | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
 | A multisig authority reaching its threshold and attesting | [5uWRoyvR](https://testnet.nearblocks.io/txns/5uWRoyvRPEkcpQJSMqkVCtDjioRrKPWbJzyRyd2YGNuQ) |
@@ -304,7 +304,9 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 
 - **Privacy and Private AI:** private facts checked by verifiable AI with end-to-end encryption; only a verdict and a hash go on chain.
 - **Agent Economy:** Know Your Agent identity, reviews, scoped delegation and function-call keys; MCP and A2A interfaces; x402 paid verification and an Agent Market listing ready to publish.
+- **AI Security and Defense:** function-call keys that can only attest and revoke within a gas allowance, per-tool and per-day caps on the MCP write tools, TEE attestations checked before a verdict is trusted, and reputation an agent can read before it trusts or pays another.
 - **Social Money:** gasless issuing, passkey accounts and credentials that let communities vouch for people and gate rewards.
+- **NFTs That Do Something:** NEP-171 credentials that carry an attestation, cannot be transferred, and burn the moment the attestation is revoked.
 - **Open Innovation:** facts about Solana and EVM chains with no oracle through Chain Signatures, and light client proofs any client can check.
 
 ---

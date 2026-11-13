@@ -21,6 +21,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ed25519 } from '@noble/curves/ed25519.js';
+import { verifySignature } from '../apps/agent/src/nearai';
 import {
   AttestraClient,
   IndexerClient,
@@ -221,10 +222,9 @@ async function main() {
     must(okEnclave, 'the enclave signature does not verify');
     const cfg = await c.view<{ enclave_keys: string[] }>(c.contracts.verdicts, 'get_config');
     must(cfg?.enclave_keys.includes(args.enclave_key), 'the enclave key is not allowlisted by the verdicts contract');
-    if (args.nearai.algo === 'ed25519') {
-      const okModel = ed25519.verify(Buffer.from(args.nearai.signature, 'hex'), new TextEncoder().encode(args.nearai.text), Buffer.from(args.nearai.key, 'hex'));
-      must(okModel, 'the NEAR AI signature does not verify');
-    }
+    // ed25519 against the model key, or ecdsa (EIP-191) recovering the model's address, as the contract does.
+    const okModel = verifySignature({ text: args.nearai.text, signature: args.nearai.signature, signing_algo: args.nearai.algo as 'ecdsa' | 'ed25519', signing_address: args.nearai.key }, args.nearai.algo === 'ed25519' ? { ed25519: args.nearai.key } : { address: args.nearai.key });
+    must(okModel, `the NEAR AI ${args.nearai.algo} signature does not verify`);
     must(args.nearai.text.includes(args.verdict.evidence_hash), 'the model signed a different request');
     return `${args.verdict.rule_id} for ${args.verdict.subject} by ${args.verdict.model}; enclave ${args.enclave_key.slice(0, 16)}...`;
   });
@@ -235,7 +235,7 @@ async function main() {
     const node = node24();
     must(node, `@nearai/inference-sdk needs Node >= ${NODE_MIN.join('.')}: install it (\`nvm install 24\`) or set NODE24 to a node 24 binary`);
     must(existsSync(join(dir, 'node_modules/@nearai/inference-sdk')) && existsSync(join(dir, 'dist/index.js')), `the verifier is not installed: ${setup}`);
-    must(process.env.NEARAI_API_KEY, 'NEARAI_API_KEY is not set: the SDK fetches model reports with a NEAR AI Cloud key (the agent\'s, from apps/agent/.env)');
+    must(process.env.NEARAI_API_KEY, 'NEARAI_API_KEY is not set: the SDK fetches model reports with a NEAR AI Cloud key (any key from cloud.near.ai or nearbuilders.org; reading reports spends no credits)');
     const r = spawnSync(node, [join(dir, 'dist/index.js'), '--contract', c.contracts.verdicts, '--rpc', c.config.rpcUrls[0], '--json'], { cwd: dir, encoding: 'utf8', timeout: 180_000 });
     let out: { ok: boolean; sdk?: string; error?: { message: string }; reports?: Array<{ model: string; ok: boolean; error?: { message: string; code?: string }; gateway?: { tcbStatus: string; tlsBinding: string }; signers: Array<{ key: string; tcbStatus: string; gpuEvidence: string }>; trusted?: { key: string; attested: boolean } }> };
     try {

@@ -62,7 +62,7 @@ pnpm cli:e2e testnet      # every CLI group on testnet, including the indexer, a
 pnpm --filter @attestra/web e2e:live   # the sandbox tools in a real browser with a passkey account, on testnet (funds it from the root key in ~/.near-credentials)
 ```
 
-Against the hosted deployment, with nothing running locally:
+Against the hosted deployment, with nothing running locally (first build the recorded commit reproducibly, `contracts/scripts/build.sh --reproducible <commit>` with the commit from `deployments/testnet.json`, and, for the NEAR AI TEE check, build `tools/nearai-verify` with Node 24 and set any `NEARAI_API_KEY`):
 
 ```bash
 A=https://api.attestra.site
@@ -79,7 +79,7 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 - Cross-chain facts call the NEAR MPC network's `verify_foreign_transaction`, recompute the payload hash and check the answer with `env::ecrecover` ([foreign.rs#L70](contracts/verdicts/src/foreign.rs#L70), [solana.rs#L83](contracts/verdicts/src/solana.rs#L83), [mpc.rs#L272](contracts/verdicts/src/mpc.rs#L272)); the payload layouts match the MPC network's own test vectors.
 - Light client proofs are checked in your own process: block approvals over 2/3 of stake and the outcome's merkle path ([lightclient.ts#L180](packages/sdk/src/lightclient.ts#L180)).
 - Tests: contract unit and property tests in every crate, near-workspaces sandbox flows across all seven contracts, TypeScript suites for every package and app, Playwright on a production build and live on testnet, and a CLI end-to-end run on a local node and on testnet.
-- Reviews and fixes: [SECURITY.md](SECURITY.md), with seven audit findings, a gas bug the sandbox flows found, and the design decisions.
+- Reviews and fixes: [SECURITY.md](SECURITY.md), with seven review findings, a gas bug the sandbox flows found, and the design decisions.
 
 ### Design
 
@@ -109,7 +109,7 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 ### Completeness
 
 - Seven contracts, an SDK, a CLI and an MCP server with every NEAR-only feature, an indexer, an agent, a relayer, a keeper, a top-up service, an OutLayer checker and the site.
-- `pnpm verify` ([verify.ts#L122](scripts/verify.ts#L122)) proves each README claim against the live deployment and prints PASS or FAIL per claim.
+- `pnpm verify` ([verify.ts#L130](scripts/verify.ts#L130)) proves each README claim against the live deployment and prints PASS or FAIL per claim.
 - The release scope is summed up at the end of this page.
 
 ## Claims
