@@ -1,85 +1,85 @@
 {
   "network": "testnet",
   "root": "attestra.testnet",
-  "commit": "b2804bea7eae1e0172e3398682b0f82616267586",
+  "commit": "86811ab085605a4f83f6254955d61341c3a52eec",
   "build": "reproducible",
-  "deployed_at": "2026-11-14T20:08:43.679Z",
+  "deployed_at": "2026-11-14T21:37:39.450Z",
   "contracts": {
     "schemas": {
       "account": "schemas.attestra.testnet",
       "crate": "attestra-schemas",
-      "code_hash": "3QKVcvSc43qtKyjuxBXza5vfSo71X7GRTD27QeHQZbG6",
-      "deploy_tx": "4ckgMHxZkNjuHpMfpTFojmMDqYqoxTdCD52m4HExV9Fu",
+      "code_hash": "2hzzBSbaQiSvD2vFpj4CvWhhLUsL7YAJq4hGeFVbR8Te",
+      "deploy_tx": "53MHRgmcUnfEVboECK3Dc8uU5GVsWEFvJS58zF3dPUS1",
       "wasm_bytes": 199104
     },
     "attestations": {
       "account": "attestations.attestra.testnet",
       "crate": "attestra-attestations",
-      "code_hash": "FDb1QXuBz6wskfbeiXMmcyPtYcxCZDZTfWsMdADcudTg",
-      "deploy_tx": "8wQhJqH2WaHb8xJTDw1EJKUFY6QVnBnqRGxhxrVqqEVD",
+      "code_hash": "8PWi2UmW2SqCbzVQruiP5sgn5JDyt8vkV2FgGZsVw8NX",
+      "deploy_tx": "573XcfURumuV57X8xNyP8krmdPtz1u56BpT164qgshAb",
       "wasm_bytes": 401025
     },
     "token": {
       "account": "token.attestra.testnet",
       "crate": "attestra-token",
-      "code_hash": "9EfKGuEvTHY3HEdpRfAcNKnT6GmYuD5LA5hNX4zP8DHT",
-      "deploy_tx": "BUAy6FkJkkxEC4XWhmVg9PQ76FHqP12DvAfoW8cg4xAb",
+      "code_hash": "F1DSa9YuGw6oUGXqEE1H52vawXh5PBLBunbmD97XCUU6",
+      "deploy_tx": "Fqqi9Gq3SWESiwdRXEiNXq58AQb8AUmWnviBZMgBH4xt",
       "wasm_bytes": 171441
     },
     "staking": {
       "account": "staking.attestra.testnet",
       "crate": "attestra-staking",
-      "code_hash": "BFbnLAQsyjR5zcwfcjDZCuyGEu8EucifcgYRRSogDmDf",
-      "deploy_tx": "CXmGgrtfthVcGCxV9NvQoU6jqf13ZmE17SHnmQFvoJhR",
+      "code_hash": "AkdnJ8vXjXTYuu6j6SDQGTMKM3xqseWgk8nrhPfxZzL2",
+      "deploy_tx": "BYwv3aND48CD8vpbXF9Q4145LD2K5AsH5SortQiqLzLj",
       "wasm_bytes": 153594
     },
     "credentials": {
       "account": "credentials.attestra.testnet",
       "crate": "attestra-credentials",
-      "code_hash": "EGnTfjMtGSBDx8KXZvsZKV8NwnwjoCdReGjjNSKenYXA",
-      "deploy_tx": "HjefJ7twCQ1Kv1YZDkbf2CyJmrCQfqonFD3EkRRqQD9M",
+      "code_hash": "H1TPvcutqLHv63p13JwquVZVfif7wzk8ej8NH1v72jQN",
+      "deploy_tx": "BHoVYMDuzJEywfxk47cBa5LXZ37nmtVHDxqYiRjpUa12",
       "wasm_bytes": 245630
     },
     "verdicts": {
       "account": "verdicts.attestra.testnet",
       "crate": "attestra-verdicts",
-      "code_hash": "7dCpQRVPn2xwR6CJn1oDoexmY45uXkij9fh5EpA86pMF",
-      "deploy_tx": "GyoPTcteeNK3uEr9m82wSKDMSqsFcYFwjgdvDLzeTVj",
+      "code_hash": "D7F5tGGjcUAThfp8Hon3FmsV7GP3udD2EQhEzNwZdw9t",
+      "deploy_tx": "2YXeRogHYrc9vE7xhXSSNwv8UQgHZAvH5ALq64yuVAvT",
       "wasm_bytes": 347141
     },
     "whitelist": {
       "account": "whitelist.attestra.testnet",
       "crate": "attestra-resolvers",
-      "code_hash": "AmuAjTtitUz3uMn9AMXavuqkg7t3VvsEnAcdy7dNymRm",
-      "deploy_tx": "7NmUrdnHGAbh9G9hepamk2jcgbaz6CeQRn6CT42gFxzu",
+      "code_hash": "4wWZHPmft11rC1mCGmrFV7Wd4vf23tf1xGu6pD4ndRqX",
+      "deploy_tx": "6LSSAciYhbYvEZYnkmLf2jTgCK4AGUNjt6RmCpVMCnHg",
       "wasm_bytes": 318533
     },
     "fee": {
       "account": "fee.attestra.testnet",
       "crate": "attestra-resolvers",
-      "code_hash": "AmuAjTtitUz3uMn9AMXavuqkg7t3VvsEnAcdy7dNymRm",
-      "deploy_tx": "468QaT8HNeqNUi5fdFckjnkbSVdAcJQsWxMSPqGL3EzL",
+      "code_hash": "4wWZHPmft11rC1mCGmrFV7Wd4vf23tf1xGu6pD4ndRqX",
+      "deploy_tx": "6yiB64roi38mYz7SBXEfDMrRz8nawDma8gDab8JXovHa",
       "wasm_bytes": 318533
     },
     "gated": {
       "account": "gated.attestra.testnet",
       "crate": "attestra-resolvers",
-      "code_hash": "AmuAjTtitUz3uMn9AMXavuqkg7t3VvsEnAcdy7dNymRm",
-      "deploy_tx": "4Z1JyAiUD38foe3kjHReFGVB8hCZADXTfpfTxkzD2bFk",
+      "code_hash": "4wWZHPmft11rC1mCGmrFV7Wd4vf23tf1xGu6pD4ndRqX",
+      "deploy_tx": "AXWqxj9qyaHcrqEyuVGfX4Uf7KWLH3Xo7NS9xLJ9QGRe",
       "wasm_bytes": 318533
     },
     "reward": {
       "account": "reward.attestra.testnet",
       "crate": "attestra-resolvers",
-      "code_hash": "AmuAjTtitUz3uMn9AMXavuqkg7t3VvsEnAcdy7dNymRm",
-      "deploy_tx": "8YNUiV7RFpq7MKgsUCKUwMnRS19TvPC3rznnS46z4yj7",
+      "code_hash": "4wWZHPmft11rC1mCGmrFV7Wd4vf23tf1xGu6pD4ndRqX",
+      "deploy_tx": "4EsWQ8yiw5wTER1Dn9XW97mirthug2kT48q7wZiRLuk5",
       "wasm_bytes": 318533
     },
     "pipeline": {
       "account": "pipeline.attestra.testnet",
       "crate": "attestra-resolvers",
-      "code_hash": "AmuAjTtitUz3uMn9AMXavuqkg7t3VvsEnAcdy7dNymRm",
-      "deploy_tx": "6NwRuXEMYna3EBJSQf6MBsq3BsuzBDP52WSyyLm8Cpv3",
+      "code_hash": "4wWZHPmft11rC1mCGmrFV7Wd4vf23tf1xGu6pD4ndRqX",
+      "deploy_tx": "8YBcy6WR875D72Yj13NV4k5haB2pc3kzsBS44MRmmiR2",
       "wasm_bytes": 318533
     }
   },
@@ -101,7 +101,7 @@
     "key": "ed25519:AgvuhdSmhpSwD5hW5TuRw7aLCVMvEWZXkzAKQ9CkqsEa",
     "key_tx": "9mZSECatwvPjoHkCG5DbidxDhJPg6Y8wQRPXT4tiYoGo",
     "key_tx_signer": "agent.attestra.testnet",
-    "commit": "b2804bea7eae1e0172e3398682b0f82616267586",
+    "commit": "86811ab085605a4f83f6254955d61341c3a52eec",
     "build": "checker/build.sh --reproducible"
   },
   "dao": {
