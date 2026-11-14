@@ -77,7 +77,7 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
 
 ## Contents
 
-[Try it](#try-it) · [How it works](#how-it-works) · [Only on NEAR](#only-on-near) · [Live on testnet](#live-on-testnet) · [Deployed contracts](#deployed-contracts) · [Quickstart](#quickstart) · [Verify it yourself](#verify-it-yourself) · [Trust and privacy model](#trust-and-privacy-model) · [Hackathon tracks](#hackathon-tracks) · [Repository](#repository) · [Deployment](#deployment) · [Built with](#built-with)
+[Try it](#try-it) · [How it works](#how-it-works) · [Only on NEAR](#only-on-near) · [Live on testnet](#live-on-testnet) · [Deployed contracts](#deployed-contracts) · [Quickstart](#quickstart) · [Verify it yourself](#verify-it-yourself) · [Trust and privacy model](#trust-and-privacy-model) · [Roadmap](#roadmap) · [Hackathon tracks](#hackathon-tracks) · [Repository](#repository) · [Deployment](#deployment) · [Built with](#built-with)
 
 ---
 
@@ -310,6 +310,48 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
   an agent's function-call key lives on its owner's account, because that is what lets the agent act for its owner within limits NEAR enforces;
   and TEE attestations are verified before a key is trusted rather than inside each contract call, because NEAR contracts cannot verify Intel or NVIDIA quotes, while two ed25519 checks per verdict under attested keys can.
 - **Contract owners** manage allowlisted keys and resolver settings, a role meant for a multisig on mainnet; the security review, its fixes and the design decisions are in [SECURITY.md](SECURITY.md).
+
+---
+
+## Roadmap
+
+Attestra runs on testnet today, and mainnet is next; [MAINNET.md](MAINNET.md) has the launch steps.
+
+### What we're building next
+
+- **Attestations other chains can read.**
+  NEAR's MPC network already lets Attestra verify events from Base and Solana.
+  The next step reverses the direction: the network signs an attestation's current state, so an EVM or Solana contract can check a NEAR attestation with one `ecrecover` call, with no bridge involved.
+  Attestra then becomes the trust layer for every chain, not only NEAR.
+- **Selective disclosure with zero-knowledge proofs.**
+  A holder proves a statement about an attestation, such as "over 18" or "member of this DAO", without revealing the attestation, the attester or their own account.
+  A contract verifies the proof on chain.
+- **Agent trust policies.**
+  Before an agent pays, hires or delegates to another agent, it checks that agent's Know Your Agent record against a policy, for example "verified identity and paid reviews averaging 4 or more".
+  The check is enforced in the A2A and x402 flows, so agents can safely transact with agents they have never met.
+
+### Known limits we will fix before mainnet
+
+These are documented in [SECURITY.md](SECURITY.md#design-decisions) and are on purpose for testnet:
+
+- **Reviews of any payment size count.**
+  An owner who funds strangers can still buy reviews at the cost of those payments; a minimum payment and reviewer weighting will close that.
+- **Staking tiers drop the moment a stake leaves, with no unbonding period**, so a tier could be borrowed for a single attestation; an unbonding period comes before mainnet.
+- **x402 settles before it serves, but a payment is not bound to the exact request.**
+  Binding it, and refunding automatically when the answer fails, comes before mainnet.
+- **Rate limits live in memory per process and reset on a restart.**
+  They will move to a shared persistent store; the hard limits on what a key may do are already enforced on chain.
+- **One testnet key owns the contracts.**
+  Mainnet uses a multisig owner and a governance DAO that verifies authorities.
+- **Fee changes apply from the next resolver call.**
+  Attesters will get a maximum-fee field.
+- **Light client checkpoints are pinned in the SDK.**
+  They will refresh automatically each release.
+- **No independent audit yet.**
+  An audit of the contracts and the checker comes first.
+
+If you find an issue that is not listed here, please report it as [SECURITY.md](SECURITY.md#reporting-a-vulnerability) describes.
+Anything found before mainnet gets fixed before launch.
 
 ---
 
