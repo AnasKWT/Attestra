@@ -144,4 +144,4 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 - **Networks:** live on NEAR testnet at [attestra.site](https://attestra.site); mainnet-ready, with the same reproducible build deployed by one switch and rehearsed in its mainnet configuration ([MAINNET.md](MAINNET.md)).
 - **Source verification:** every contract is a reproducible build whose NEP-330 metadata names its commit, so `near contract verify` and NearBlocks (SourceScan) rebuild it from this repository.
 - **Wallets:** NEAR Connect sign-in is verified live with the NEAR CLI wallet and Meteor; the automated browser suites sign with passkey accounts, which need no extension.
-- **Packages:** `@attestra/sdk`, `@attestra/cli` and `@attestra/mcp` are packed and clean-install tested and run from the repository; the hosted MCP endpoint needs no install.
+- **Packages:** `attestra`, `attestra-cli` and `attestra-mcp` are packed and clean-install tested and run from the repository; the hosted MCP endpoint needs no install.

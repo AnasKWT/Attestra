@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, type Outcome, type ServiceResponse } from '@attestra/sdk';
+import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, type Outcome, type ServiceResponse } from 'attestra';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label } from '@/components/ui/Field';

@@ -1,6 +1,6 @@
 /**
  * Agent tools over AttestraClient, defined once as plain JSON-schema tools. The MCP server
- * (@attestra/mcp), the Attestra agent and `@attestra/sdk/ai` (LangChain) all wrap these, and any
+ * (attestra-mcp), the Attestra agent and `attestra/ai` (LangChain) all wrap these, and any
  * OpenAI-compatible agent can use `openAITools()` directly (for example on NEAR AI Cloud).
  */
 

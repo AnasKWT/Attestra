@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { IndexedAttestation } from '@attestra/sdk';
+import type { IndexedAttestation } from 'attestra';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { DataTable } from '@/components/explorer/Table';
 import { ToolFrame } from '@/components/sandbox/ToolFrame';

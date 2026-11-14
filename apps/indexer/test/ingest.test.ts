@@ -1,6 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from '@attestra/sdk';
+import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from 'attestra';
 import { createApi } from '../src/api';
 import { loadConfig } from '../src/config';
 import { connect, migrate, reset, type Db } from '../src/db';

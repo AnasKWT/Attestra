@@ -20,7 +20,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Near } from 'near-kit';
 import { FileKeyStore } from 'near-kit/keys/file';
-import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, SPUTNIK_FACTORIES, attestingDaoPolicy, daoCouncil, daoPolicyProposal, knownSchemaUid, type DaoPolicy, type Network } from '@attestra/sdk';
+import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, SPUTNIK_FACTORIES, attestingDaoPolicy, daoCouncil, daoPolicyProposal, knownSchemaUid, type DaoPolicy, type Network } from 'attestra';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [cmd = 'setup', netArg = 'testnet'] = process.argv.slice(2);

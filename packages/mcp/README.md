@@ -1,10 +1,10 @@
-# @attestra/mcp
+# attestra-mcp
 
 An MCP server that lets any AI agent read and issue attestations on NEAR with Attestra: verify a claim, prove it final, read an agent's identity and reputation, and, with a key, issue and revoke.
 
 ```bash
-claude mcp add attestra -- npx -y @attestra/mcp       # Claude Code
-npx -y @attestra/mcp --http 5600                       # Streamable HTTP on /mcp
+claude mcp add attestra -- npx -y attestra-mcp       # Claude Code
+npx -y attestra-mcp --http 5600                       # Streamable HTTP on /mcp
 ```
 
 Codex (`~/.codex/config.toml`):
@@ -12,7 +12,7 @@ Codex (`~/.codex/config.toml`):
 ```toml
 [mcp_servers.attestra]
 command = "npx"
-args = ["-y", "@attestra/mcp"]
+args = ["-y", "attestra-mcp"]
 ```
 
 ## Tools

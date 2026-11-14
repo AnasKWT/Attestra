@@ -3,7 +3,7 @@
  * storage deposits. Every route checks everything it can off chain before spending gas.
  */
 
-import { errorMessage, type StorageBalance } from '@attestra/sdk';
+import { errorMessage, type StorageBalance } from 'attestra';
 import { bodyLimit } from 'hono/body-limit';
 import { isValidAccountId } from 'near-kit';
 import type { ChainReader, ChainWriter } from '../lib/chain';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { IndexedAttestation } from '@attestra/sdk';
+import type { IndexedAttestation } from 'attestra';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { DataTable, Pager } from '@/components/explorer/Table';

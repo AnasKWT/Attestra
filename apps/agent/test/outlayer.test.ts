@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { describe, expect, it } from 'vitest';
-import { base58Encode, bytesToBase64, verdictDigest, type AiVerdict, type AttestraClient } from '@attestra/sdk';
+import { base58Encode, bytesToBase64, verdictDigest, type AiVerdict, type AttestraClient } from 'attestra';
 import type { Near } from 'near-kit';
 import { createApp, outlayerSettings } from '../src/app';
 import { loadConfig } from '../src/config';

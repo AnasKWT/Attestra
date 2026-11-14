@@ -3,7 +3,7 @@
  * with the chain. Without a key it only runs the drift check.
  */
 
-import { errorMessage, normalizeUid, type AttestationRecord, type IndexedAttestation, type IndexedEvent, type IndexerStatus, type Paginated } from '@attestra/sdk';
+import { errorMessage, normalizeUid, type AttestationRecord, type IndexedAttestation, type IndexedEvent, type IndexerStatus, type Paginated } from 'attestra';
 import type { ChainReader, ChainWriter } from '../lib/chain';
 import type { Logger, RecentErrors } from '../lib/log';
 import { TGAS } from '../lib/units';

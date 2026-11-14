@@ -1,6 +1,6 @@
 /** Machine-facing routes: /llms.txt for language models and the hosted MCP endpoint. */
 
-import { computeSchemaUid } from '@attestra/sdk';
+import { computeSchemaUid } from 'attestra';
 import { expect, test } from './support';
 
 const MCP_HEADERS = { 'content-type': 'application/json', accept: 'application/json, text/event-stream' };
@@ -13,8 +13,8 @@ test('/llms.txt describes the protocol, the MCP and the SDK', async ({ request }
   expect(text).toMatch(/^# Attestra\n/);
   expect(text).toContain('## Agent access');
   expect(text).toMatch(/MCP \(Streamable HTTP, read tools\): \S*\/mcp/);
-  expect(text).toContain('npx -y @attestra/mcp');
-  expect(text).toContain('## SDK (TypeScript, @attestra/sdk)');
+  expect(text).toContain('npx -y attestra-mcp');
+  expect(text).toContain('## SDK (TypeScript, attestra)');
   expect(text).toContain('new AttestraClient(');
   expect(text).toContain('schemas.attestra.testnet');
 });

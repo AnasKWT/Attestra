@@ -1,6 +1,6 @@
 /** Keeper settings: the shared ones plus its interval and drift thresholds. */
 
-import { DEFAULT_ROOTS, DEPLOYMENT_DAOS } from '@attestra/sdk';
+import { DEFAULT_ROOTS, DEPLOYMENT_DAOS } from 'attestra';
 import { int, loadServiceConfig, type ServiceConfig } from '../lib/config';
 import { parseNear } from '../lib/units';
 

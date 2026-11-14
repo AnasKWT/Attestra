@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { fetchSolanaInstruction, type EvmLog, type ServiceResponse, type SolanaInstruction } from '@attestra/sdk';
+import { fetchSolanaInstruction, type EvmLog, type ServiceResponse, type SolanaInstruction } from 'attestra';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label, Select } from '@/components/ui/Field';

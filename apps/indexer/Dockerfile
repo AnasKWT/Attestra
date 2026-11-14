@@ -10,7 +10,7 @@ COPY packages/sdk/package.json packages/sdk/
 COPY apps/indexer/package.json apps/indexer/
 RUN pnpm install --frozen-lockfile --filter @attestra/indexer...
 COPY packages/sdk packages/sdk
-RUN pnpm --filter @attestra/sdk build
+RUN pnpm --filter attestra build
 
 
 FROM node:22-alpine

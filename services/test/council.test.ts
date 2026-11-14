@@ -1,4 +1,4 @@
-import { attestingDaoPolicy, daoAttestProposal, daoRevokeProposal, KNOWN_SCHEMAS, knownSchemaUid, SchemaEncoder, type DaoPolicy, type DaoProposal } from '@attestra/sdk';
+import { attestingDaoPolicy, daoAttestProposal, daoRevokeProposal, KNOWN_SCHEMAS, knownSchemaUid, SchemaEncoder, type DaoPolicy, type DaoProposal } from 'attestra';
 import { describe, expect, it } from 'vitest';
 import { createKeeperApp } from '../src/keeper/app';
 import { loadKeeperConfig } from '../src/keeper/config';

@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from '@attestra/sdk';
+import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from 'attestra';
 import type { Db } from './db';
 import { getMeta } from './db';
 

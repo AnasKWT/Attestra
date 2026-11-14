@@ -1,6 +1,6 @@
 /** Starts the keeper: a pass every KEEPER_INTERVAL_MS, read-only (drift check only) without a key. */
 
-import { IndexerClient } from '@attestra/sdk';
+import { IndexerClient } from 'attestra';
 import { NearWriter, RpcReader } from '../lib/chain';
 import { listen } from '../lib/http';
 import { RecentErrors, logger } from '../lib/log';

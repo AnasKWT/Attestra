@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { SignedRequest } from '@attestra/sdk';
+import type { SignedRequest } from 'attestra';
 import { ActionCard, ToolFrame } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label } from '@/components/ui/Field';

@@ -21,7 +21,7 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile --filter @attestra/web...
 COPY packages/sdk packages/sdk
 COPY packages/mcp packages/mcp
-RUN pnpm --filter @attestra/sdk build && pnpm --filter @attestra/mcp build
+RUN pnpm --filter attestra build && pnpm --filter attestra-mcp build
 COPY apps/web apps/web
 RUN pnpm --filter @attestra/web build
 

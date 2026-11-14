@@ -1,9 +1,9 @@
-# @attestra/cli
+# attestra-cli
 
 The `attestra` command line for Attestra, the attestation protocol on NEAR.
 
 ```bash
-npm install -g @attestra/cli
+npm install -g attestra-cli
 attestra attestation verify <uid> --json
 ```
 

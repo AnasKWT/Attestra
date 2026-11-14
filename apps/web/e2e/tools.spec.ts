@@ -1,6 +1,6 @@
 /** Sandbox tools that work with no deployment: encoding, UIDs, and the messages forms show for bad input. */
 
-import { computeSchemaUid, contractIdsFor, knownSchemaUid, SchemaEncoder } from '@attestra/sdk';
+import { computeSchemaUid, contractIdsFor, knownSchemaUid, SchemaEncoder } from 'attestra';
 import { expect, test } from './support';
 
 const RESOLVERS = contractIdsFor('attestra.testnet').resolvers;

@@ -18,8 +18,8 @@ members = [
 version = "1.0.0"
 edition = "2021"
 license = "MIT"
-authors = ["Attestra contributors"]
-repository = "https://github.com/attestra/attestra"
+authors = ["Anas <https://github.com/AnasKWT>"]
+repository = "https://github.com/AnasKWT/Attestra"
 
 [workspace.dependencies]
 near-sdk = { version = "5.30.1", default-features = false, features = ["wee_alloc"] }

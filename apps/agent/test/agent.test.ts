@@ -2,7 +2,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
 import { describe, expect, it } from 'vitest';
-import { AttestraClient, base58Decode, base64ToBytes, bytesToHex, decryptWithEd25519Seed, encryptForModel, verdictDigest, x402 } from '@attestra/sdk';
+import { AttestraClient, base58Decode, base64ToBytes, bytesToHex, decryptWithEd25519Seed, encryptForModel, verdictDigest, x402 } from 'attestra';
 import { createApp } from '../src/app';
 import { githubMergedPrs, rulePrompt, runCheck } from '../src/check';
 import { loadConfig } from '../src/config';
@@ -10,7 +10,7 @@ import { NearAi, sha256Hex, signedHashes, verifySignature } from '../src/nearai'
 
 const modelSeed = new Uint8Array(32).fill(7);
 const modelPub = bytesToHex(ed25519.getPublicKey(modelSeed));
-const checkerSecret = 'ed25519:' + (await import('@attestra/sdk')).base58Encode(new Uint8Array(32).fill(9));
+const checkerSecret = 'ed25519:' + (await import('attestra')).base58Encode(new Uint8Array(32).fill(9));
 
 /** A NEAR AI Cloud stand-in: decrypts E2EE messages with the model key, answers, signs like the gateway. */
 function fakeNearAi(answer = 'PASS') {

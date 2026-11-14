@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Loader2, ShieldCheck, XCircle } from 'lucide-react';
 import { useState } from 'react';
-import type { ProofResult } from '@attestra/sdk';
+import type { ProofResult } from 'attestra';
 import { reader } from '@/lib/client';
 import { Hash } from '../ui/Copy';
 import { Alert, Button, Panel, PanelHeader } from '../ui/primitives';

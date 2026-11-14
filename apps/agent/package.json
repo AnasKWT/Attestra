@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "The Attestra agent: chat over the protocol on NEAR AI Cloud verifiable models, private AI checks, paid verification over x402, MCP, A2A and REST.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -14,8 +14,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestra/mcp": "workspace:*",
-    "@attestra/sdk": "workspace:*",
+    "attestra-mcp": "workspace:*",
+    "attestra": "workspace:*",
     "@hono/node-server": "2.1.6",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.0.1",

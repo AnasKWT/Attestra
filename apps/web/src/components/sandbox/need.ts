@@ -1,4 +1,4 @@
-import type { AttestraClient } from '@attestra/sdk';
+import type { AttestraClient } from 'attestra';
 
 /** The signing client, or an error a tool shows when no one is signed in. */
 export function need(client: AttestraClient | null): AttestraClient {

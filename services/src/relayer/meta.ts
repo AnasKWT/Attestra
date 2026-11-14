@@ -4,7 +4,7 @@
  */
 
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { base58Encode, type NetworkConfig } from '@attestra/sdk';
+import { base58Encode, type NetworkConfig } from 'attestra';
 import { DELEGATE_ACTION_PREFIX, decodeSignedDelegateAction, encodeSignedDelegateAction, type SignedDelegateAction } from 'near-kit';
 import type { Checked } from './policy';
 

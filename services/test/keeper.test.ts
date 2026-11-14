@@ -1,4 +1,4 @@
-import type { AttestationRecord } from '@attestra/sdk';
+import type { AttestationRecord } from 'attestra';
 import { describe, expect, it } from 'vitest';
 import { RecentErrors } from '../src/lib/log';
 import { createKeeperApp } from '../src/keeper/app';

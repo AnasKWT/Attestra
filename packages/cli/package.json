@@ -1,9 +1,12 @@
 {
-  "name": "@attestra/cli",
+  "name": "attestra-cli",
   "version": "1.0.0",
   "description": "Attestra command line: schemas, attestations, authorities, resolvers, delegation, credentials, light client proofs, private AI checks, cross-chain facts and agent reputation on NEAR.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
+  "repository": {"type": "git", "url": "git+https://github.com/AnasKWT/Attestra.git", "directory": "packages/cli"},
+  "homepage": "https://attestra.site",
+  "bugs": "https://github.com/AnasKWT/Attestra/issues",
   "type": "module",
   "bin": {
     "attestra": "./dist/index.js"
@@ -22,7 +25,7 @@
     "prepack": "cp ../../LICENSE LICENSE"
   },
   "dependencies": {
-    "@attestra/sdk": "workspace:*",
+    "attestra": "workspace:*",
     "commander": "14.0.2",
     "near-kit": "0.20.2"
   },

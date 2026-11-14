@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { SignedRequest } from '@attestra/sdk';
+import type { SignedRequest } from 'attestra';
 import { ActionCard, Result, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { SchemaPicker, SchemaValues } from '@/components/sandbox/SchemaFields';
 import { need } from '@/components/sandbox/need';
@@ -92,8 +92,8 @@ export default function DelegatedAttestation() {
   );
 }
 
-function SubmitButton({ label, run, variant = 'primary' }: { label: string; run: () => Promise<import('@attestra/sdk').ServiceResponse<{ uid: string; status: string }>>; variant?: 'primary' | 'secondary' }) {
-  const [res, setRes] = useState<import('@attestra/sdk').ServiceResponse<{ uid: string; status: string }> | null>(null);
+function SubmitButton({ label, run, variant = 'primary' }: { label: string; run: () => Promise<import('attestra').ServiceResponse<{ uid: string; status: string }>>; variant?: 'primary' | 'secondary' }) {
+  const [res, setRes] = useState<import('attestra').ServiceResponse<{ uid: string; status: string }> | null>(null);
   const [busy, setBusy] = useState(false);
   return (
     <div className="min-w-0 flex-1">

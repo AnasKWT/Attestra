@@ -3,7 +3,7 @@
  * `POST /v1/run`, and `POST /v1/dao/review` (review the DAOs' open proposals now).
  */
 
-import { errorMessage } from '@attestra/sdk';
+import { errorMessage } from 'attestra';
 import { withTimeout, type ChainReader, type ChainWriter } from '../lib/chain';
 import { baseApp, type HealthReport } from '../lib/http';
 import type { RecentErrors } from '../lib/log';

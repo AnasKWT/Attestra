@@ -1,9 +1,9 @@
-# @attestra/sdk
+# attestra
 
 TypeScript SDK for Attestra, the attestation protocol on NEAR: schemas, attestations, resolvers, delegation, credentials, private AI checks, cross-chain facts, Know Your Agent and light client proofs.
 
 ```bash
-npm install @attestra/sdk
+npm install attestra
 ```
 
 ESM only, Node 22 or a modern browser.
@@ -11,7 +11,7 @@ ESM only, Node 22 or a modern browser.
 ## Read
 
 ```ts
-import { AttestraClient } from '@attestra/sdk';
+import { AttestraClient } from 'attestra';
 
 const client = new AttestraClient({ network: 'testnet' });
 const valid = await client.isValid('<uid>');
@@ -22,7 +22,7 @@ const agent = await client.getAgentProfile('agent.testnet');
 ## Write
 
 ```ts
-import { AttestraClient, SchemaEncoder } from '@attestra/sdk';
+import { AttestraClient, SchemaEncoder } from 'attestra';
 
 const client = new AttestraClient({ network: 'testnet', accountId: 'alice.testnet', privateKey: 'ed25519:...' });
 const schema = await client.registerSchema({ definition: 'string name, u8 level', revocable: true });
@@ -53,7 +53,7 @@ The agent then signs as the account, so keep a storage balance on the attestatio
 - `SchemaEncoder`: Borsh encoding for schema definitions such as `string name, u8 level, account_id issuer`.
 - `computeSchemaUid`, `computeAttestationUid`: the same UIDs the contracts compute.
 - `client.proveAttestation(uid)` and `proveReceipt`: prove an event is in a final block, checked against validator stake.
-- `openAITools()` and `runTool()`: Attestra as tools for any OpenAI-compatible agent; `@attestra/sdk/ai` for LangChain (install the optional peers `@langchain/core` and `zod`).
+- `openAITools()` and `runTool()`: Attestra as tools for any OpenAI-compatible agent; `attestra/ai` for LangChain (install the optional peers `@langchain/core` and `zod`).
 - x402 helpers for paying for and serving verification on NEAR.
 
 `network: 'mainnet'` switches every contract id, endpoint and token.

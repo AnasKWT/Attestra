@@ -10,7 +10,7 @@
  * when the agent is registered on the market and goes live once its listing is published.
  */
 
-import type { AttestraClient } from '@attestra/sdk';
+import type { AttestraClient } from 'attestra';
 
 export type MarketRequest = { kind: 'claim'; uid: string } | { kind: 'agent'; account: string };
 

@@ -2,7 +2,7 @@
 
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { BASE_TYPES, computeSchemaUid } from '@attestra/sdk';
+import { BASE_TYPES, computeSchemaUid } from 'attestra';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label, Select, Toggle } from '@/components/ui/Field';

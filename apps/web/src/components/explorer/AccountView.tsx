@@ -2,7 +2,7 @@
 
 import { User } from 'lucide-react';
 import Link from 'next/link';
-import type { IndexedAttestation } from '@attestra/sdk';
+import type { IndexedAttestation } from 'attestra';
 import { Hash } from '../ui/Copy';
 import { Alert, Badge, Panel, PanelHeader } from '../ui/primitives';
 import { indexer } from '@/lib/client';

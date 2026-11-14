@@ -1,4 +1,4 @@
-import { knownSchemaUid } from '@attestra/sdk';
+import { knownSchemaUid } from 'attestra';
 import { CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { CONTRACTS, NETWORK } from '@/lib/config';

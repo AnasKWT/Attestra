@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SchemaEncoder, type ServiceResponse } from '@attestra/sdk';
+import { SchemaEncoder, type ServiceResponse } from 'attestra';
 import { ActionCard, ToolFrame } from '@/components/sandbox/ToolFrame';
 import { Input, Label } from '@/components/ui/Field';
 import { reader } from '@/lib/client';

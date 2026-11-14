@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { InMemoryKeyStore, Near, generateKey, parseKey } from 'near-kit';
 import { FileKeyStore } from 'near-kit/keys/file';
 import { Sandbox } from 'near-kit/sandbox';
-import { DEFAULT_ROOTS, KNOWN_SCHEMAS, base58Encode, contractIdsFor, knownSchemaUid, resolveNetwork } from '@attestra/sdk';
+import { DEFAULT_ROOTS, KNOWN_SCHEMAS, base58Encode, contractIdsFor, knownSchemaUid, resolveNetwork } from 'attestra';
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NET = (process.argv[2] ?? 'testnet') as 'testnet' | 'mainnet' | 'sandbox';

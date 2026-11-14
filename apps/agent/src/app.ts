@@ -2,8 +2,8 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { handleMcpRequest } from '@attestra/mcp';
-import { bytesToHex, x402, type AttestraClient, type Outcome } from '@attestra/sdk';
+import { handleMcpRequest } from 'attestra-mcp';
+import { bytesToHex, x402, type AttestraClient, type Outcome } from 'attestra';
 import type { Near } from 'near-kit';
 import { a2aError, a2aReply, agentCard, textOf, type A2ARequest } from './a2a';
 import { chat, type ChatTurn } from './chat';

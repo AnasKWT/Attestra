@@ -1,6 +1,6 @@
 /** Reads every watched balance, plans the refills and sends them from the treasury. */
 
-import { errorMessage, type StorageBalance } from '@attestra/sdk';
+import { errorMessage, type StorageBalance } from 'attestra';
 import { withTimeout, type ChainReader, type ChainWriter } from '../lib/chain';
 import type { DailyLedger } from '../lib/ledger';
 import type { Logger, RecentErrors } from '../lib/log';

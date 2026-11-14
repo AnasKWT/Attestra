@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Attestra site: landing, explorer, sandbox, docs, agent chat, hosted MCP and llms.txt.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -18,8 +18,8 @@
     "e2e:live": "E2E_LIVE=${E2E_LIVE:-http://localhost:3100} playwright test"
   },
   "dependencies": {
-    "@attestra/mcp": "workspace:*",
-    "@attestra/sdk": "workspace:*",
+    "attestra-mcp": "workspace:*",
+    "attestra": "workspace:*",
     "@hot-labs/near-connect": "0.12.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@noble/curves": "2.2.0",

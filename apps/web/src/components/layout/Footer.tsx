@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AUTHOR, NETWORK, REPO_URL } from '@/lib/config';
+import { AUTHOR, AUTHOR_URL, NETWORK, REPO_URL } from '@/lib/config';
 import { Logo } from '../brand/Logo';
 
 const COLS = [
@@ -37,7 +37,7 @@ export function Footer() {
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-5 text-[12.5px] text-mute sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>
-            Built by {AUTHOR}. MIT licensed. Source: {REPO_URL.startsWith('http') ? <a className="hover:text-fg" href={REPO_URL}>{REPO_URL.replace('https://', '')}</a> : REPO_URL}
+            Built by {AUTHOR_URL ? <a className="hover:text-fg" href={AUTHOR_URL}>{AUTHOR}</a> : AUTHOR}. MIT licensed. Source: {REPO_URL.startsWith('http') ? <a className="hover:text-fg" href={REPO_URL}>{REPO_URL.replace('https://', '')}</a> : REPO_URL}
           </p>
           <p>Contracts verifiable with near contract verify. Light client proofs checked in your browser.</p>
         </div>

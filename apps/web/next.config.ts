@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // Docker builds a self-contained server; Vercel ignores this.
   output: process.env.NEXT_OUTPUT === 'standalone' ? 'standalone' : undefined,
   outputFileTracingRoot: fileURLToPath(new URL('../..', import.meta.url)),
-  transpilePackages: ['@attestra/sdk'],
+  transpilePackages: ['attestra'],
   poweredByHeader: false,
   async headers() {
     return [

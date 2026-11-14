@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import type { AttestationRecord, AuthorityRecord, DelegateRecord, SchemaRecord } from '@attestra/sdk';
+import type { AttestationRecord, AuthorityRecord, DelegateRecord, SchemaRecord } from 'attestra';
 import type { EventRow } from './events';
 
 export type Db = pg.Pool;

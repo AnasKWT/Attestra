@@ -3,16 +3,16 @@
 # and pick the service with the compose `command` (default: relayer):
 #   command: ["node", "--import", "tsx", "src/main.ts", "keeper"]
 
-# ---- build: the SDK's dist (the services import @attestra/sdk)
+# ---- build: the SDK's dist (the services import attestra)
 FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/sdk/package.json packages/sdk/
 COPY services/package.json services/
-RUN pnpm install --frozen-lockfile --filter @attestra/sdk
+RUN pnpm install --frozen-lockfile --filter attestra
 COPY packages/sdk packages/sdk
-RUN pnpm --filter @attestra/sdk build
+RUN pnpm --filter attestra build
 
 # ---- run: production dependencies only
 FROM node:22-alpine

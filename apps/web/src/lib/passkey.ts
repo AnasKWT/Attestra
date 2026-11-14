@@ -6,7 +6,7 @@
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { base58Encode, bytesToHex } from '@attestra/sdk';
+import { base58Encode, bytesToHex } from 'attestra';
 
 const STORE = 'attestra.passkey';
 /** The PRF input every passkey account is derived with; changing it changes every account. */

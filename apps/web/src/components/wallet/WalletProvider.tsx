@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AttestraClient } from '@attestra/sdk';
+import { AttestraClient } from 'attestra';
 import { AGENT_URL, INDEXER_URL, NETWORK, RELAYER_URL, ROOT } from '@/lib/config';
 import { createPasskeyAccount, forgetPasskey, signInWithPasskey, type PasskeyAccount } from '@/lib/passkey';
 
@@ -159,7 +159,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         kind === 'passkey' && passkey
           ? {
               signMessage: async (p) => {
-                const { keySigner } = await import('@attestra/sdk');
+                const { keySigner } = await import('attestra');
                 return keySigner(passkey.secretKey).signMessage(p);
               },
             }

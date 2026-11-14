@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { SchemaEncoder, isSputnikDao, type AttestationRecord } from '@attestra/sdk';
+import { SchemaEncoder, isSputnikDao, type AttestationRecord } from 'attestra';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { ProofPanel } from '@/components/explorer/ProofPanel';

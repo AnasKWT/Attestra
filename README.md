@@ -60,8 +60,9 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
 | **Live** | site [attestra.site](https://attestra.site), services [api.attestra.site](https://api.attestra.site/indexer/health), [status](https://attestra.site/status) |
 | **Networks** | live on NEAR testnet under `attestra.testnet`; mainnet-ready behind one switch ([MAINNET.md](MAINNET.md)) |
 | **Contracts** | seven Rust contracts and five resolver kinds, reproducible builds with NEP-330 metadata: [Deployed contracts](#deployed-contracts) |
-| **Packages** | `@attestra/sdk`, `@attestra/cli` (binary `attestra`), `@attestra/mcp` |
+| **Packages** | `attestra`, `attestra-cli` (binary `attestra`), `attestra-mcp` |
 | **For agents** | MCP at `https://attestra.site/mcp`, [llms.txt](https://attestra.site/llms.txt), [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md) |
+| **Source** | [github.com/AnasKWT/Attestra](https://github.com/AnasKWT/Attestra), MIT |
 | **For judges** | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
 | **Video** | `[placeholder]` |
 
@@ -209,7 +210,7 @@ With no keys every service runs read-only and says so on `/health`.
 Read an attestation from code:
 
 ```ts
-import { AttestraClient } from '@attestra/sdk';
+import { AttestraClient } from 'attestra';
 
 const client = new AttestraClient({ network: 'testnet' });
 const valid = await client.isValid('<uid>');
@@ -223,7 +224,7 @@ Give an agent the tools from the hosted endpoint, with nothing to install:
 claude mcp add --transport http attestra https://attestra.site/mcp
 ```
 
-Or over stdio from this repository after `pnpm build` (or `npx -y @attestra/mcp` from npm):
+Or over stdio from this repository after `pnpm build` (or `npx -y attestra-mcp` from npm):
 
 ```bash
 claude mcp add attestra -- node packages/mcp/dist/cli.js
@@ -319,9 +320,9 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 ```text
 contracts/        Rust contracts (near-sdk 5.30): schemas, attestations, verdicts, credentials, staking, token, resolvers
 checker/          the private checker, a WASI component that runs in NEAR OutLayer's TEE
-packages/sdk      @attestra/sdk: AttestraClient, SchemaEncoder, light client proofs, x402, end-to-end encryption
-packages/cli      @attestra/cli: every operation from the shell, --json everywhere
-packages/mcp      @attestra/mcp: the MCP server, hosted at /mcp and runnable over stdio
+packages/sdk      attestra: AttestraClient, SchemaEncoder, light client proofs, x402, end-to-end encryption
+packages/cli      attestra-cli: every operation from the shell, --json everywhere
+packages/mcp      attestra-mcp: the MCP server, hosted at /mcp and runnable over stdio
 apps/web          the site: explorer, 32 sandbox tools, docs, /mcp, /llms.txt
 apps/indexer      FastNEAR transactions API to Postgres, with a REST API
 apps/agent        the NEAR AI agent: chat, private checks, x402 paid verification, A2A
@@ -344,7 +345,7 @@ skills/attestra/  the agent skill
 | **Services** | indexer, agent, relayer, keeper and top-up at [api.attestra.site](https://api.attestra.site/indexer/health), running `compose.yaml` behind Caddy; [/status](https://attestra.site/status) shows their health |
 | **Contracts** | NEAR testnet from a reproducible build; mainnet-ready with the same build behind one switch ([MAINNET.md](MAINNET.md)) |
 | **Private checks** | live inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key |
-| **Packages** | `@attestra/sdk`, `@attestra/cli` and `@attestra/mcp`, clean-install tested; every command above runs from the repository |
+| **Packages** | `attestra`, `attestra-cli` and `attestra-mcp`, clean-install tested; every command above runs from the repository |
 | **Checks** | `pnpm verify` passes every check against the hosted stack |
 
 ---
@@ -353,7 +354,7 @@ skills/attestra/  the agent skill
 
 - Contracts: Rust, near-sdk 5.30, cargo-near 0.22 (SourceScan's reproducible build image), near-workspaces for sandbox tests.
 - Checker: Rust on wasm32-wasip2 for NEAR OutLayer; ed25519-dalek, x25519-dalek, chacha20poly1305, hkdf, sha2, borsh.
-- TypeScript: near-kit, @noble/curves, @noble/hashes and @noble/ciphers, the MCP TypeScript SDK, commander, hono, pg; LangChain and zod as optional peers of `@attestra/sdk/ai`; `@nearai/inference-sdk` for independent TEE attestation checks.
+- TypeScript: near-kit, @noble/curves, @noble/hashes and @noble/ciphers, the MCP TypeScript SDK, commander, hono, pg; LangChain and zod as optional peers of `attestra/ai`; `@nearai/inference-sdk` for independent TEE attestation checks.
 - Site: Next.js 16, React 19, Tailwind CSS 4, NEAR Connect (`@hot-labs/near-connect`), lucide-react; vitest and Playwright for tests.
 - NEAR services: NEAR AI Cloud, NEAR OutLayer, Chain Signatures (MPC `verify_foreign_transaction`), FastNEAR RPC and transactions API.
 - AI-generated code: the code, tests and docs were written with AI coding assistants (Claude Code) under the author's direction and review.
@@ -363,7 +364,7 @@ skills/attestra/  the agent skill
 
 ## Team
 
-`[placeholder]`
+Anas ([@AnasKWT](https://github.com/AnasKWT)): design, contracts, services, site and docs.
 
 ---
 

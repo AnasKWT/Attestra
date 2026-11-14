@@ -4,7 +4,7 @@
  * Tests replace both with fakes.
  */
 
-import { AttestraClient, errorMessage } from '@attestra/sdk';
+import { AttestraClient, errorMessage } from 'attestra';
 import { Near, type PrivateKey, type SignedDelegateAction, type TransactionBuilder } from 'near-kit';
 import type { ServiceConfig } from './config';
 import { successValue, txHashOf } from './outcome';

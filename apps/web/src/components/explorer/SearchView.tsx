@@ -3,7 +3,7 @@
 import { FileCheck2, Landmark, Layers, Search, User } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import type { SearchResult } from '@attestra/sdk';
+import type { SearchResult } from 'attestra';
 import { indexer } from '@/lib/client';
 import { readableError } from '@/lib/useFetch';
 import { Alert, Badge, Empty } from '../ui/primitives';

@@ -5,7 +5,7 @@
  */
 
 import { decodeSignedDelegateAction, type Near } from 'near-kit';
-import { x402, type NetworkConfig } from '@attestra/sdk';
+import { x402, type NetworkConfig } from 'attestra';
 
 export interface PaidDeps {
   near: Near | null;

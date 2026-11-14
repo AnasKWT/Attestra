@@ -14,7 +14,7 @@
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, fetchWithRetry, verdictDigest, type AiVerdict } from '@attestra/sdk';
+import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, fetchWithRetry, verdictDigest, type AiVerdict } from 'attestra';
 import { NearAi, signedHashes, verifySignature } from './nearai';
 
 export interface Rule {

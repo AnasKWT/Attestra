@@ -1,6 +1,6 @@
 /** Agent settings from the environment; every value has a working testnet default or a clear idle mode. */
 
-import { resolveNetwork, type Network } from '@attestra/sdk';
+import { resolveNetwork, type Network } from 'attestra';
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const network = (env.NEAR_NETWORK ?? 'testnet') as Network;

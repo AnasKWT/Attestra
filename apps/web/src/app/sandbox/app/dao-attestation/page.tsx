@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AttestraErrorType, DEPLOYMENT_DAOS, KNOWN_SCHEMAS, SchemaEncoder, daoApprovalsNeeded, knownSchemaUid, type ServiceResponse } from '@attestra/sdk';
+import { AttestraErrorType, DEPLOYMENT_DAOS, KNOWN_SCHEMAS, SchemaEncoder, daoApprovalsNeeded, knownSchemaUid, type ServiceResponse } from 'attestra';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { ActionCard, ToolFrame } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';

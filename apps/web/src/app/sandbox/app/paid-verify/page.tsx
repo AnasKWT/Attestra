@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { x402 } from '@attestra/sdk';
+import { x402 } from 'attestra';
 import { ActionCard, ToolFrame } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label, Select } from '@/components/ui/Field';

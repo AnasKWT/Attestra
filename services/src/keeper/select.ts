@@ -3,7 +3,7 @@
  * Pure functions over indexer rows, so the rules are tested without a network.
  */
 
-import type { AttestationRecord, IndexedAttestation } from '@attestra/sdk';
+import type { AttestationRecord, IndexedAttestation } from 'attestra';
 
 /** Scheduled revocations whose time has passed but whose `attestation_revoked` event never landed. */
 export function dueRevocations(rows: IndexedAttestation[], nowSecs: number, skip: (uid: string) => boolean = () => false): string[] {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { computeSchemaUid } from '@attestra/sdk';
+import { computeSchemaUid } from 'attestra';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Label, Textarea, Toggle } from '@/components/ui/Field';

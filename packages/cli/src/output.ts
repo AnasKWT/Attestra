@@ -3,7 +3,7 @@
  * stable); otherwise a short human readable block.
  */
 
-import type { ServiceResponse } from '@attestra/sdk';
+import type { ServiceResponse } from 'attestra';
 
 const color = (code: number) => (s: string) => (process.stdout.isTTY && !process.env.NO_COLOR ? `\u001b[${code}m${s}\u001b[0m` : s);
 export const dim = color(2);

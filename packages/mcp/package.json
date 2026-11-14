@@ -1,9 +1,12 @@
 {
-  "name": "@attestra/mcp",
+  "name": "attestra-mcp",
   "version": "1.0.0",
   "description": "Attestra MCP server: read schemas, attestations, authorities and agent reputation on NEAR, check light client proofs, and (on testnet, capped) register schemas, attest, revoke and request private AI checks.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
+  "repository": {"type": "git", "url": "git+https://github.com/AnasKWT/Attestra.git", "directory": "packages/mcp"},
+  "homepage": "https://attestra.site",
+  "bugs": "https://github.com/AnasKWT/Attestra/issues",
   "type": "module",
   "bin": {
     "attestra-mcp": "./bin/attestra-mcp.js"
@@ -31,7 +34,7 @@
     "prepack": "cp ../../LICENSE LICENSE"
   },
   "dependencies": {
-    "@attestra/sdk": "workspace:*",
+    "attestra": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.2"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 /** Settings every service shares, from the environment, with working public testnet defaults. */
 
-import { resolveNetwork, type Network, type NetworkConfig } from '@attestra/sdk';
+import { resolveNetwork, type Network, type NetworkConfig } from 'attestra';
 import { isPrivateKey, isValidAccountId } from 'near-kit';
 
 export type ServiceName = 'relayer' | 'keeper' | 'topup';

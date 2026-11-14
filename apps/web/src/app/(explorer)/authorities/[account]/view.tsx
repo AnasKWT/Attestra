@@ -1,7 +1,7 @@
 'use client';
 
 import { BadgeCheck } from 'lucide-react';
-import type { DelegateRecord } from '@attestra/sdk';
+import type { DelegateRecord } from 'attestra';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink } from '@/components/explorer/Links';
 import { Hash } from '@/components/ui/Copy';

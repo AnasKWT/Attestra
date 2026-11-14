@@ -81,7 +81,7 @@ const DX = [
   { text: 'UIDs computed off chain byte for byte like the contracts' },
 ];
 
-const SDK = `import { AttestraClient, SchemaEncoder } from '@attestra/sdk';
+const SDK = `import { AttestraClient, SchemaEncoder } from 'attestra';
 
 const client = new AttestraClient({ network: 'testnet', accountId, privateKey });
 
@@ -112,7 +112,7 @@ const MCP = `// Claude Code, Codex or Claude Desktop
   "mcpServers": {
     "attestra": {
       "command": "npx",
-      "args": ["-y", "@attestra/mcp"],
+      "args": ["-y", "attestra-mcp"],
       "env": { "NEAR_NETWORK": "testnet" }
     }
   }

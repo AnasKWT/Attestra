@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle } from 'lucide-react';
 import { PageHero } from '@/components/marketing/PageHero';
 import { SectionHeading } from '@/components/ui/primitives';
-import { AUTHOR, REPO_URL } from '@/lib/config';
+import { AUTHOR, AUTHOR_URL, REPO_URL } from '@/lib/config';
 
 export const metadata = { title: 'About' };
 
@@ -40,7 +40,10 @@ export default function About() {
         <div>
           <div className="mt-16 rounded-xl border border-line bg-panel p-6">
             <h3 className="text-lg font-semibold text-fg">Who builds it</h3>
-            <p className="mt-2 text-[14px] text-soft">Built by {AUTHOR}. Source code: {REPO_URL}.</p>
+            <p className="mt-2 text-[14px] text-soft">
+              Built by <a className="text-accent hover:underline" href={AUTHOR_URL}>{AUTHOR}</a>. Source code:{' '}
+              <a className="text-accent hover:underline" href={REPO_URL}>{REPO_URL.replace('https://', '')}</a>.
+            </p>
           </div>
         </div>
       </section>

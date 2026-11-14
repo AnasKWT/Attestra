@@ -1,6 +1,6 @@
 /** Chat over the protocol: a verifiable NEAR AI model with Attestra's read tools, plus the answer's signature check. */
 
-import { openAITools, runTool, type AttestraClient } from '@attestra/sdk';
+import { openAITools, runTool, type AttestraClient } from 'attestra';
 import { NearAi, VERIFY_URL, verifySignature } from './nearai';
 
 const SYSTEM = `You are the Attestra agent. Attestra is a schema-based attestation protocol on NEAR.

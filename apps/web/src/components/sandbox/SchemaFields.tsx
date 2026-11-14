@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, parseSchema } from '@attestra/sdk';
+import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, parseSchema } from 'attestra';
 import { reader } from '@/lib/client';
 import { readableError } from '@/lib/useFetch';
 import { Input, Label, Select, Textarea } from '../ui/Field';

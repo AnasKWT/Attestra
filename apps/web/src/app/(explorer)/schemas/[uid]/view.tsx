@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { parseSchema, type IndexedAttestation } from '@attestra/sdk';
+import { parseSchema, type IndexedAttestation } from 'attestra';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink, UidLink } from '@/components/explorer/Links';
 import { DataTable } from '@/components/explorer/Table';

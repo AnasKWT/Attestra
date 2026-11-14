@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AttestraClient } from '@attestra/sdk';
+import type { AttestraClient } from 'attestra';
 import { parseRequest, report, startMarketWorker } from '../src/market';
 
 const UID = 'ab'.repeat(32);

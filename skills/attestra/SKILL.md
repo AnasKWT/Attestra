@@ -25,12 +25,12 @@ claude mcp add attestra -- node /path/to/attestra/packages/mcp/dist/cli.js   # C
 codex mcp add attestra -- node /path/to/attestra/packages/mcp/dist/cli.js    # Codex
 ```
 
-After the npm release, `npx -y @attestra/mcp` replaces the path, for example in `~/.codex/config.toml`:
+After the npm release, `npx -y attestra-mcp` replaces the path, for example in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.attestra]
 command = "npx"
-args = ["-y", "@attestra/mcp"]
+args = ["-y", "attestra-mcp"]
 ```
 
 Read tools need nothing.
@@ -68,7 +68,7 @@ Decision rules:
 ## SDK
 
 ```ts
-import { AttestraClient, SchemaEncoder } from '@attestra/sdk';
+import { AttestraClient, SchemaEncoder } from 'attestra';
 
 const client = new AttestraClient({ network: 'testnet', accountId, privateKey, indexerUrl });
 const { data } = await client.registerSchema({ definition: 'string name, u8 level', revocable: true });
@@ -97,6 +97,6 @@ Well-known schemas (UIDs are deterministic; `well_known_schemas` lists them): ag
 - New resolver kind: add a module in `contracts/resolvers/src/`, implement `on_attest`, `on_revoke`, `on_aborted`, `on_committed`; never panic in a callback after changing state; add unit tests and a sandbox flow.
 - New private-check rule: add it with `set_rules` on the verdicts contract (owner); the checkers build the prompt from the rule's on-chain claim, so a rule judged from evidence needs no code.
   A rule that fetches its own data (like the GitHub rules) needs code in both `apps/agent/src/check.ts` and `checker/src/check.rs`, and a new checker build means a new key: `set_enclave_keys` and `OUTLAYER_WASM_HASH`.
-- New agent tool: add it to `packages/sdk/src/tools.ts`; the MCP server, the agent and `@attestra/sdk/ai` pick it up.
+- New agent tool: add it to `packages/sdk/src/tools.ts`; the MCP server, the agent and `attestra/ai` pick it up.
 - Keep the UID vectors in `packages/sdk/test/uid.test.ts` and `contracts/common/src/uid.rs` in sync.
 - Run `pnpm test`, `pnpm test:contracts` and `pnpm security` before proposing a change.

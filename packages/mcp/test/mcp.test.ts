@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
-import { AttestraClient, READ_TOOLS, TOOLS, WRITE_TOOLS } from '@attestra/sdk';
+import { AttestraClient, READ_TOOLS, TOOLS, WRITE_TOOLS } from 'attestra';
 import { DEFAULT_TOOL_CAPS, DailyCaps } from '../src/caps';
 import { handleMcpRequest } from '../src/http';
 import { createAttestraMcpServer, optionsFromEnv, writesEnabled } from '../src/server';

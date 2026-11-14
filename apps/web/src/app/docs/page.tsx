@@ -1,4 +1,4 @@
-import { TOOLS } from '@attestra/sdk';
+import { TOOLS } from 'attestra';
 import { DocsNav } from '@/components/docs/DocsNav';
 import { CodeWindow, InlineCode } from '@/components/ui/Code';
 import { Alert, Eyebrow } from '@/components/ui/primitives';
@@ -123,9 +123,9 @@ export default function Docs() {
 
           <section className="space-y-5">
             <H2 id="quick-start">Quick start</H2>
-            <p className="text-[14.5px] text-soft">The packages are prepared for npm as <InlineCode>@attestra/sdk</InlineCode>, <InlineCode>@attestra/cli</InlineCode> and <InlineCode>@attestra/mcp</InlineCode>. From a clone of the repository:</p>
+            <p className="text-[14.5px] text-soft">The packages are prepared for npm as <InlineCode>attestra</InlineCode>, <InlineCode>attestra-cli</InlineCode> and <InlineCode>attestra-mcp</InlineCode>. From a clone of the repository:</p>
             <CodeWindow title="terminal" code={`pnpm install && pnpm build\n\n# read anything, no keys needed\nnode packages/cli/dist/index.js schema known\nnode packages/cli/dist/index.js attestation fetch <uid>\n\n# write with a testnet account from the NEAR CLI keychain\nnode packages/cli/dist/index.js -a you.testnet schema create \\\n  -d "string name, u8 level" --revocable`} />
-            <CodeWindow title="read.ts" code={`import { AttestraClient } from '@attestra/sdk';\n\nconst client = new AttestraClient({ network: 'testnet' });\nconst r = await client.getAttestation(uid);\nif (r.success) console.log(r.data.status); // active, revoked, expired...`} />
+            <CodeWindow title="read.ts" code={`import { AttestraClient } from 'attestra';\n\nconst client = new AttestraClient({ network: 'testnet' });\nconst r = await client.getAttestation(uid);\nif (r.success) console.log(r.data.status); // active, revoked, expired...`} />
           </section>
 
           <section className="space-y-5">
@@ -161,7 +161,7 @@ export default function Docs() {
               </div>
             ))}
             <h3 className="text-[16px] font-semibold text-fg">For agents</h3>
-            <CodeWindow title="agent.ts" code={`import { getAttestraTools } from '@attestra/sdk/ai';       // LangChain\nimport { openAITools, runTool } from '@attestra/sdk';       // any OpenAI-compatible agent\n\nconst tools = openAITools();  // point the agent at https://cloud-api.near.ai/v1\nconst out = await runTool(client, 'verify_attestation', { uid });`} />
+            <CodeWindow title="agent.ts" code={`import { getAttestraTools } from 'attestra/ai';       // LangChain\nimport { openAITools, runTool } from 'attestra';       // any OpenAI-compatible agent\n\nconst tools = openAITools();  // point the agent at https://cloud-api.near.ai/v1\nconst out = await runTool(client, 'verify_attestation', { uid });`} />
           </section>
 
           <section className="space-y-5">
@@ -173,7 +173,7 @@ export default function Docs() {
           <section className="space-y-5">
             <H2 id="mcp">MCP server</H2>
             <p className="text-[14.5px] text-soft">Run it with one line for Claude Code, Codex or Claude Desktop, or use the hosted endpoint at <InlineCode>/mcp</InlineCode> on this site (read tools).</p>
-            <CodeWindow title="setup" code={`# Claude Code\nclaude mcp add attestra -- npx -y @attestra/mcp\n\n# Codex (~/.codex/config.toml)\n[mcp_servers.attestra]\ncommand = "npx"\nargs = ["-y", "@attestra/mcp"]\n\n# write tools: set ATTESTRA_ACCOUNT_ID and ATTESTRA_PRIVATE_KEY (testnet)`} />
+            <CodeWindow title="setup" code={`# Claude Code\nclaude mcp add attestra -- npx -y attestra-mcp\n\n# Codex (~/.codex/config.toml)\n[mcp_servers.attestra]\ncommand = "npx"\nargs = ["-y", "attestra-mcp"]\n\n# write tools: set ATTESTRA_ACCOUNT_ID and ATTESTRA_PRIVATE_KEY (testnet)`} />
             <Table head={['Tools', 'Kind']} rows={MCP_TOOLS} />
           </section>
 

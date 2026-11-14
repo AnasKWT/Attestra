@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Independent check of NEAR AI Cloud evidence with the official @nearai/inference-sdk: the Gateway and model TEE attestations, the model signing key a verdicts contract trusts, and chat response signatures.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
   "type": "module",
   "bin": {

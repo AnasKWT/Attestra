@@ -1,6 +1,6 @@
 /** Fakes for the chain and the indexer, so every test runs without a network. */
 
-import type { IndexedAttestation, IndexedEvent, IndexerStatus, Paginated } from '@attestra/sdk';
+import type { IndexedAttestation, IndexedEvent, IndexerStatus, Paginated } from 'attestra';
 import type { SignedDelegateAction } from 'near-kit';
 import type { ChainReader, ChainWriter, TxResult } from '../src/lib/chain';
 import type { Logger } from '../src/lib/log';

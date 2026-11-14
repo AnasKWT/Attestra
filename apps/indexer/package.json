@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Attestra indexer: reads the contracts' NEP-297 events from FastNEAR's transactions API into Postgres and serves the explorer's REST API.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestra/sdk": "workspace:*",
+    "attestra": "workspace:*",
     "@hono/node-server": "2.1.6",
     "hono": "4.13.17",
     "pg": "8.23.1",

@@ -39,8 +39,8 @@ The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the pr
   - `verdicts`: AI-checked facts (checker and NEAR AI signatures), facts about EVM logs and Solana instructions (Chain Signatures `verify_foreign_transaction`), wallet links (EIP-191, ed25519).
   - `sandbox-tests`: near-workspaces flows across all contracts.
 - `checker/` (Rust, wasm32-wasip2): the private checker as a NEAR OutLayer component; it signs verdicts with a key derived inside the TEE from the hash of its own build.
-- `packages/sdk` (`@attestra/sdk`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, end-to-end encryption, agent tools; `@attestra/sdk/ai` for LangChain.
-- `packages/cli` (`@attestra/cli`, binary `attestra`) and `packages/mcp` (`@attestra/mcp`, binary `attestra-mcp`).
+- `packages/sdk` (`attestra`): `AttestraClient` on near-kit, `SchemaEncoder` (Borsh), UIDs, NEP-413, light client proofs, x402, end-to-end encryption, agent tools; `attestra/ai` for LangChain.
+- `packages/cli` (`attestra-cli`, binary `attestra`) and `packages/mcp` (`attestra-mcp`, binary `attestra-mcp`).
 - `apps/web`: Next.js 16 site, explorer, sandbox (32 tools), docs, `/mcp`, `/llms.txt`.
 - `apps/indexer`: FastNEAR transactions API to Postgres, REST API on port 5100.
 - `apps/agent`: NEAR AI Cloud agent (chat, private checks, x402 paid verification, A2A, MCP) on port 5300.

@@ -1,4 +1,4 @@
-import { keySigner, signRequest, type DelegatedAction, type SignedRequest } from '@attestra/sdk';
+import { keySigner, signRequest, type DelegatedAction, type SignedRequest } from 'attestra';
 import { Near, generateKey, type PrivateKey } from 'near-kit';
 import { describe, expect, it } from 'vitest';
 import { DailyLedger } from '../src/lib/ledger';

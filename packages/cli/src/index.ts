@@ -34,7 +34,7 @@ import {
   runTool,
   type MultisigAction,
   type ServiceResponse,
-} from '@attestra/sdk';
+} from 'attestra';
 import { resolveConfig, type CliOptions } from './config';
 import { bold, dim, formatError, formatOutput, orange, print } from './output';
 

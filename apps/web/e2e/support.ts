@@ -4,7 +4,7 @@
  * the allowlist below, or a request to a host this file does not know.
  */
 
-import { NETWORKS } from '@attestra/sdk';
+import { NETWORKS } from 'attestra';
 import { expect, test as base, type Page, type Route } from '@playwright/test';
 
 /** The services the build points at (playwright.config.ts pins these); none of them runs during the suites. */

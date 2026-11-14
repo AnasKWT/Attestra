@@ -7,7 +7,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { AttestraClient, TOOLS, WRITE_TOOLS, runTool, type AttestraClientConfig, type Network, type ToolLimits } from '@attestra/sdk';
+import { AttestraClient, TOOLS, WRITE_TOOLS, runTool, type AttestraClientConfig, type Network, type ToolLimits } from 'attestra';
 import { DEFAULT_TOOL_CAPS, DailyCaps, type CapConfig } from './caps';
 
 export interface McpOptions {

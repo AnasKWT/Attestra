@@ -14,7 +14,7 @@
  * account stored for this wasm hash (`outlayer secrets set ... --wasm-hash <sha256>`).
  */
 
-import { base58Decode, base64ToBytes, verdictDigest, type AiVerdict } from '@attestra/sdk';
+import { base58Decode, base64ToBytes, verdictDigest, type AiVerdict } from 'attestra';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import type { CheckOutput } from './check';
 

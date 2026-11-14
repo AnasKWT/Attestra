@@ -1,7 +1,7 @@
 /** Indexer settings from the environment; every value has a working public testnet default. */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { contractIdsFor, resolveNetwork, type Network } from '@attestra/sdk';
+import { contractIdsFor, resolveNetwork, type Network } from 'attestra';
 
 /** The deployment's first block, from deployments/<network>.json when it is present. */
 function deploymentHeight(network: string): number {

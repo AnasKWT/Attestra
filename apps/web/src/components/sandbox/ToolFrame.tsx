@@ -3,7 +3,7 @@
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { classifyError, errorMessage, type ServiceResponse } from '@attestra/sdk';
+import { classifyError, errorMessage, type ServiceResponse } from 'attestra';
 import { reader } from '@/lib/client';
 import { txUrl } from '@/lib/config';
 import { formatAmount } from '@/lib/format';

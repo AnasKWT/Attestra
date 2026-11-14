@@ -4,7 +4,7 @@
  * allowlist and the daily budgets, so the relayer never pays gas for a request it should refuse.
  */
 
-import { base58Decode, bytesToHex, verifyRequest, type DelegatedAction, type SignedRequest, type StorageBalance } from '@attestra/sdk';
+import { base58Decode, bytesToHex, verifyRequest, type DelegatedAction, type SignedRequest, type StorageBalance } from 'attestra';
 import { isValidAccountId } from 'near-kit';
 import type { DailyLedger } from '../lib/ledger';
 import { parseNear } from '../lib/units';

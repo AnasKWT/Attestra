@@ -1,7 +1,7 @@
 /** Starts the Attestra agent. Without keys it serves its card, MCP and health, and explains what is off. */
 
 import { serve } from '@hono/node-server';
-import { AttestraClient } from '@attestra/sdk';
+import { AttestraClient } from 'attestra';
 import { Near } from 'near-kit';
 import { createApp } from './app';
 import { loadConfig } from './config';

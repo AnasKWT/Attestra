@@ -2,7 +2,7 @@
 
 import { BadgeCheck } from 'lucide-react';
 import { useState } from 'react';
-import type { IndexedAuthority } from '@attestra/sdk';
+import type { IndexedAuthority } from 'attestra';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { AccountLink } from '@/components/explorer/Links';
 import { DataTable, Pager } from '@/components/explorer/Table';

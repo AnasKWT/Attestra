@@ -1,8 +1,8 @@
 /**
  * attestra-mcp: the Attestra MCP server.
  *
- *   npx -y @attestra/mcp                 stdio (Claude Code, Codex, Claude Desktop)
- *   npx -y @attestra/mcp --http 5600     Streamable HTTP on /mcp
+ *   npx -y attestra-mcp                 stdio (Claude Code, Codex, Claude Desktop)
+ *   npx -y attestra-mcp --http 5600     Streamable HTTP on /mcp
  */
 
 import { createServer } from 'node:http';

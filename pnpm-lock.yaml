@@ -8,9 +8,6 @@ importers:
 
   .:
     devDependencies:
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:packages/sdk
       '@noble/ciphers':
         specifier: 2.0.1
         version: 2.0.1
@@ -23,6 +20,9 @@ importers:
       '@types/node':
         specifier: 22.19.1
         version: 22.19.1
+      attestra:
+        specifier: workspace:*
+        version: link:packages/sdk
       near-kit:
         specifier: 0.20.2
         version: 0.20.2(@hot-labs/near-connect@0.12.0)
@@ -35,12 +35,6 @@ importers:
 
   apps/agent:
     dependencies:
-      '@attestra/mcp':
-        specifier: workspace:*
-        version: link:../../packages/mcp
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       '@hono/node-server':
         specifier: 2.1.6
         version: 2.1.6(hono@4.13.17)
@@ -50,6 +44,12 @@ importers:
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
+      attestra:
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      attestra-mcp:
+        specifier: workspace:*
+        version: link:../../packages/mcp
       hono:
         specifier: 4.13.17
         version: 4.13.17
@@ -72,12 +72,12 @@ importers:
 
   apps/indexer:
     dependencies:
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       '@hono/node-server':
         specifier: 2.1.6
         version: 2.1.6(hono@4.13.17)
+      attestra:
+        specifier: workspace:*
+        version: link:../../packages/sdk
       hono:
         specifier: 4.13.17
         version: 4.13.17
@@ -106,12 +106,6 @@ importers:
 
   apps/web:
     dependencies:
-      '@attestra/mcp':
-        specifier: workspace:*
-        version: link:../../packages/mcp
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       '@hot-labs/near-connect':
         specifier: 0.12.0
         version: 0.12.0
@@ -124,6 +118,12 @@ importers:
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
+      attestra:
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      attestra-mcp:
+        specifier: workspace:*
+        version: link:../../packages/mcp
       lucide-react:
         specifier: 1.14.0
         version: 1.14.0(react@19.2.9)
@@ -185,7 +185,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@attestra/sdk':
+      attestra:
         specifier: workspace:*
         version: link:../sdk
       commander:
@@ -216,12 +216,12 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:../sdk
       '@modelcontextprotocol/sdk':
         specifier: 1.32.2
         version: 1.32.2(@cfworker/json-schema@4.1.6)(zod@4.6.7)
+      attestra:
+        specifier: workspace:*
+        version: link:../sdk
     devDependencies:
       '@types/node':
         specifier: 22.19.1
@@ -275,12 +275,12 @@ importers:
 
   services:
     dependencies:
-      '@attestra/sdk':
-        specifier: workspace:*
-        version: link:../packages/sdk
       '@hono/node-server':
         specifier: 2.1.6
         version: 2.1.6(hono@4.13.17)
+      attestra:
+        specifier: workspace:*
+        version: link:../packages/sdk
       hono:
         specifier: 4.13.17
         version: 4.13.17
@@ -5410,7 +5410,7 @@ snapshots:
       eslint: 9.39.4(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.4(jiti@2.7.0))
       eslint-plugin-react: 7.37.5(eslint@9.39.4(jiti@2.7.0))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.39.4(jiti@2.7.0))
@@ -5443,7 +5443,7 @@ snapshots:
       tinyglobby: 0.2.17
       unrs-resolver: 1.13.0
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.7.0))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -5458,7 +5458,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.4(jiti@2.7.0)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.72.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0)))(eslint@9.39.4(jiti@2.7.0)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.2.0

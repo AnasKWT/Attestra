@@ -11,7 +11,7 @@ import { ed25519 } from '@noble/curves/ed25519.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
-import { bytesToHex, fetchWithRetry, hexToBytes } from '@attestra/sdk';
+import { bytesToHex, fetchWithRetry, hexToBytes } from 'attestra';
 
 export const NEAR_AI = 'https://cloud-api.near.ai/v1';
 export const VERIFY_URL = 'https://cloud.near.ai/verify';

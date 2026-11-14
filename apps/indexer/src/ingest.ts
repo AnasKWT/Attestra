@@ -5,7 +5,7 @@
  * windows and a full resync all converge to what the chain says.
  */
 
-import type { AttestationRecord, AttestraClient, AuthorityRecord, DelegateRecord, SchemaRecord } from '@attestra/sdk';
+import type { AttestationRecord, AttestraClient, AuthorityRecord, DelegateRecord, SchemaRecord } from 'attestra';
 import type { IndexerConfig } from './config';
 import * as db from './db';
 import { extractEvents, refreshTargets, type EventRow } from './events';

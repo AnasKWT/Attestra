@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { SchemaEncoder } from '@attestra/sdk';
+import { SchemaEncoder } from 'attestra';
 import { ToolFrame } from '@/components/sandbox/ToolFrame';
 import { SchemaValues } from '@/components/sandbox/SchemaFields';
 import { CopyButton } from '@/components/ui/Copy';

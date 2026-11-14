@@ -1,6 +1,6 @@
 /** Site settings from public env variables; everything has a working testnet default. */
 
-import { NETWORKS, resolveNetwork, type Network } from '@attestra/sdk';
+import { NETWORKS, resolveNetwork, type Network } from 'attestra';
 
 export const NETWORK = (process.env.NEXT_PUBLIC_NEAR_NETWORK ?? 'testnet') as Network;
 export const ROOT = process.env.NEXT_PUBLIC_ATTESTRA_ROOT || undefined;
@@ -15,8 +15,9 @@ export const KEEPER_URL = (process.env.NEXT_PUBLIC_KEEPER_URL ?? 'http://localho
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/+$/, '');
 export const EXPLORER = NETWORKS[NETWORK].explorerUrl;
 /** The author's name, shown in the footer and about page. */
-export const AUTHOR = process.env.NEXT_PUBLIC_AUTHOR_NAME || '[placeholder]';
-export const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL || '[placeholder]';
+export const AUTHOR = process.env.NEXT_PUBLIC_AUTHOR_NAME || 'Anas';
+export const AUTHOR_URL = process.env.NEXT_PUBLIC_AUTHOR_URL || 'https://github.com/AnasKWT';
+export const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL || 'https://github.com/AnasKWT/Attestra';
 
 export const txUrl = (hash: string) => `${EXPLORER}/txns/${hash}`;
 export const accountUrl = (id: string) => `${EXPLORER}/address/${id}`;

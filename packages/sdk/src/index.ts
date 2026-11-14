@@ -1,5 +1,5 @@
 /**
- * @attestra/sdk: the trust layer for NEAR.
+ * attestra: the trust layer for NEAR.
  *
  * Schema-based attestations about people, wallets on any chain and AI agents: register schemas,
  * issue and revoke attestations, delegate issuing, add resolver rules, mint non-transferable

@@ -1,6 +1,6 @@
 /** The EVM chains the NEAR MPC network can read on this site's network (test networks on testnet). */
 
-import { EVM_CHAINS, fetchEvmLog as fetchLog } from '@attestra/sdk';
+import { EVM_CHAINS, fetchEvmLog as fetchLog } from 'attestra';
 import { NETWORK } from './config';
 
 export const chainsHere = () => EVM_CHAINS[NETWORK];

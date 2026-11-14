@@ -4,7 +4,7 @@
  */
 
 import { serve } from '@hono/node-server';
-import { AttestraClient } from '@attestra/sdk';
+import { AttestraClient } from 'attestra';
 import { createApi } from './api';
 import { loadConfig } from './config';
 import { connect, migrate, reset } from './db';

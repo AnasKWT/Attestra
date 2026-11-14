@@ -21,7 +21,7 @@ import {
   SchemaEncoder,
   type DaoPolicy,
   type DaoProposal,
-} from '@attestra/sdk';
+} from 'attestra';
 import type { ChainReader, ChainWriter } from '../lib/chain';
 import type { Logger, RecentErrors } from '../lib/log';
 import { TGAS } from '../lib/units';

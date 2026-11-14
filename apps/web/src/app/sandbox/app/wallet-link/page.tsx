@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { walletCaip10 } from '@attestra/sdk';
+import { walletCaip10 } from 'attestra';
 import { ActionCard, ToolFrame, UidResult } from '@/components/sandbox/ToolFrame';
 import { need } from '@/components/sandbox/need';
 import { Input, Label, Select, Textarea } from '@/components/ui/Field';

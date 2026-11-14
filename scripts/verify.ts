@@ -38,7 +38,7 @@ import {
   verdictDigest,
   type AiVerdict,
   type Network,
-} from '@attestra/sdk';
+} from 'attestra';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const network = (process.env.NEAR_NETWORK ?? 'testnet') as Network;

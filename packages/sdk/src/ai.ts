@@ -1,7 +1,7 @@
 /**
- * @attestra/sdk/ai: Attestra tools for any LangChain or OpenAI-compatible agent.
+ * attestra/ai: Attestra tools for any LangChain or OpenAI-compatible agent.
  *
- *   import { getAttestraTools } from '@attestra/sdk/ai';
+ *   import { getAttestraTools } from 'attestra/ai';
  *   const tools = getAttestraTools(client);                      // LangChain tools (read only)
  *   const all = getAttestraTools(client, { includeWrites: true }); // plus register, attest, revoke, rate, private check
  *

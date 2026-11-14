@@ -1,6 +1,6 @@
 /** Every page route of the site, with sample values for the dynamic segments. */
 
-import { knownSchemaUid } from '@attestra/sdk';
+import { knownSchemaUid } from 'attestra';
 import { TOOLS } from '../src/lib/tools';
 
 export const SCHEMA_UID = knownSchemaUid('membership');

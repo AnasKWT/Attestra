@@ -6,7 +6,7 @@ import { ButtonLink, SectionHeading } from '@/components/ui/primitives';
 export const metadata = { title: 'Schemas' };
 
 const CODE = `// The UID is known before you register
-import { computeSchemaUid, SchemaEncoder } from '@attestra/sdk';
+import { computeSchemaUid, SchemaEncoder } from 'attestra';
 
 const definition = 'string name, u8 level, bool verified, string[] skills';
 computeSchemaUid(definition, null, true);

@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { AttestraClient, IndexerClient, KNOWN_SCHEMAS, NETWORKS, SchemaEncoder, knownSchemaUid } from '@attestra/sdk';
+import { AttestraClient, IndexerClient, KNOWN_SCHEMAS, NETWORKS, SchemaEncoder, knownSchemaUid } from 'attestra';
 import { InMemoryKeyStore, Near } from 'near-kit';
 import { FileKeyStore } from 'near-kit/keys/file';
 import { shortAccount } from '../src/lib/format';
@@ -13,7 +13,7 @@ import { PRF_SALT, accountFromSeed, type PasskeyAccount } from '../src/lib/passk
  * The browser column of the test matrix, on testnet with nothing mocked. One passkey, created in
  * Chrome's virtual authenticator (with PRF, like Face ID or Touch ID), becomes a NEAR implicit
  * account and carries the whole run: every sandbox tool sends its real transaction, and each test
- * checks what the page shows and, where cheap, reads the chain back through @attestra/sdk.
+ * checks what the page shows and, where cheap, reads the chain back through attestra.
  *
  * Many tools send direct transactions, so beforeAll funds the passkey account once from the testnet
  * root (1 NEAR, the root key read from ~/.near-credentials) and afterAll withdraws its storage

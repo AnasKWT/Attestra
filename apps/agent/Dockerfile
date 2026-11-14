@@ -10,9 +10,9 @@ COPY packages/mcp/package.json packages/mcp/
 COPY apps/agent/package.json apps/agent/
 RUN pnpm install --frozen-lockfile --filter @attestra/agent...
 COPY packages/sdk packages/sdk
-RUN pnpm --filter @attestra/sdk build
+RUN pnpm --filter attestra build
 COPY packages/mcp packages/mcp
-RUN pnpm --filter @attestra/mcp build
+RUN pnpm --filter attestra-mcp build
 
 FROM node:22-alpine
 RUN corepack enable

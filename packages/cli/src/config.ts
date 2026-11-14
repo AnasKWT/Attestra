@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AttestraClientConfig, Network } from '@attestra/sdk';
+import type { AttestraClientConfig, Network } from 'attestra';
 
 export interface CliOptions {
   network?: string;

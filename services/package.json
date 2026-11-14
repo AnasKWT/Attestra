@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Attestra services: the gasless relayer, the keeper (scheduled revocations, expiry records, indexer drift) and the treasury top-up.",
-  "author": "Attestra contributors",
+  "author": "Anas (https://github.com/AnasKWT)",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@attestra/sdk": "workspace:*",
+    "attestra": "workspace:*",
     "@hono/node-server": "2.1.6",
     "hono": "4.13.17",
     "near-kit": "0.20.2",

@@ -1,6 +1,6 @@
-/** Hosted MCP endpoint (Streamable HTTP, stateless). Read tools only: write tools need your own key via `npx @attestra/mcp`. */
+/** Hosted MCP endpoint (Streamable HTTP, stateless). Read tools only: write tools need your own key via `npx attestra-mcp`. */
 
-import { handleMcpRequest } from '@attestra/mcp';
+import { handleMcpRequest } from 'attestra-mcp';
 import { AGENT_URL, INDEXER_URL, NETWORK, RELAYER_URL, ROOT } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
