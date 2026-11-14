@@ -71,6 +71,12 @@ jobs:
           workspaces: |
             contracts -> target
             checker -> target
+      - name: Clippy on the contracts (warnings are errors)
+        working-directory: contracts
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy on the checker (warnings are errors)
+        working-directory: checker
+        run: cargo clippy --all-targets -- -D warnings
       # pnpm test:contracts
       - name: Contract unit and property tests
         working-directory: contracts

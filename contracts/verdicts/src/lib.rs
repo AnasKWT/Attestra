@@ -360,7 +360,7 @@ pub(crate) fn fact_lock(payload_hash: &[u8; 32], subject: &str, default_subject:
     if subject == default_subject {
         Uid(*payload_hash)
     } else {
-        Uid(env::sha256_array(&[payload_hash.as_slice(), subject.as_bytes()].concat()))
+        Uid(env::sha256_array([payload_hash.as_slice(), subject.as_bytes()].concat()))
     }
 }
 

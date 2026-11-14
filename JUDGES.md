@@ -27,7 +27,7 @@ The whole product is live at [attestra.site](https://attestra.site), with its se
 | OutLayer checker (`pnpm test:checker`) | 28 passed |
 | TypeScript suites (`pnpm test`) | 299 passed |
 | CLI end to end on a local node (`pnpm cli:e2e`) | 95 steps passed |
-| CLI end to end on testnet (`pnpm cli:e2e testnet`) | 109 steps passed |
+| CLI end to end on testnet (`pnpm cli:e2e testnet`) | 110 steps passed |
 | Playwright on a production build (`pnpm e2e`) | 226 passed |
 | Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 18 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |

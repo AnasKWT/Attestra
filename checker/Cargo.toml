@@ -38,3 +38,8 @@ lto = true
 codegen-units = 1
 panic = "abort"
 debug = false
+
+[lints.clippy]
+# `Request::Check` carries the subject's signed request and is deserialized once per run. Boxing it
+# would change the compiled component, and with it the build hash the checker's TEE key is bound to.
+large_enum_variant = "allow"
