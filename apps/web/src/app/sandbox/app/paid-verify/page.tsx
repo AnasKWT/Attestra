@@ -39,6 +39,7 @@ export default function PaidVerify() {
       </div>
       <ActionCard title="1. See the price" subtitle="Calls without paying and decodes the 402 challenge" label="Ask for the price" disabled={!target} action={async () => {
         const res = await fetch(url);
+        if (res.status === 429) return { success: false, error: { type: 'NETWORK_ERROR' as never, message: ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Too Many Requests' } };
         const h = res.headers.get(x402.X402_HEADERS.required);
         if (res.status !== 402 || !h) return { success: false, error: { type: 'UNKNOWN_ERROR' as never, message: `expected 402, got ${res.status}` } };
         return { success: true, data: x402.decodeHeader(h) };

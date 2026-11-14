@@ -15,6 +15,9 @@ x-node: &node
     NEAR_NETWORK: ${NEAR_NETWORK:-testnet}
     ATTESTRA_ROOT: ${ATTESTRA_ROOT:-attestra.testnet}
     INDEXER_URL: http://indexer:5100
+    # Rate limits count the client from the first X-Forwarded-For hop: only Caddy reaches the services
+    # from outside (the ports bind to 127.0.0.1), and it replaces any value a client sends.
+    TRUST_PROXY: ${TRUST_PROXY:-true}
   mem_limit: 192m
 
 services:

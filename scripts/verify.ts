@@ -36,6 +36,7 @@ import {
   knownSchemaUid,
   proveReceipt,
   verdictDigest,
+  type AgentProfile,
   type AiVerdict,
   type Network,
 } from 'attestra';
@@ -269,13 +270,29 @@ async function main() {
   });
 
   await check("An agent's identity and reputation are on chain", async () => {
-    const agents = await idx.listAgents({ limit: 10 });
-    const a = agents.data.find((x) => x.identity && x.review_count > 0);
-    must(a, 'no agent with an identity and a review yet');
+    const agents = await idx.listAgents({ limit: 20 });
+    // The SDK runs the reputation rules itself and reads every claimed payment from the chain.
+    const profiles: AgentProfile[] = [];
+    for (const x of agents.data) {
+      const p = await c.getAgentProfile(x.account_id);
+      must(p.success && p.data, `${x.account_id}: ${p.error?.message ?? 'no profile'}`);
+      profiles.push(p.data);
+    }
+    const verified = profiles.filter((p) => p.identity_status === 'verified');
+    const unverified = profiles.filter((p) => p.identity_status === 'unverified').length;
+    must(verified.length, `no agent with a verified identity among ${profiles.length} (${unverified} unverified: the attester is neither the agent account nor its parent)`);
+    const a = verified.find((p) => p.paid_review_count > 0) ?? verified.find((p) => p.review_count > 0) ?? verified[0];
     const onChain = await c.getAttestation(a.identity!.uid);
     must(onChain.success && onChain.data?.status === 'active', 'the identity attestation is not active on chain');
+    must(onChain.data.attester === a.identity!.attester, 'the identity attester differs from the chain');
     const fields = new SchemaEncoder(KNOWN_SCHEMAS.agentIdentity.definition).decode(onChain.data.data);
-    return `${a.account_id}: ${String(fields.name)} (${String(fields.model)}), ${a.review_count} reviews, average ${a.average_score}`;
+    const paid = a.paid_review_count > 0 ? `${a.paid_review_count} paid (average ${a.paid_average_score})` : 'no paid review yet';
+    const excluded = Object.entries(a.excluded_reasons).map(([k, n]) => `${n} ${k}`).join(', ');
+    return (
+      `${a.account_id}: ${String(fields.name)} (${String(fields.model)}), identity verified (registered by ${onChain.data.attester}), ` +
+      `${a.review_count} counted reviews${a.average_score !== null ? ` (average ${a.average_score})` : ''}, ${paid}${excluded ? `, not counted: ${excluded}` : ''}, ` +
+      `${a.trusted ? 'trusted' : `not trusted (${a.trust_reasons.join('; ')})`}; ${verified.length} of ${profiles.length} agents have a verified identity, ${unverified} unverified`
+    );
   });
 
   await check('A Sputnik DAO issued an attestation by proposal and council vote', async () => {

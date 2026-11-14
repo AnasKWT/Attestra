@@ -3,7 +3,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { handleMcpRequest } from 'attestra-mcp';
-import { bytesToHex, x402, type AttestraClient, type Outcome } from 'attestra';
+import { bytesToHex, DailyBudget, errorMessage, RATE_LIMIT_HEADERS, rateLimit, takeAll, TokenBucket, tooManyRequests, verifySubjectProof, x402, type AttestraClient, type Outcome, type RateLimitRule, type SubjectProof } from 'attestra';
 import type { Near } from 'near-kit';
 import { a2aError, a2aReply, agentCard, textOf, type A2ARequest } from './a2a';
 import { chat, type ChatTurn } from './chat';
@@ -39,9 +39,45 @@ export function outlayerSettings(config: AgentConfig): OutLayerConfig | string {
   };
 }
 
+/**
+ * The paid agent check: the profile under the SDK's reputation rules (payments checked on chain).
+ * `trusted` needs a verified identity, at least one paid review and a paid average of at least 3.5;
+ * `trust_reasons` says what is missing.
+ */
+export async function verifyAgent(client: AttestraClient, agent: string) {
+  const p = await client.getAgentProfile(agent);
+  if (!p.success || !p.data) return { agent, trusted: false, trust_reasons: [`no agent profile: ${p.error?.message ?? 'not found'}`], error: p.error?.message };
+  return { agent, ...p.data, trusted: p.data.trusted, trust_reasons: p.data.trust_reasons };
+}
+
 export function createApp(d: AgentDeps) {
   const app = new Hono();
-  app.use('*', cors({ origin: '*', exposeHeaders: [x402.X402_HEADERS.required, x402.X402_HEADERS.response] }));
+  app.use('*', cors({ origin: '*', exposeHeaders: [x402.X402_HEADERS.required, x402.X402_HEADERS.response, ...RATE_LIMIT_HEADERS] }));
+
+  // ─── rate limits (never on /live or /health) ─────────────────────────
+  // Per client address in front of every route that spends NEAR AI credits, OutLayer fees or gas,
+  // or loads the chain; daily budgets cap what all clients spend together. A private check also
+  // counts per subject, once the subject's signature verified, so nobody can use up another's.
+  const rates = d.config.rates;
+  const limits = { checkSubject: new TokenBucket(rates.checkSubject), checkDaily: new DailyBudget(rates.checkDaily) };
+  const limit = (what: string, ...rules: RateLimitRule[]) => rateLimit({ what, rules, trustProxy: d.config.trustProxy });
+  const chatLimit = limit('chats', { limiter: new TokenBucket(rates.chatIp) }, { limiter: new DailyBudget(rates.chatDaily), key: () => 'chat', scope: 'in total' });
+  const paying = (c: { req: { header(name: string): string | undefined } }) => Boolean(c.req.header(x402.X402_HEADERS.signature));
+  app.on('POST', '/v1/check', limit('private checks', { limiter: new TokenBucket(rates.checkIp) }));
+  app.on('GET', '/v1/check/model', limit('model key reads', { limiter: new TokenBucket(rates.modelIp) }));
+  app.on('GET', '/v1/check/jobs/:job', limit('check job reads', { limiter: new TokenBucket(rates.jobsIp) }));
+  app.on('POST', '/v1/chat', chatLimit);
+  app.on('POST', '/a2a', chatLimit);
+  app.use('/mcp', limit('MCP requests', { limiter: new TokenBucket(rates.mcpIp) }));
+  app.on(
+    'GET',
+    '/v1/paid/*',
+    limit(
+      'paid verification requests',
+      { limiter: new TokenBucket(rates.paidIp), key: (c, address) => (paying(c) ? undefined : address), scope: 'from one address' },
+      { limiter: new TokenBucket(rates.settleIp), key: (c, address) => (paying(c) ? address : undefined), scope: 'with a payment from one address' },
+    ),
+  );
   const stats = { chats: 0, checks: 0, paid: 0, errors: 0, lastError: '' };
   let modelCache: { id: string; at: number } | null = null;
   const model = async () => {
@@ -109,9 +145,19 @@ export function createApp(d: AgentDeps) {
     }
   });
 
-  type CheckBody = { rule_id?: string; subject?: string; encrypted_evidence?: string; github?: string | null; model?: string; async?: boolean };
+  type CheckBody = { rule_id?: string; subject?: string; encrypted_evidence?: string; github?: string | null; model?: string; async?: boolean; subject_proof?: SubjectProof };
   type CheckResult = { outcome: Outcome; verdict: unknown; nearai: unknown; tx_hash?: string };
   /** Runs one check and submits its verdict. An OutLayer run that the worker dropped is tried again. */
+  /** Whether a key is a full-access key of an account, read from the chain (final). */
+  const fullAccessKey = async (accountId: string, publicKey: string): Promise<boolean> => {
+    try {
+      const k = await d.client.rpc<{ permission?: unknown }>('query', { request_type: 'view_access_key', finality: 'final', account_id: accountId, public_key: publicKey });
+      return k.permission === 'FullAccess';
+    } catch (e) {
+      if (/UNKNOWN_ACCESS_KEY|UNKNOWN_ACCOUNT|does not exist/i.test(errorMessage(e))) return false;
+      throw e;
+    }
+  };
   const runChecked = async (rule: Rule, id: string, body: CheckBody): Promise<CheckResult> => {
     let out;
     if (outlayer && typeof outlayer !== 'string') {
@@ -127,6 +173,7 @@ export function createApp(d: AgentDeps) {
               model: id,
               encryptedEvidence: body.encrypted_evidence ?? '',
               github: body.github,
+              subjectProof: body.subject_proof!,
             }),
           );
           break;
@@ -136,7 +183,7 @@ export function createApp(d: AgentDeps) {
         }
       }
     } else {
-      out = await runCheck(d.ai, id, d.config.checkerKey!, { rule, subject: body.subject!, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github }, { githubToken: d.config.githubToken });
+      out = await runCheck(d.ai, id, d.config.checkerKey!, { rule, subject: body.subject!, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github, subjectProof: body.subject_proof }, { githubToken: d.config.githubToken, hasFullAccessKey: fullAccessKey, recipient: d.client.contracts.verdicts });
     }
     const r = await d.client.callRaw<Outcome>(d.client.contracts.verdicts, 'submit_ai_verdict', {
       verdict: out.verdict,
@@ -162,8 +209,19 @@ export function createApp(d: AgentDeps) {
       const rules = (await d.client.view<Rule[]>(d.client.contracts.verdicts, 'get_rules')) ?? [];
       const rule = rules.find((r) => r.id === body.rule_id && r.enabled);
       if (!rule) return c.json({ error: `unknown or disabled rule ${body.rule_id}` }, 400);
+      // The subject asked for this check: its key signed it (the TEE checks it again before signing).
+      try {
+        await verifySubjectProof({ proof: body.subject_proof, ruleId: rule.id, subject: body.subject, encryptedEvidence: body.encrypted_evidence ?? '', github: body.github, recipient: d.client.contracts.verdicts, hasFullAccessKey: fullAccessKey });
+      } catch (e) {
+        return c.json({ error: errorMessage(e) }, 403);
+      }
       const id = await model();
       if (body.model && body.model !== id) return c.json({ error: `encrypt to ${id}, the model this agent uses` }, 409);
+      const quota = takeAll([
+        { limiter: limits.checkSubject, key: body.subject, scope: 'for one subject' },
+        { limiter: limits.checkDaily, key: 'check', scope: 'in total' },
+      ]);
+      if (!quota.ok) return tooManyRequests(quota, 'private checks');
       stats.checks++;
       if (body.async) {
         pruneJobs();
@@ -205,8 +263,7 @@ export function createApp(d: AgentDeps) {
     if (!agent) return c.json({ error: 'agent is required' }, 400);
     return paid(c.req.raw, paidDeps, requirements(paidDeps, d.config.priceAgent, 'Check an AI agent: identity, delegations and reputation'), async () => {
       stats.paid++;
-      const p = await d.client.getAgentProfile(agent);
-      return p.success ? { agent, ...p.data, trusted: Boolean(p.data?.identity) && (p.data?.average_score ?? 0) >= 3.5 } : { agent, error: p.error?.message };
+      return verifyAgent(d.client, agent);
     });
   });
 

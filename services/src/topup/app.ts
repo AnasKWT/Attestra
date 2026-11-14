@@ -1,7 +1,8 @@
 /** The top-up's HTTP API: `/api/balances` for the status page, `POST /v1/run`, `/live`, `/health`. */
 
+import { TokenBucket } from 'attestra';
 import type { ChainWriter } from '../lib/chain';
-import { baseApp, type HealthReport } from '../lib/http';
+import { baseApp, limited, type HealthReport } from '../lib/http';
 import type { RecentErrors } from '../lib/log';
 import { formatNear } from '../lib/units';
 import type { TopUpConfig } from './config';
@@ -63,6 +64,9 @@ export function createTopUpApp(deps: { config: TopUpConfig; topup: TopUp; writer
   }
 
   const app = baseApp(health);
+  // Per client address: each answer reads every watched balance from the chain; a run can send NEAR.
+  app.get('/api/balances', limited(config.trustProxy, 'balance reads', { limiter: new TokenBucket(config.rates.balancesIp) }));
+  app.on('POST', '/v1/run', limited(config.trustProxy, 'top-up runs', { limiter: new TokenBucket(config.rates.runIp) }));
   app.get('/api/balances', async (c) => c.json({ ...balancesView(config, await topup.current(), topup.dailyUsed, topup.day), last_run: topup.lastRun }));
   // Runs now, at most every 30 seconds; otherwise answers with the last run.
   app.post('/v1/run', async (c) => {

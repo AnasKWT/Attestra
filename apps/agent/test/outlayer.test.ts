@@ -1,6 +1,6 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { describe, expect, it } from 'vitest';
-import { base58Encode, bytesToBase64, verdictDigest, type AiVerdict, type AttestraClient } from 'attestra';
+import { base58Encode, bytesToBase64, keySigner, signPrivateCheck, verdictDigest, type AiVerdict, type AttestraClient } from 'attestra';
 import type { Near } from 'near-kit';
 import { createApp, outlayerSettings } from '../src/app';
 import { loadConfig } from '../src/config';
@@ -18,7 +18,10 @@ const cfg: OutLayerConfig = {
 const enclaveSeed = new Uint8Array(32).fill(5);
 const enclaveKey = `ed25519:${base58Encode(ed25519.getPublicKey(enclaveSeed))}`;
 
-const request = checkerRequest({ requestId: '1f'.repeat(32), ruleId: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encryptedEvidence: 'beef', github: undefined });
+/** bob.testnet signs his own check (the fake RPC reports this key as his full-access key). */
+const subjectSigner = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(4))}`);
+const proof = await signPrivateCheck(subjectSigner, { ruleId: 'age_over_18', subject: 'bob.testnet', encryptedEvidence: 'beef', github: null }, 'verdicts.attestra.testnet');
+const request = checkerRequest({ requestId: '1f'.repeat(32), ruleId: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encryptedEvidence: 'beef', github: undefined, subjectProof: proof });
 
 /** What the checker prints for `request`, signed with the test enclave key. */
 function checkerOutput(req = request, overrides: Partial<AiVerdict> = {}) {
@@ -59,7 +62,7 @@ function fakeChain(answer: (input: CheckerRequest) => unknown) {
 
 describe('OutLayer checker requests', () => {
   it('builds request_execution for a direct, build-bound run of the published wasm', () => {
-    expect(request).toEqual({ operation: 'check', request_id: '1f'.repeat(32), rule_id: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encrypted_evidence: 'beef', github: null });
+    expect(request).toEqual({ operation: 'check', request_id: '1f'.repeat(32), rule_id: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encrypted_evidence: 'beef', github: null, subject_proof: proof });
     expect(requestExecutionArgs(cfg, request)).toEqual({
       source: { WasmUrl: { url: cfg.wasmUrl, hash: HASH, build_target: 'wasm32-wasip2' } },
       resource_limits: { max_instructions: 2_000_000_000, max_memory_mb: 128, max_execution_seconds: 120 },
@@ -176,6 +179,10 @@ describe('agent in outlayer mode', () => {
       async view() {
         return [{ id: 'age_over_18', claim: 'is at least 18 years old', enabled: true }];
       },
+      async rpc(_m: string, params: { public_key?: string }) {
+        if (params.public_key === subjectSigner.publicKey) return { permission: 'FullAccess' };
+        throw new Error('UNKNOWN_ACCESS_KEY');
+      },
       async callRaw(_c: string, method: string, args: Record<string, unknown>) {
         submitted.push({ method, args });
         return { value: { uid: 'u', status: 'attested' }, txHash: 'Tx2' };
@@ -188,10 +195,10 @@ describe('agent in outlayer mode', () => {
     expect(health.checker).toEqual({ mode: 'outlayer', wasm_hash: HASH });
     expect(health.reason ?? '').not.toMatch(/CHECKER_PRIVATE_KEY|OUTLAYER/);
 
-    const res = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef' }) });
+    const res = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef', subject_proof: proof }) });
     expect(res.status).toBe(200);
     const sent = JSON.parse(calls[1].args.input_data as string) as typeof request;
-    expect(sent).toMatchObject({ operation: 'check', rule_id: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encrypted_evidence: 'beef', github: null });
+    expect(sent).toMatchObject({ operation: 'check', rule_id: 'age_over_18', subject: 'bob.testnet', model: 'z-ai/glm-5.3-flash', encrypted_evidence: 'beef', github: null, subject_proof: proof });
     expect(sent.request_id).toMatch(/^[0-9a-f]{64}$/);
     const out = checkerOutput(sent);
     expect(submitted).toEqual([{ method: 'submit_ai_verdict', args: { verdict: out.verdict, enclave_key: out.enclaveKey, enclave_signature: out.enclaveSignature, nearai: out.nearai } }]);
@@ -199,13 +206,17 @@ describe('agent in outlayer mode', () => {
   });
 
   /** An app whose OutLayer chain answers each run with the next of `answers` ('drop': no output). */
-  function appWith(answers: Array<'drop' | 'ok' | 'refuse'>) {
-    const config = { ...loadConfig(env), nearAiKey: 'k' };
+  function appWith(answers: Array<'drop' | 'ok' | 'refuse'>, extra: NodeJS.ProcessEnv = {}) {
+    const config = { ...loadConfig({ ...env, ...extra }), nearAiKey: 'k' };
     const models = (async () => Response.json({ models: [{ modelId: 'z-ai/glm-5.3-flash', metadata: { verifiable: true } }] })) as unknown as typeof fetch;
     const client = {
       contracts: { verdicts: 'verdicts.attestra.testnet' },
       async view() {
         return [{ id: 'age_over_18', claim: 'is at least 18 years old', enabled: true }];
+      },
+      async rpc(_m: string, params: { public_key?: string }) {
+        if (params.public_key === subjectSigner.publicKey) return { permission: 'FullAccess' };
+        throw new Error('UNKNOWN_ACCESS_KEY');
       },
       async callRaw() {
         return { value: { uid: 'u', status: 'attested' }, txHash: 'Tx3' };
@@ -219,7 +230,22 @@ describe('agent in outlayer mode', () => {
     const app = createApp({ config, ai: new NearAi('k', models), client, near: {} as Near, startedAt: Date.now(), outlayer: chain });
     return { app, runs: () => calls.filter((c) => c.method === 'request_execution').length };
   }
-  const body = JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef' });
+  const body = JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef', subject_proof: proof });
+
+  it('refuses a check its subject did not sign, before any TEE run', async () => {
+    const { app, runs } = appWith(['ok']);
+    const unsigned = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef' }) });
+    expect(unsigned.status).toBe(403);
+    expect(((await unsigned.json()) as { error: string }).error).toMatch(/must sign/);
+    const mallory = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(3))}`);
+    const foreign = await signPrivateCheck(mallory, { ruleId: 'age_over_18', subject: 'bob.testnet', encryptedEvidence: 'beef', github: null }, 'verdicts.attestra.testnet');
+    const res = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef', subject_proof: foreign }) });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: string }).error).toMatch(/not a full-access key of bob.testnet/);
+    const swapped = await app.request('/v1/check', { method: 'POST', body: JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'cafe', subject_proof: proof }) });
+    expect(swapped.status).toBe(403);
+    expect(runs()).toBe(0);
+  });
 
   it('sends a run OutLayer dropped again, up to its tries, but never a checker refusal', async () => {
     const twice = appWith(['drop', 'drop', 'ok']);
@@ -249,6 +275,42 @@ describe('agent in outlayer mode', () => {
     }
     expect(state).toMatchObject({ status: 'done', tx_hash: 'Tx3' });
     expect((await app.request('/v1/check/jobs/nope')).status).toBe(404);
+  });
+
+  it('counts a check per subject only once its signature verified, and caps the day in total', async () => {
+    const { app, runs } = appWith(['ok'], { AGENT_RATE_CHECK_SUBJECT: '1/1h', AGENT_RATE_CHECK_IP: '0' });
+    const unsigned = JSON.stringify({ rule_id: 'age_over_18', subject: 'bob.testnet', encrypted_evidence: 'beef' });
+    expect((await app.request('/v1/check', { method: 'POST', body: unsigned })).status).toBe(403);
+    expect((await app.request('/v1/check', { method: 'POST', body: unsigned })).status).toBe(403);
+    expect((await app.request('/v1/check', { method: 'POST', body })).status).toBe(200);
+    const again = await app.request('/v1/check', { method: 'POST', body });
+    expect(again.status).toBe(429);
+    expect(again.headers.get('retry-after')).toBe('3600');
+    expect(((await again.json()) as { error: string }).error).toBe('Too Many Requests: private checks are limited to 1 per hour for one subject; try again in 60 minutes.');
+    expect(runs()).toBe(1);
+
+    const daily = appWith(['ok'], { AGENT_CHECK_DAILY: '1', AGENT_RATE_CHECK_SUBJECT: '0' });
+    expect((await daily.app.request('/v1/check', { method: 'POST', body })).status).toBe(200);
+    const spent = await daily.app.request('/v1/check', { method: 'POST', body });
+    expect(spent.status).toBe(429);
+    expect(((await spent.json()) as { error: string }).error).toMatch(/^Too Many Requests: private checks are limited to 1 per day in total/);
+    expect(Number(spent.headers.get('retry-after'))).toBeLessThanOrEqual(86_400);
+    expect(daily.runs()).toBe(1);
+  });
+
+  it('limits checks per client address in front of the signature check, and never /health', async () => {
+    const { app, runs } = appWith(['ok'], { AGENT_RATE_CHECK_IP: '2/10m', TRUST_PROXY: 'true' });
+    const from = (ip: string, b = body) => app.request('/v1/check', { method: 'POST', body: b, headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` } });
+    expect((await from('198.51.100.4', '{}')).status).toBe(400);
+    expect((await from('198.51.100.4')).status).toBe(200);
+    const refused = await from('198.51.100.4');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('300');
+    expect(refused.headers.get('access-control-expose-headers')).toMatch(/Retry-After/);
+    expect((await from('198.51.100.5')).status).toBe(200);
+    expect(runs()).toBe(2);
+    for (let i = 0; i < 5; i++) expect((await app.request('/live')).status).toBe(200);
+    for (let i = 0; i < 5; i++) expect([200, 503]).toContain((await app.request('/health')).status);
   });
 
   it('says why checks are off when the wasm is not configured', async () => {

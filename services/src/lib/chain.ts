@@ -24,6 +24,8 @@ export interface ChainReader {
   balance(accountId: string): Promise<bigint | null>;
   /** True when `publicKey` is an access key of `accountId`. */
   hasKey(accountId: string, publicKey: string): Promise<boolean>;
+  /** True when `publicKey` is a full-access key of `accountId` (final). */
+  fullAccessKey?(accountId: string, publicKey: string): Promise<boolean>;
 }
 
 export interface ChainWriter {
@@ -56,6 +58,16 @@ export class RpcReader implements ChainReader {
       return BigInt(a.amount);
     } catch (e) {
       if (/UNKNOWN_ACCOUNT|does not exist/i.test(errorMessage(e))) return null;
+      throw e;
+    }
+  }
+
+  async fullAccessKey(accountId: string, publicKey: string): Promise<boolean> {
+    try {
+      const k = await this.client.rpc<{ permission?: unknown }>('query', { request_type: 'view_access_key', finality: 'final', account_id: accountId, public_key: publicKey });
+      return k.permission === 'FullAccess';
+    } catch (e) {
+      if (/UNKNOWN_ACCESS_KEY|UNKNOWN_ACCOUNT|does not exist/i.test(errorMessage(e))) return false;
       throw e;
     }
   }

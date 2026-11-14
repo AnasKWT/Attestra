@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchWithRetry, isTransient, withRetry } from '../src/retry';
+import { fetchWithRetry, isTransient, retryAfterMs, withRetry } from '../src/retry';
 
 const noWait = { sleep: async () => {} };
 const answer = (status: number, headers: Record<string, string> = {}) => new Response('{}', { status, headers });
@@ -65,5 +65,38 @@ describe('fetchWithRetry', () => {
     const failed = vi.fn().mockResolvedValue(answer(500));
     expect((await fetchWithRetry('https://relayer.example/v1/submit', { method: 'POST' }, { write: true, fetchImpl: failed as unknown as typeof fetch, ...noWait })).status).toBe(500);
     expect(failed).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits what Retry-After asks, in seconds or as an HTTP date, never less', async () => {
+    const waits: number[] = [];
+    const sleep = async (ms: number) => void waits.push(ms);
+    const f = vi.fn().mockResolvedValueOnce(answer(429, { 'retry-after': '2' })).mockResolvedValueOnce(answer(200));
+    expect((await fetchWithRetry('https://agent.example/v1/chat', { method: 'POST' }, { write: true, fetchImpl: f as unknown as typeof fetch, sleep })).status).toBe(200);
+    expect(waits[0]).toBeGreaterThanOrEqual(2000);
+    expect(waits[0]).toBeLessThanOrEqual(2200);
+
+    const now = Date.parse('2026-11-14T12:00:00Z');
+    expect(retryAfterMs(answer(429, { 'retry-after': new Date(now + 5000).toUTCString() }), now)).toBe(5000);
+    expect(retryAfterMs(answer(429, { 'retry-after': new Date(now - 5000).toUTCString() }), now)).toBe(0);
+    expect(retryAfterMs(answer(429, { 'retry-after': 'soon' }), now)).toBeUndefined();
+    expect(retryAfterMs(answer(429), now)).toBeUndefined();
+  });
+
+  it('hands back a 429 at once when Retry-After is longer than it would wait, so the caller reads its error', async () => {
+    const f = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Too Many Requests: private checks are limited' }), { status: 429, headers: { 'retry-after': '600' } }));
+    const res = await fetchWithRetry('https://agent.example/v1/check', { method: 'POST' }, { write: true, fetchImpl: f as unknown as typeof fetch, ...noWait });
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as { error: string }).error).toMatch(/^Too Many Requests/);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the last retryable answer when the tries run out, after a jittered backoff', async () => {
+    const waits: number[] = [];
+    const f = vi.fn().mockImplementation(async () => answer(503));
+    const res = await fetchWithRetry('https://indexer.example/api/stats', {}, { fetchImpl: f as unknown as typeof fetch, attempts: 3, baseMs: 100, sleep: async (ms) => void waits.push(ms) });
+    expect(res.status).toBe(503);
+    expect(f).toHaveBeenCalledTimes(3);
+    expect(waits).toHaveLength(2);
+    waits.forEach((w, i) => expect(w).toBeLessThanOrEqual(100 * 2 ** i));
   });
 });

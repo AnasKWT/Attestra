@@ -1,9 +1,10 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { secp256k1 } from '@noble/curves/secp256k1.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AttestraClient, base58Decode, base64ToBytes, bytesToHex, decryptWithEd25519Seed, encryptForModel, verdictDigest, x402 } from 'attestra';
-import { createApp } from '../src/app';
+import { AttestraClient, IndexerClient, KNOWN_SCHEMAS, SchemaEncoder, base58Decode, base58Encode, base64ToBytes, bytesToHex, decryptWithEd25519Seed, encryptForModel, keySigner, knownSchemaUid, signPrivateCheck, verdictDigest, x402, type AgentProfile } from 'attestra';
+import { createApp, verifyAgent } from '../src/app';
 import { githubMergedPrs, rulePrompt, runCheck } from '../src/check';
 import { loadConfig } from '../src/config';
 import { NearAi, sha256Hex, signedHashes, verifySignature } from '../src/nearai';
@@ -68,12 +69,22 @@ describe('NEAR AI signatures', () => {
 
 describe('private check pipeline', () => {
   const rule = { id: 'age_over_18', claim: 'is at least 18 years old', enabled: true };
+  const subjectSigner = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(4))}`);
+  const keys = { hasFullAccessKey: (account: string, key: string) => Promise.resolve(key === subjectSigner.publicKey && account.endsWith('.testnet')), recipient: 'verdicts.attestra.testnet' };
+  /** The check input, signed by its subject. */
+  const signed = async (subject: string, encryptedEvidence: string, github: string | null = null) => ({
+    rule,
+    subject,
+    encryptedEvidence,
+    github,
+    subjectProof: await signPrivateCheck(subjectSigner, { ruleId: rule.id, subject, encryptedEvidence, github }, 'verdicts.attestra.testnet'),
+  });
 
   it('encrypts end to end, checks the model signature and signs a verdict the contract can verify', async () => {
     const fake = fakeNearAi('PASS');
     const ai = new NearAi('k', fake.f);
     const evidence = encryptForModel('Date of birth: 1990-04-02', modelPub);
-    const out = await runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'bob.testnet', encryptedEvidence: evidence });
+    const out = await runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, await signed('bob.testnet', evidence), keys);
     expect(fake.seen()[0]).toBe(rulePrompt(rule));
     expect(fake.seen()[1]).toBe('Date of birth: 1990-04-02');
     expect(out.verdict.result).toBe(true);
@@ -86,13 +97,13 @@ describe('private check pipeline', () => {
 
   it('a FAIL answer becomes result false', async () => {
     const ai = new NearAi('k', fakeNearAi('FAIL').f);
-    const out = await runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'bob.testnet', encryptedEvidence: encryptForModel('nothing', modelPub) });
+    const out = await runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, await signed('bob.testnet', encryptForModel('nothing', modelPub)), keys);
     expect(out.verdict.result).toBe(false);
   });
 
   it('treats an empty answer (a reasoning model cut off) as an error, not a FAIL', async () => {
     const ai = new NearAi('k', fakeNearAi('').f);
-    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'bob.testnet', encryptedEvidence: encryptForModel('born 1990', modelPub) })).rejects.toThrow(/no verdict/);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, await signed('bob.testnet', encryptForModel('born 1990', modelPub)), keys)).rejects.toThrow(/no verdict/);
   });
 
   it('refuses a model signature over another response', async () => {
@@ -105,12 +116,20 @@ describe('private check pipeline', () => {
       return Response.json({ ...sig, text, signature: bytesToHex(ed25519.sign(new TextEncoder().encode(text), modelSeed)) });
     }) as typeof fetch;
     const ai = new NearAi('k', f);
-    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'b.testnet', encryptedEvidence: encryptForModel('x', modelPub) })).rejects.toThrow(/different response/);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, await signed('b.testnet', encryptForModel('x', modelPub)), keys)).rejects.toThrow(/different response/);
+  });
+
+  it('refuses a check its subject did not sign', async () => {
+    const ai = new NearAi('k', fakeNearAi().f);
+    const evidence = encryptForModel('born 1990', modelPub);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'bob.testnet', encryptedEvidence: evidence }, keys)).rejects.toThrow(/must sign/);
+    const forOther = await signed('bob.testnet', evidence);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { ...forOther, subject: 'carol.testnet' }, keys)).rejects.toThrow(/another rule or subject/);
   });
 
   it('refuses plaintext evidence', async () => {
     const ai = new NearAi('k', fakeNearAi().f);
-    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, { rule, subject: 'b', encryptedEvidence: 'my passport says 1990' })).rejects.toThrow(/encrypted/);
+    await expect(runCheck(ai, 'z-ai/glm-5.3-flash', checkerSecret, await signed('bob.testnet', 'my passport says 1990'), keys)).rejects.toThrow(/encrypted/);
   });
 
   it('counts GitHub merged pull requests itself', async () => {
@@ -159,5 +178,118 @@ describe('agent HTTP API (idle, no keys)', () => {
     expect((await app.request('/v1/check', { method: 'POST', body: '{}' })).status).toBe(503);
     const a2a = (await (await app.request('/a2a', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tasks/get' }) })).json()) as { error: { code: number } };
     expect(a2a.error.code).toBe(-32601);
+  });
+});
+
+describe('agent rate limits', () => {
+  const limited = (env: NodeJS.ProcessEnv) =>
+    createApp({ config: { ...loadConfig(env), nearAiKey: undefined }, ai: new NearAi(undefined), client: new AttestraClient({ network: 'testnet' }), near: null, startedAt: Date.now() });
+
+  it('limits chat and A2A together per client address, and never /live or /health', async () => {
+    const app = limited({ AGENT_RATE_CHAT_IP: '2/10m' });
+    expect((await app.request('/v1/chat', { method: 'POST', body: '{}' })).status).toBe(503);
+    const a2a = await app.request('/a2a', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tasks/get' }) });
+    expect(a2a.headers.get('ratelimit-remaining')).toBe('0');
+    const refused = await app.request('/v1/chat', { method: 'POST', body: '{}' });
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('300');
+    expect(((await refused.json()) as { error: string }).error).toBe('Too Many Requests: chats are limited to 2 per 10 minutes from one address; try again in 5 minutes.');
+    expect((await app.request('/a2a', { method: 'POST', body: '{}' })).status).toBe(429);
+    for (let i = 0; i < 5; i++) {
+      expect((await app.request('/live')).status).toBe(200);
+      expect((await app.request('/health')).status).toBe(503);
+    }
+  });
+
+  it('caps chats per day across every client', async () => {
+    const app = limited({ AGENT_CHAT_DAILY: '1', TRUST_PROXY: 'true' });
+    expect((await app.request('/v1/chat', { method: 'POST', body: '{}', headers: { 'x-forwarded-for': '198.51.100.1' } })).status).toBe(503);
+    const refused = await app.request('/v1/chat', { method: 'POST', body: '{}', headers: { 'x-forwarded-for': '198.51.100.2' } });
+    expect(refused.status).toBe(429);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/limited to 1 per day in total/);
+  });
+
+  it('limits the free 402 challenge, settlement attempts, job polls and MCP on their own', async () => {
+    const app = limited({ AGENT_RATE_PAID_IP: '1/10m', AGENT_RATE_SETTLE_IP: '1/10m', AGENT_RATE_JOBS_IP: '1/1m', AGENT_RATE_MCP_IP: '1/1m' });
+    const claim = `/v1/paid/verify-claim?uid=${'ab'.repeat(32)}`;
+    expect((await app.request(claim)).status).toBe(402);
+    expect((await app.request(claim)).status).toBe(429);
+    const payment = { headers: { 'PAYMENT-SIGNATURE': x402.encodeHeader({ x402Version: 2, scheme: 'exact', network: 'near:testnet', payload: { signedDelegateAction: 'AA' } }) } };
+    expect((await app.request(claim, payment)).status).toBe(402);
+    const settle = await app.request(claim, payment);
+    expect(settle.status).toBe(429);
+    expect(((await settle.json()) as { error: string }).error).toMatch(/with a payment from one address/);
+    expect((await app.request('/v1/check/jobs/nope')).status).toBe(404);
+    expect((await app.request('/v1/check/jobs/nope')).status).toBe(429);
+    const mcp = () => app.request('/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) });
+    expect((await mcp()).status).toBe(200);
+    expect((await mcp()).status).toBe(429);
+    expect((await app.request('/.well-known/agent-card.json')).status).toBe(200);
+  });
+});
+
+describe('paid agent verification (verify-agent)', () => {
+  /** A `tx` RPC result recorded on testnet: an implicit account staked tokens with ft_transfer_call to staking.attestra.testnet. */
+  const ftCall = JSON.parse(readFileSync(new URL('../../../packages/sdk/test/fixtures/payments.json', import.meta.url), 'utf8')).ft_transfer_call;
+  const FT_CALL = '2mb2KTtgAnfQghErTVU39v5PCgzAegnqsH3Ux5mvKbGx';
+  const STAKER = '3b114b03396a55f07b8a17cd43a6e72cd89a11235f8197e8b64b0c01f4aba05c';
+  const AGENT = 'staking.attestra.testnet';
+  let n = 0;
+  const att = (schema: 'agentIdentity' | 'agentReview', attester: string, fields: Record<string, unknown>) => ({
+    uid: (++n).toString(16).padStart(64, '0'),
+    schema_uid: knownSchemaUid(schema),
+    attester,
+    subject: AGENT,
+    data: new SchemaEncoder(KNOWN_SCHEMAS[schema].definition).encode(fields),
+    created_at: 1_700_000_000 + n,
+    expiration_time: 0,
+    revoked: false,
+    revocation_time: 0,
+    revoke_at: 0,
+    nonce: n,
+    ref_uid: null,
+    status: 'active' as const,
+    tx_hash: null,
+    block_height: null,
+    revoke_tx_hash: null,
+  });
+  const identity = (attester: string) => att('agentIdentity', attester, { name: 'Staker', owner: attester, model: 'm', capabilities: [], endpoint: '', description: '' });
+  const review = (attester: string, score: number, job_ref: string) => att('agentReview', attester, { score, comment: '', job_ref });
+
+  /** The SDK's own getAgentProfile over a fixed indexer answer and the recorded transaction. */
+  function clientWith(identities: ReturnType<typeof identity>[], reviews: ReturnType<typeof review>[]) {
+    const raw = { account_id: AGENT, identity: identities[0] ?? null, identities, reviews, delegations: [], authority: null } as unknown as AgentProfile;
+    class Fake extends AttestraClient {
+      override readonly indexer = { getAgent: async () => raw } as unknown as IndexerClient;
+      override async rpc<T>(_m: string, p: unknown): Promise<T> {
+        if ((p as { tx_hash: string }).tx_hash === FT_CALL) return ftCall as T;
+        throw Object.assign(new Error('unknown'), { rpc: true, cause: 'UNKNOWN_TRANSACTION' });
+      }
+    }
+    return new Fake({ network: 'testnet' });
+  }
+
+  it('trusts an agent with a verified identity and a paid review of at least 3.5', async () => {
+    const r = await verifyAgent(clientWith([identity(AGENT)], [review(STAKER, 4, FT_CALL)]), AGENT);
+    expect(r).toMatchObject({ agent: AGENT, identity_status: 'verified', paid_review_count: 1, paid_average_score: 4, trusted: true, trust_reasons: [] });
+  });
+
+  it('refuses an identity by a stranger, owner and self reviews, a forged job_ref and a low paid average, with reasons', async () => {
+    const stranger = await verifyAgent(clientWith([identity('mallory.testnet')], [review('mallory.testnet', 5, ''), review(STAKER, 5, FT_CALL)]), AGENT);
+    expect(stranger).toMatchObject({ identity_status: 'unverified', review_count: 1, paid_review_count: 1, excluded_reasons: { owner: 1 }, trusted: false });
+    expect(stranger.trust_reasons).toEqual([expect.stringMatching(/^the identity is unverified: mallory\.testnet is neither/)]);
+
+    const unpaid = await verifyAgent(clientWith([identity(AGENT)], [review(AGENT, 5, FT_CALL), review('bob.testnet', 5, FT_CALL), review('carol.testnet', 5, 'paid in full')]), AGENT);
+    expect(unpaid).toMatchObject({ review_count: 2, average_score: 5, paid_review_count: 0, excluded_reasons: { self_review: 1 }, trusted: false });
+    expect(unpaid.trust_reasons).toEqual([expect.stringMatching(/^no paid review/)]);
+
+    const low = await verifyAgent(clientWith([identity(AGENT)], [review(STAKER, 3, FT_CALL)]), AGENT);
+    expect(low).toMatchObject({ trusted: false, trust_reasons: ['the paid reviews average 3, below 3.5'] });
+  });
+
+  it('is not trusted when there is no profile', async () => {
+    const r = await verifyAgent(new AttestraClient({ network: 'testnet' }), AGENT);
+    expect(r).toMatchObject({ trusted: false, error: 'agent profiles need indexerUrl' });
+    expect(r.trust_reasons[0]).toMatch(/^no agent profile/);
   });
 });

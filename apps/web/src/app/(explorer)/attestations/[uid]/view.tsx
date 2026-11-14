@@ -110,23 +110,51 @@ function DaoVotePanel({ a }: { a: AttestationRecord }) {
   const vote = useAsync(async () => {
     const r = await reader().getDaoProposals(a.attester, { limit: 100 });
     if (!r.success || !r.data) throw new Error(r.error?.message ?? 'the DAO did not answer');
-    return r.data.find((p) => p.status === 'Approved' && p.call?.method === 'attest' && p.call.schemaUid === a.schema_uid && p.call.subject === a.subject && p.call.data === a.data) ?? null;
-  }, [a.attester, a.schema_uid, a.subject, a.data]);
+    const proposal = r.data.find((p) => p.status === 'Approved' && p.call?.method === 'attest' && p.call.schemaUid === a.schema_uid && p.call.subject === a.subject && p.call.data === a.data) ?? null;
+    if (proposal) return { proposal, delegate: null };
+    // Not by a vote of its own: issued by a delegate under a grant the DAO's council voted.
+    const ev = await indexer.listEvents({ uid: a.uid, event: 'attestation_created', limit: 1 }).catch(() => null);
+    const actor = ev?.data[0]?.data?.actor as string | undefined;
+    if (!actor || actor === a.attester) return { proposal: null, delegate: null };
+    const grant = await reader().view<{ schemas: string[] | null; max_uses: number; uses: number; expires_at: number } | null>(reader().contracts.attestations, 'get_delegate', { authority: a.attester, delegate: actor }).catch(() => null);
+    const grantProposal = r.data.find((p) => p.status === 'Approved' && grantsTo(p.kind, actor)) ?? null;
+    return { proposal: null, delegate: { actor, grant, grantProposal } };
+  }, [a.attester, a.schema_uid, a.subject, a.data, a.uid]);
   return (
     <Panel>
-      <PanelHeader title="DAO vote" subtitle="The Sputnik DAO proposal that issued this attestation, read from the DAO" />
+      <PanelHeader title="DAO decision" subtitle="The Sputnik DAO vote, or the grant its council voted, that issued this attestation" />
       <div className="p-5 text-[13.5px]">
         {vote.loading && <Skeleton className="h-20" />}
         {vote.error && <p className="text-mute">{vote.error}</p>}
-        {!vote.loading && !vote.error && !vote.data && <p className="text-mute">No approved proposal among the DAO&apos;s latest 100 matches this attestation.</p>}
-        {vote.data && (
+        {!vote.loading && !vote.error && vote.data && !vote.data.proposal && !vote.data.delegate && <p className="text-mute">No approved proposal among the DAO&apos;s latest 100 matches this attestation.</p>}
+        {vote.data?.delegate && (
           <dl>
-            <KeyValue label="Proposal" mono>#{vote.data.id}</KeyValue>
-            <KeyValue label="Proposed by"><AccountLink id={vote.data.proposer} /></KeyValue>
-            <KeyValue label="Description">{vote.data.description}</KeyValue>
+            <KeyValue label="Issued by"><AccountLink id={vote.data.delegate.actor} /></KeyValue>
+            <KeyValue label="Under">
+              <span className="text-soft">
+                a delegate grant of the DAO{vote.data.delegate.grantProposal ? `, voted in proposal #${vote.data.delegate.grantProposal.id}` : ''}
+                {vote.data.delegate.grant ? `: ${vote.data.delegate.grant.schemas?.length ?? 'any'} schema(s), ${vote.data.delegate.grant.uses} of ${vote.data.delegate.grant.max_uses || 'unlimited'} uses` : ' (since withdrawn)'}
+              </span>
+            </KeyValue>
+            {vote.data.delegate.grantProposal && (
+              <KeyValue label="Grant approved by">
+                <span className="flex flex-wrap gap-x-3 gap-y-1">
+                  {Object.keys(vote.data.delegate.grantProposal.votes).map((who) => (
+                    <AccountLink key={who} id={who} />
+                  ))}
+                </span>
+              </KeyValue>
+            )}
+          </dl>
+        )}
+        {vote.data?.proposal && (
+          <dl>
+            <KeyValue label="Proposal" mono>#{vote.data.proposal.id}</KeyValue>
+            <KeyValue label="Proposed by"><AccountLink id={vote.data.proposal.proposer} /></KeyValue>
+            <KeyValue label="Description">{vote.data.proposal.description}</KeyValue>
             <KeyValue label="Votes">
               <span className="flex flex-col gap-1.5">
-                {Object.entries(vote.data.votes).map(([who, v]) => (
+                {Object.entries(vote.data.proposal.votes).map(([who, v]) => (
                   <span key={who} className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <AccountLink id={who} />
                     <Badge tone={v === 'Approve' ? 'ok' : 'bad'}>{v}</Badge>
@@ -134,10 +162,23 @@ function DaoVotePanel({ a }: { a: AttestationRecord }) {
                 ))}
               </span>
             </KeyValue>
-            <KeyValue label="Proposed">{formatTime(Math.floor(Number(BigInt(vote.data.submission_time) / 1_000_000_000n)))}</KeyValue>
+            <KeyValue label="Proposed">{formatTime(Math.floor(Number(BigInt(vote.data.proposal.submission_time) / 1_000_000_000n)))}</KeyValue>
           </dl>
         )}
       </div>
     </Panel>
   );
+}
+
+/** Whether a proposal kind is an `add_delegate` call naming `delegate`. */
+function grantsTo(kind: unknown, delegate: string): boolean {
+  const fc = (kind as { FunctionCall?: { actions?: Array<{ method_name?: string; args?: string }> } })?.FunctionCall;
+  return (fc?.actions ?? []).some((a) => {
+    if (a.method_name !== 'add_delegate' || !a.args) return false;
+    try {
+      return (JSON.parse(atob(a.args)) as { delegate?: string }).delegate === delegate;
+    } catch {
+      return false;
+    }
+  });
 }

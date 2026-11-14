@@ -40,6 +40,9 @@ const app = createApi({
   network: config.network,
   startedAt: Date.now(),
   chainHead: async () => (await chain.rpc<{ header: { height: number } }>('block', { finality: 'final' })).header.height,
+  rpc: <T>(method: string, params: unknown) => chain.rpc<T>(method, params),
+  paymentAssets: chain.paymentAssets(),
+  limits: config.limits,
 });
 serve({ fetch: app.fetch, port: config.port }, () => log(`listening on :${config.port} (${config.network}, root ${config.root})`));
 

@@ -6,7 +6,7 @@
 
 import { base58Decode, bytesToHex, verifyRequest, type DelegatedAction, type SignedRequest, type StorageBalance } from 'attestra';
 import { isValidAccountId } from 'near-kit';
-import type { DailyLedger } from '../lib/ledger';
+import { OnceLedger, type DailyLedger } from '../lib/ledger';
 import { parseNear } from '../lib/units';
 import type { RelayerConfig } from './config';
 
@@ -84,11 +84,12 @@ export const KEYS = {
   sponsored: (account: string, contract: string) => `sponsor:${contract}:${account}`,
 };
 
-/** Allowlist and daily budgets over a persisted ledger. */
+/** Allowlist and daily budgets over a persisted ledger; sponsorships over a persisted once-ever ledger. */
 export class RelayerPolicy {
   constructor(
     private readonly cfg: Pick<RelayerConfig, 'allowlist' | 'dailyPerAttester' | 'dailyTotal' | 'storageBudget' | 'metaDailyPerSender' | 'metaDailyTotal'>,
     private readonly ledger: DailyLedger,
+    private readonly sponsored: OnceLedger = new OnceLedger(null),
   ) {}
 
   allows(attester: string): boolean {
@@ -122,13 +123,20 @@ export class RelayerPolicy {
     this.ledger.refund([KEYS.storage], amount);
   }
 
-  /** One sponsored deposit per account, contract and day. */
+  /**
+   * One sponsored deposit per account and contract, ever: an account that withdraws its storage
+   * cannot ask again the next day.
+   */
   takeSponsor(account: string, contract: string): boolean {
-    return this.ledger.take([[KEYS.sponsored(account, contract), 1n]], 1n) === null;
+    return this.sponsored.take(KEYS.sponsored(account, contract));
+  }
+
+  wasSponsored(account: string, contract: string): boolean {
+    return this.sponsored.has(KEYS.sponsored(account, contract));
   }
 
   refundSponsor(account: string, contract: string): void {
-    this.ledger.refund([KEYS.sponsored(account, contract)], 1n);
+    this.sponsored.release(KEYS.sponsored(account, contract));
   }
 
   takeMeta(sender: string): string | null {

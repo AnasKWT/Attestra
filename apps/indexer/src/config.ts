@@ -1,7 +1,8 @@
 /** Indexer settings from the environment; every value has a working public testnet default. */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { contractIdsFor, resolveNetwork, type Network } from 'attestra';
+import { contractIdsFor, parseRate, resolveNetwork, trustProxySetting, type Network } from 'attestra';
+import { DEFAULT_LIMITS, type ApiLimits } from './api';
 
 /** The deployment's first block, from deployments/<network>.json when it is present. */
 function deploymentHeight(network: string): number {
@@ -28,6 +29,15 @@ export interface IndexerConfig {
   lagBlocks: number;
   fastnearKey?: string;
   accounts: string[];
+  limits: ApiLimits;
+}
+
+function rate(env: NodeJS.ProcessEnv, name: string, fallback: ApiLimits['ip']) {
+  try {
+    return parseRate(env[name], fallback);
+  } catch (e) {
+    throw new Error(`${name}: ${(e as Error).message}`);
+  }
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig {
@@ -46,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): IndexerConfig 
     pollMs: Number(env.POLL_MS ?? 4000),
     lagBlocks: Number(env.LAG_BLOCKS ?? 3),
     fastnearKey: env.FASTNEAR_API_KEY || undefined,
+    limits: { trustProxy: trustProxySetting(env.TRUST_PROXY), ip: rate(env, 'INDEXER_RATE_IP', DEFAULT_LIMITS.ip), search: rate(env, 'INDEXER_RATE_SEARCH_IP', DEFAULT_LIMITS.search) },
     accounts: [
       c.schemas,
       c.attestations,

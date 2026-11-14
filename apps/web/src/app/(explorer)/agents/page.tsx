@@ -2,6 +2,7 @@
 
 import { Bot, Star } from 'lucide-react';
 import Link from 'next/link';
+import { IdentityStatusBadge, TrustBadge } from '@/components/explorer/AgentReputation';
 import { ExplorerShell } from '@/components/explorer/ExplorerShell';
 import { Alert, Badge, Empty, Skeleton, buttonClass } from '@/components/ui/primitives';
 import { indexer } from '@/lib/client';
@@ -13,7 +14,7 @@ export default function AgentsPage() {
   return (
     <ExplorerShell
       title="Agents"
-      intro="Know Your Agent: every AI agent here has an identity attested by its owner, delegations with scope and expiry, and reviews from those who hired it."
+      intro="Know Your Agent: every AI agent here has an identity attestation, delegations with scope and expiry, and reviews. An identity is verified when the agent account or its parent registered it, a review is paid when it names the reviewer's payment to the agent, and an agent is trusted with a verified identity and paid reviews averaging at least 3.5."
       actions={<Link href="/sandbox/app/agents" className={buttonClass('primary', 'md')}>Register an agent</Link>}
     >
       {error && <Alert tone="warn" title="The indexer did not answer">{error}</Alert>}
@@ -38,7 +39,7 @@ export default function AgentsPage() {
                     </div>
                   </div>
                   {a.average_score !== null && (
-                    <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold tabular-nums text-fg" title="Average review score out of 5">
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold tabular-nums text-fg" title="Average of the reviews that count, out of 5">
                       <Star className="size-3.5 fill-amber-500 text-amber-500" aria-hidden="true" />
                       {a.average_score.toFixed(1)}
                     </span>
@@ -46,11 +47,13 @@ export default function AgentsPage() {
                 </div>
                 <p className="mt-3 line-clamp-2 text-[13px] text-soft">{String(f.description || `Runs ${f.model ?? 'an unknown model'}`)}</p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
+                  <IdentityStatusBadge status={a.identity_status} reason={a.identity_reason} />
+                  {a.trusted && <TrustBadge profile={a} />}
                   <Badge tone="info">{String(f.model ?? 'model')}</Badge>
                   {(Array.isArray(f.capabilities) ? f.capabilities : []).slice(0, 3).map((c) => <Badge key={String(c)}>{String(c)}</Badge>)}
                 </div>
                 <p className="mt-4 text-[12px] text-mute">
-                  {a.review_count} review{a.review_count === 1 ? '' : 's'} · {a.delegations.length} delegation{a.delegations.length === 1 ? '' : 's'} · owner {shortAccount(String(f.owner ?? ''))}
+                  {a.review_count} review{a.review_count === 1 ? '' : 's'} ({a.paid_review_count ?? 0} paid) · {a.delegations.length} delegation{a.delegations.length === 1 ? '' : 's'} · owner {shortAccount(String(f.owner ?? ''))}
                 </p>
               </Link>
             );

@@ -1,7 +1,9 @@
 /**
  * Retries with exponential backoff and full jitter, for the network calls the SDK, the CLI, the agent
  * and the services make. Reads retry on any transient failure; writes and paid calls retry only on
- * answers that say the request was not processed (429, 503), so nothing is sent twice.
+ * answers that say the request was not processed (429, 503), so nothing is sent twice. A server's
+ * `Retry-After` (seconds or an HTTP date) replaces the backoff; one longer than `maxRetryAfterMs`
+ * is not waited out: the caller gets that answer at once.
  */
 
 export interface RetryOptions {
@@ -12,6 +14,8 @@ export interface RetryOptions {
   maxMs?: number;
   /** Whether a failure is worth another try (default `isTransient`). */
   retryOn?: (error: unknown) => boolean;
+  /** The longest `Retry-After` waited out (default 30 seconds); a longer one ends the retries. */
+  maxRetryAfterMs?: number;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -26,6 +30,8 @@ export class RetryableStatus extends Error {
     readonly status: number,
     readonly url: string,
     readonly retryAfterMs?: number,
+    /** The answer itself, handed back to the caller when the retries end. */
+    readonly response?: Response,
   ) {
     super(`${url} answered ${status}`);
     this.name = 'RetryableStatus';
@@ -48,6 +54,7 @@ export async function withRetry<T>(fn: (attempt: number) => Promise<T>, opts: Re
   const base = opts.baseMs ?? 400;
   const max = opts.maxMs ?? 8_000;
   const retryOn = opts.retryOn ?? isTransient;
+  const maxHint = opts.maxRetryAfterMs ?? 30_000;
   const sleep = opts.sleep ?? defaultSleep;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -55,25 +62,29 @@ export async function withRetry<T>(fn: (attempt: number) => Promise<T>, opts: Re
     } catch (e) {
       if (attempt + 1 >= attempts || !retryOn(e)) throw e;
       const hinted = e instanceof RetryableStatus ? e.retryAfterMs : undefined;
-      // Full jitter: a random wait up to the backoff, so many clients do not retry in step.
-      await sleep(hinted ?? Math.round(Math.random() * Math.min(max, base * 2 ** attempt)));
+      // The server knows when it takes requests again: a wait longer than we would sleep is final.
+      if (hinted !== undefined && hinted > maxHint) throw e;
+      // The hint plus up to a tenth more, never earlier; otherwise full jitter (a random wait up to
+      // the backoff), so many clients do not retry in step.
+      await sleep(hinted !== undefined ? hinted + Math.round(Math.random() * hinted * 0.1) : Math.round(Math.random() * Math.min(max, base * 2 ** attempt)));
     }
   }
 }
 
-function retryAfterMs(res: Response): number | undefined {
-  const h = res.headers.get('retry-after');
+/** A `Retry-After` header in milliseconds: delay seconds or an HTTP date; undefined when absent or unreadable. */
+export function retryAfterMs(res: Pick<Response, 'headers'>, now = Date.now()): number | undefined {
+  const h = res.headers.get('retry-after')?.trim();
   if (!h) return undefined;
-  const seconds = Number(h);
-  if (Number.isFinite(seconds)) return Math.min(30_000, Math.max(0, seconds * 1000));
+  if (/^\d+$/.test(h)) return Number(h) * 1000;
   const at = Date.parse(h);
-  return Number.isFinite(at) ? Math.min(30_000, Math.max(0, at - Date.now())) : undefined;
+  return Number.isFinite(at) ? Math.max(0, at - now) : undefined;
 }
 
 /**
  * `fetch` that retries. By default it retries network failures and `RETRY_STATUSES`, for reads.
  * With `{ write: true }` it retries only answers in `NOT_PROCESSED_STATUSES`, never a dropped
- * connection, since the server may have acted on a request whose answer was lost.
+ * connection, since the server may have acted on a request whose answer was lost. When the retries
+ * end on such a status, that last answer is returned, so the caller reads the server's own error.
  */
 export async function fetchWithRetry(
   input: string,
@@ -82,16 +93,22 @@ export async function fetchWithRetry(
 ): Promise<Response> {
   const f = opts.fetchImpl ?? fetch;
   const statuses = opts.write ? NOT_PROCESSED_STATUSES : RETRY_STATUSES;
+  let previous: Response | undefined;
   return withRetry(
     async () => {
+      // A retried answer is dropped: release its body.
+      previous?.body?.cancel().catch(() => {});
       const res = await f(input, init);
-      if (statuses.has(res.status)) throw new RetryableStatus(res.status, input, retryAfterMs(res));
+      if (statuses.has(res.status)) {
+        previous = res;
+        throw new RetryableStatus(res.status, input, retryAfterMs(res), res);
+      }
       return res;
     },
     { ...opts, retryOn: opts.retryOn ?? (opts.write ? (e) => e instanceof RetryableStatus : isTransient) },
   ).catch((e) => {
-    // Out of tries on a retryable status: hand back a response-like failure the caller already handles.
-    if (e instanceof RetryableStatus) throw new Error(`${e.url} answered ${e.status} after retries`);
+    // Out of tries, or told to wait longer than we would: the caller handles the answer as any other.
+    if (e instanceof RetryableStatus && e.response) return e.response;
     throw e;
   });
 }

@@ -68,9 +68,8 @@ const USE_CASES = [
 const TRACKS = [
   { title: 'Privacy and Private AI', body: 'Facts checked by a NEAR AI Cloud verifiable model in a TEE with end-to-end encryption; only hashes are stored.' },
   { title: 'Agent Economy', body: 'Identity, scoped delegation and reputation for agents, and verification sold per call over x402.' },
-  { title: 'AI Security and Defense', body: 'Function-call keys that can only attest and revoke, capped MCP write tools, TEE attestations checked on chain, and reputation before an agent is trusted or paid.' },
-  { title: 'Social Money', body: 'Communities that vouch for people: Sputnik DAOs issue membership credentials by proposal and council vote, with token-gated and token-reward resolvers and governance-verified authorities.' },
-  { title: 'NFTs That Do Something', body: 'NEP-171 credentials that carry an attestation: non-transferable, minted on request and burned the moment the attestation is revoked.' },
+  { title: 'AI Security and Defense', body: 'Function-call keys that can only attest and revoke, rate-limited and capped tools, verdicts accepted only from a TEE-bound checker key, and reputation that counts only paid reviews before an agent is trusted.' },
+  { title: 'Social Money', body: 'Reputation-based access for communities: a Sputnik DAO issues membership credentials by council vote or through a scoped grant its council voted, to accounts other issuers vouch for.' },
   { title: 'Open Innovation', body: 'Attestations about wallets on any chain, verified by Chain Signatures without an oracle, and light client proofs in the browser.' },
 ];
 
@@ -292,11 +291,11 @@ export default function Home() {
       <section className="border-t border-line bg-soft py-24">
         <div className={SECTION}>
           <div className="reveal">
-            <SectionHeading eyebrow="Where it fits" title="Built for six NEAR Hackathon tracks." />
+            <SectionHeading eyebrow="Where it fits" title="Built for five NEAR Hackathon tracks." />
           </div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
             {TRACKS.map((t, i) => (
-              <div key={t.title} className="reveal rounded-xl border border-line bg-panel p-5 shadow-panel transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand-500/40 hover:shadow-float" style={d(i)}>
+              <div key={t.title} className={`reveal rounded-xl ${i < 3 ? 'lg:col-span-2' : 'lg:col-span-3'} ${i === TRACKS.length - 1 && TRACKS.length % 2 ? 'sm:col-span-2 lg:col-span-3' : ''} border border-line bg-panel p-5 shadow-panel transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-1 hover:border-brand-500/40 hover:shadow-float`} style={d(i)}>
                 <h3 className="text-[15.5px] font-semibold text-fg">{t.title}</h3>
                 <p className="mt-2 text-[14px] leading-relaxed text-soft">{t.body}</p>
               </div>

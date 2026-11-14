@@ -14,7 +14,7 @@
  * account stored for this wasm hash (`outlayer secrets set ... --wasm-hash <sha256>`).
  */
 
-import { base58Decode, base64ToBytes, verdictDigest, type AiVerdict } from 'attestra';
+import { base58Decode, base64ToBytes, verdictDigest, type AiVerdict, type SubjectProof } from 'attestra';
 import { ed25519 } from '@noble/curves/ed25519.js';
 import type { CheckOutput } from './check';
 
@@ -58,6 +58,8 @@ export interface CheckerRequest {
   model: string;
   encrypted_evidence: string;
   github: string | null;
+  /** The subject's signed request, which the checker verifies in the TEE. */
+  subject_proof: SubjectProof;
 }
 
 /** The chain operations the transport needs, so tests can stand in for NEAR. */
@@ -67,7 +69,7 @@ export interface OutLayerChain {
   call(contractId: string, method: string, args: object, opts: { deposit: bigint; gas: bigint }): Promise<unknown>;
 }
 
-export function checkerRequest(p: { requestId: string; ruleId: string; subject: string; model: string; encryptedEvidence: string; github?: string | null }): CheckerRequest {
+export function checkerRequest(p: { requestId: string; ruleId: string; subject: string; model: string; encryptedEvidence: string; github?: string | null; subjectProof: SubjectProof }): CheckerRequest {
   return {
     operation: 'check',
     request_id: p.requestId,
@@ -76,6 +78,7 @@ export function checkerRequest(p: { requestId: string; ruleId: string; subject: 
     model: p.model,
     encrypted_evidence: p.encryptedEvidence,
     github: p.github ?? null,
+    subject_proof: p.subjectProof,
   };
 }
 

@@ -1,7 +1,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AttestraClient, READ_TOOLS, TOOLS, WRITE_TOOLS } from 'attestra';
+import { AttestraClient, IndexerClient, KNOWN_SCHEMAS, READ_TOOLS, SchemaEncoder, TOOLS, WRITE_TOOLS, knownSchemaUid } from 'attestra';
 import { DEFAULT_TOOL_CAPS, DailyCaps } from '../src/caps';
 import { handleMcpRequest } from '../src/http';
 import { createAttestraMcpServer, optionsFromEnv, writesEnabled } from '../src/server';
@@ -194,5 +195,53 @@ describe('Attestra MCP server', () => {
       expect(res.headers.get('allow')).toBe('POST');
       expect(await res.json()).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 }, id: null });
     }
+  });
+});
+
+describe('get_agent_reputation', () => {
+  /** The README's x402 settlement on testnet: agent.attestra.testnet relayed attestra.testnet's signed ft_transfer to it. */
+  const settlement = JSON.parse(readFileSync(new URL('../../sdk/test/fixtures/payments.json', import.meta.url), 'utf8')).x402_settlement;
+  const X402 = 'Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP';
+  const AGENT = 'agent.attestra.testnet';
+  const row = (uid: string, schema: 'agentIdentity' | 'agentReview', attester: string, fields: Record<string, unknown>) => ({
+    uid: uid.repeat(64),
+    schema_uid: knownSchemaUid(schema),
+    attester,
+    subject: AGENT,
+    data: new SchemaEncoder(KNOWN_SCHEMAS[schema].definition).encode(fields),
+    created_at: 1_700_000_000 + uid.charCodeAt(0),
+    status: 'active',
+  });
+
+  class ReputationClient extends FakeClient {
+    override readonly indexer = {
+      getAgent: async () => ({
+        account_id: AGENT,
+        identities: [row('1', 'agentIdentity', 'attestra.testnet', { name: 'Attestra agent', owner: 'attestra.testnet', model: 'm', capabilities: [], endpoint: '', description: '' })],
+        // The owner paid its own agent and reviewed it: a real payment, but the owner's review never counts.
+        reviews: [row('2', 'agentReview', 'attestra.testnet', { score: 5, comment: '', job_ref: X402 }), row('3', 'agentReview', 'client.testnet', { score: 5, comment: '', job_ref: X402 })],
+        delegations: [],
+        authority: null,
+      }),
+    } as unknown as IndexerClient;
+    override async rpc<T>(m: string, params: unknown): Promise<T> {
+      if (m === 'tx') return settlement as T;
+      return super.rpc<T>(m, params);
+    }
+  }
+
+  it('reports the identity status, counted and paid reviews and why the agent is not trusted', async () => {
+    const { c } = await connect({ network: 'testnet' }, new ReputationClient({ network: 'testnet' }));
+    const r = text(await c.callTool({ name: 'get_agent_reputation', arguments: { agent: AGENT } }));
+    expect(r.data).toMatchObject({
+      identity_status: 'verified',
+      review_count: 1,
+      paid_review_count: 0,
+      excluded_review_count: 1,
+      excluded_reasons: { owner: 1 },
+      trusted: false,
+      trust_reasons: [expect.stringMatching(/^no paid review/)],
+    });
+    expect(r.data.reviews[1]).toMatchObject({ attester: 'client.testnet', counted: true, paid: false, payment_reason: 'the transaction is not a payment signed by the reviewer' });
   });
 });

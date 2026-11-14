@@ -1,9 +1,10 @@
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from 'attestra';
+import { AttestraClient, KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid, type AttestationRecord, type RpcCall } from 'attestra';
 import { createApi } from '../src/api';
 import { loadConfig } from '../src/config';
-import { connect, migrate, reset, type Db } from '../src/db';
+import { connect, migrate, reset, upsertAttestation, type Db } from '../src/db';
 import { ingestOnce } from '../src/ingest';
 import type { TxApi, TxRecord } from '../src/txapi';
 
@@ -91,7 +92,10 @@ run('ingest and API (Postgres)', () => {
     expect(one.decoded.name).toBe('Scout');
     const agent = await get('/api/agents/scout.testnet');
     expect(agent.identity_fields.capabilities).toEqual(['verify']);
-    expect(agent.average_score).toBe(4);
+    // alice.testnet attested it, but scout.testnet is not alice's sub-account: the identity is not provably hers.
+    expect(agent).toMatchObject({ identity_status: 'unverified', review_count: 1, average_score: 4, paid_review_count: 0, trusted: false });
+    expect(agent.identity_reason).toMatch(/alice\.testnet is neither scout\.testnet/);
+    expect(agent.reviews[0]).toMatchObject({ counted: true, paid: false, payment_reason: 'job_ref is not a NEAR transaction hash' });
     expect(agent.delegations).toHaveLength(1);
     expect((await get('/api/agents')).pagination.total).toBe(1);
     const auth = await get('/api/authorities/alice.testnet');
@@ -125,6 +129,127 @@ run('ingest and API (Postgres)', () => {
     expect((await app.request('/health')).status).toBe(200);
     expect((await app.request('/live')).status).toBe(200);
   });
+
+  it('limits /api per client address, search more strictly, and never /live or /health', async () => {
+    await ingestOnce(deps());
+    const limits = { trustProxy: true, ip: { limit: 3, windowMs: 60_000 }, search: { limit: 1, windowMs: 60_000 } };
+    const app = createApi({ db, network: 'testnet', startedAt: Date.now(), chainHead: async () => 205, limits });
+    const get = (p: string, ip = '203.0.113.7') => app.request(p, { headers: { 'x-forwarded-for': ip } });
+    expect((await get('/api/search?q=scout')).status).toBe(200);
+    const search = await get('/api/search?q=scout');
+    expect(search.status).toBe(429);
+    expect(search.headers.get('retry-after')).toBe('60');
+    expect(((await search.json()) as { error: string }).error).toMatch(/^Too Many Requests: searches are limited to 1 per minute from one address/);
+    expect((await get('/api/stats')).status).toBe(200);
+    const last = await get('/api/schemas');
+    expect(last.status).toBe(200);
+    expect(last.headers.get('ratelimit-remaining')).toBe('0');
+    expect((await get('/api/schemas')).status).toBe(429);
+    expect((await get('/api/schemas', '203.0.113.8')).status).toBe(200);
+    for (let i = 0; i < 5; i++) {
+      expect((await get('/health')).status).toBe(200);
+      expect((await get('/live')).status).toBe(200);
+    }
+  });
+});
+
+/** `tx` RPC results recorded on testnet, shared with the SDK's reputation tests. */
+const fixtures = JSON.parse(readFileSync(new URL('../../../packages/sdk/test/fixtures/payments.json', import.meta.url), 'utf8'));
+const FT_CALL = '2mb2KTtgAnfQghErTVU39v5PCgzAegnqsH3Ux5mvKbGx';
+const X402 = 'Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP';
+const STAKER = '3b114b03396a55f07b8a17cd43a6e72cd89a11235f8197e8b64b0c01f4aba05c';
+const STAKING = 'staking.attestra.testnet';
+
+run('agent reputation (Postgres)', () => {
+  let db: Db;
+  let rpcCalls: string[] = [];
+  const rpc = (async (_method: string, params: { tx_hash: string }) => {
+    rpcCalls.push(params.tx_hash);
+    if (params.tx_hash === FT_CALL) return fixtures.ft_transfer_call;
+    if (params.tx_hash === X402) return fixtures.x402_settlement;
+    throw Object.assign(new Error('unknown'), { rpc: true, cause: 'UNKNOWN_TRANSACTION' });
+  }) as unknown as RpcCall;
+  const api = (withRpc = true) => createApi({ db, network: 'testnet', startedAt: Date.now(), chainHead: async () => 1, rpc: withRpc ? rpc : undefined, paymentAssets: ['NEAR', 'token.attestra.testnet'] });
+  let n = 0;
+  const put = (schema: 'agentIdentity' | 'agentReview', attester: string, fields: Record<string, unknown>) => {
+    n++;
+    const a: AttestationRecord = {
+      uid: n.toString(16).padStart(64, '0'),
+      schema_uid: knownSchemaUid(schema),
+      attester,
+      subject: STAKING,
+      data: new SchemaEncoder(KNOWN_SCHEMAS[schema].definition).encode(fields),
+      created_at: 1_700_000_000 + n,
+      expiration_time: 0,
+      revoked: false,
+      revocation_time: 0,
+      revoke_at: 0,
+      nonce: n,
+      ref_uid: null,
+      status: 'active',
+    };
+    return upsertAttestation(db, a, { hash: `tx${n}`, height: 100 + n });
+  };
+  const rv = (attester: string, score: number, job_ref: string) => put('agentReview', attester, { score, comment: '', job_ref });
+
+  beforeAll(async () => {
+    db = connect(url);
+    await migrate(db);
+  });
+  beforeEach(async () => {
+    await reset(db);
+    rpcCalls = [];
+  });
+  afterAll(async () => db.end());
+
+  it('counts one review per reviewer outside the owner family, checks payments on chain and caches the verdicts', async () => {
+    await put('agentIdentity', 'mallory.testnet', { name: 'Fake', owner: 'mallory.testnet', model: 'm', capabilities: [], endpoint: '', description: '' });
+    await put('agentIdentity', STAKING, { name: 'Staking', owner: STAKING, model: 'm', capabilities: ['stake'], endpoint: '', description: '' });
+    await rv(STAKER, 1, 'job-1');
+    await rv(STAKER, 5, FT_CALL);
+    await rv('x.staking.attestra.testnet', 5, '');
+    await rv(STAKING, 5, '');
+    await rv('bob.testnet', 4, X402);
+    await rv('carol.testnet', 2, 'Hq5ZRJxQ1Wq2FvkBqT7x9X1JZpY4bH3iD2cRzE8nQwAa');
+
+    const get = async (app = api()) => (await app.request(`/api/agents/${STAKING}`)).json() as Promise<any>;
+    const p = await get();
+    expect(p).toMatchObject({
+      identity_status: 'verified',
+      identity_fields: { name: 'Staking' },
+      review_count: 3,
+      average_score: 3.67,
+      paid_review_count: 1,
+      paid_average_score: 5,
+      excluded_review_count: 3,
+      excluded_reasons: { duplicate_reviewer: 1, agent_account: 1, self_review: 1 },
+      trusted: true,
+      trust_reasons: [],
+    });
+    expect(p.identities).toHaveLength(2);
+    const byAttester = Object.fromEntries(p.reviews.filter((r: any) => r.counted).map((r: any) => [r.attester, r]));
+    expect(byAttester[STAKER]).toMatchObject({ paid: true, payment: { method: 'ft_transfer_call', asset: 'token.attestra.testnet' } });
+    expect(byAttester['bob.testnet']).toMatchObject({ paid: false, payment_reason: 'the transaction is not a payment signed by the reviewer' });
+    expect(byAttester['carol.testnet'].payment_reason).toBe('no transaction with this hash on chain');
+    expect((await (await api().request('/api/agents')).json() as any).data[0].trusted).toBe(true);
+
+    // Every verdict is in tx_payments: a restarted API asks the chain nothing for final transactions.
+    const { rows } = await db.query('select tx_hash, found, final from tx_payments order by tx_hash');
+    expect(rows.map((r) => [r.tx_hash, r.found, r.final])).toEqual(
+      [[FT_CALL, true, true], [X402, true, true], ['Hq5ZRJxQ1Wq2FvkBqT7x9X1JZpY4bH3iD2cRzE8nQwAa', false, false]].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    );
+    rpcCalls = [];
+    expect((await get(api())).paid_review_count).toBe(1);
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it('pays nothing without a chain to check against, and trusts no one', async () => {
+    await put('agentIdentity', STAKING, { name: 'Staking', owner: STAKING, model: 'm', capabilities: [], endpoint: '', description: '' });
+    await rv(STAKER, 5, FT_CALL);
+    const p = await (await api(false).request(`/api/agents/${STAKING}`)).json() as any;
+    expect(p).toMatchObject({ review_count: 1, paid_review_count: 0, trusted: false });
+    expect(p.reviews[0].payment_reason).toMatch(/could not be checked/);
+  });
 });
 
 describe('start height', () => {
@@ -134,5 +259,10 @@ describe('start height', () => {
     expect(loadConfig({ START_HEIGHT: '0' }).startHeight).toBe(deployed);
     expect(loadConfig({ START_HEIGHT: '' }).startHeight).toBe(deployed);
     expect(loadConfig({ START_HEIGHT: '123' }).startHeight).toBe(123);
+  });
+
+  it('has generous rate limits by default and reads INDEXER_RATE_*', () => {
+    expect(loadConfig({}).limits).toEqual({ trustProxy: false, ip: { limit: 1200, windowMs: 60_000 }, search: { limit: 120, windowMs: 60_000 } });
+    expect(loadConfig({ TRUST_PROXY: 'true', INDEXER_RATE_IP: '100/10s', INDEXER_RATE_SEARCH_IP: '0' }).limits).toEqual({ trustProxy: true, ip: { limit: 100, windowMs: 10_000 }, search: { limit: 0, windowMs: 60_000 } });
   });
 });

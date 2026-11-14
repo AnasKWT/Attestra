@@ -7,7 +7,9 @@
  * account do. `AttestraClient` sends and reads them (`proposeDaoAttestation`, `voteDaoProposal`).
  */
 
-import { base64ToBytes, bytesToBase64 } from './borsh';
+import { ed25519 } from '@noble/curves/ed25519.js';
+import { base58Decode, base64ToBytes, bytesToBase64, bytesToHex } from './borsh';
+import { nep413Hash, randomNonce, type MessageSigner } from './nep413';
 import type { Network } from './types';
 import { normalizeUid } from './uid';
 
@@ -229,11 +231,11 @@ export function daoApprovalsNeeded(policy: DaoPolicy, role: DaoRole, label = 'ca
 
 /**
  * A policy for a DAO that issues attestations: anyone may propose a function call (with the bond),
- * the council approves with `approvals` votes and may do everything else. A reviewer (an automated
- * member such as the keeper) can only vote on function calls, one vote deciding, so its key alone
- * can never change the policy, the council or the DAO's funds.
+ * the council approves with `approvals` votes and may do everything else. Automated issuing goes
+ * through an Attestra delegate grant the council votes (`daoDelegateProposal`), never through a
+ * voting role: a Sputnik role that may approve function calls could approve any call.
  */
-export function attestingDaoPolicy(council: string[], opts: { approvals?: number; reviewers?: string[]; proposalBond?: bigint; proposalPeriodDays?: number } = {}): DaoPolicy {
+export function attestingDaoPolicy(council: string[], opts: { approvals?: number; proposalBond?: bigint; proposalPeriodDays?: number } = {}): DaoPolicy {
   if (!council.length) throw new Error('the council needs at least one member');
   const approvals = opts.approvals ?? 1;
   if (approvals < 1 || approvals > council.length) throw new Error(`approvals must be between 1 and ${council.length}`);
@@ -242,9 +244,6 @@ export function attestingDaoPolicy(council: string[], opts: { approvals?: number
     roles: [
       { name: 'all', kind: 'Everyone', permissions: ['call:AddProposal'], vote_policy: {} },
       { name: 'council', kind: { Group: council }, permissions: ['*:*'], vote_policy: {} },
-      ...(opts.reviewers?.length
-        ? [{ name: 'reviewer', kind: { Group: opts.reviewers }, permissions: ['call:VoteApprove', 'call:VoteReject'], vote_policy: { call: { weight_kind: 'RoleWeight' as const, quorum: '0', threshold: '1' } } }]
-        : []),
     ],
     default_vote_policy: { weight_kind: 'RoleWeight', quorum: '0', threshold: String(approvals) },
     proposal_bond: (opts.proposalBond ?? 10n ** 22n).toString(),
@@ -252,6 +251,101 @@ export function attestingDaoPolicy(council: string[], opts: { approvals?: number
     bounty_bond: (10n ** 24n).toString(),
     bounty_forgiveness_period: DAY_NS.toString(),
   };
+}
+
+/** The scope a DAO gives a delegate that issues on its behalf (`add_delegate` on the attestations contract). */
+export interface DaoDelegateScope {
+  schemas: string[];
+  /** Unix seconds. */
+  expiresAt: number;
+  maxUses: number;
+  canRevoke?: boolean;
+  label?: string;
+}
+
+/**
+ * A proposal that makes `delegate` an Attestra delegate of the DAO within `scope`: once passed, the
+ * delegate calls `attest_on_behalf` and the attestation's attester is the DAO. The contract
+ * enforces the schemas, the expiry and the use limit; the grant gives no say over the DAO itself.
+ */
+export function daoDelegateProposal(attestations: string, delegate: string, scope: DaoDelegateScope, description?: string): DaoProposalInput {
+  const args = {
+    delegate,
+    scope: { schemas: scope.schemas.map(normalizeUid), expires_at: scope.expiresAt, max_uses: scope.maxUses, can_revoke: scope.canRevoke ?? false, label: scope.label ?? 'issues on behalf of the DAO' },
+  };
+  return {
+    description: description ?? `Let ${delegate} issue ${scope.schemas.length} schema(s) on behalf of the DAO, at most ${scope.maxUses} times`,
+    kind: { FunctionCall: { receiver_id: attestations, actions: [{ method_name: 'add_delegate', args: toBase64Json(args), deposit: '0', gas: (30n * TGAS).toString() }] } },
+  };
+}
+
+/** A proposal that withdraws a delegate's grant. */
+export function daoRemoveDelegateProposal(attestations: string, delegate: string, description?: string): DaoProposalInput {
+  return {
+    description: description ?? `Withdraw ${delegate}'s grant to issue on behalf of the DAO`,
+    kind: { FunctionCall: { receiver_id: attestations, actions: [{ method_name: 'remove_delegate', args: toBase64Json({ delegate }), deposit: '0', gas: (30n * TGAS).toString() }] } },
+  };
+}
+
+/** An account's signed request for a membership the DAO's delegate issues (NEP-413). */
+export interface DaoMembershipRequest {
+  message: string;
+  /** base64 of 32 bytes */
+  nonce: string;
+  /** `ed25519:<base58>` */
+  public_key: string;
+  /** base64 of 64 bytes */
+  signature: string;
+}
+
+/** The exact text an account signs to ask a DAO for membership; key order is fixed. */
+export function daoMembershipMessage(p: { dao: string; account: string; role: string; deadline: number }): string {
+  return JSON.stringify({ action: 'dao_membership', dao: p.dao, account: p.account, role: p.role, deadline: p.deadline });
+}
+
+/** Signs a membership request with the account's key, for the attestations contract as recipient. */
+export async function signDaoMembership(signer: MessageSigner, p: { dao: string; account: string; role: string; deadline?: number }, attestations: string): Promise<DaoMembershipRequest> {
+  const message = daoMembershipMessage({ ...p, deadline: p.deadline ?? Math.floor(Date.now() / 1000) + 600 });
+  const nonce = randomNonce();
+  const signed = await signer.signMessage({ message, recipient: attestations, nonce });
+  const raw = signed.signature.includes(':') ? signed.signature.split(':')[1] : signed.signature;
+  let sig: Uint8Array;
+  try {
+    sig = base58Decode(raw);
+    if (sig.length !== 64) throw new Error('not base58');
+  } catch {
+    sig = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+  }
+  return { message, nonce: bytesToBase64(nonce), public_key: signed.publicKey, signature: bytesToBase64(sig) };
+}
+
+/** Checks a membership request: the message, the deadline, the signature and the key's owner. Throws the reason. */
+export async function verifyDaoMembershipRequest(
+  req: DaoMembershipRequest,
+  opts: { attestations: string; hasFullAccessKey: (accountId: string, publicKey: string) => Promise<boolean>; now?: number },
+): Promise<{ dao: string; account: string; role: string }> {
+  let m: { action?: string; dao?: string; account?: string; role?: string; deadline?: number };
+  try {
+    m = JSON.parse(req.message);
+  } catch {
+    throw new Error('the signed message is not a membership request');
+  }
+  if (m.action !== 'dao_membership' || !m.dao || !m.account || !m.role) throw new Error('the signed message is not a membership request');
+  if (m.role.length > 32 || !/^[a-z0-9 _-]+$/.test(m.role)) throw new Error('a role is up to 32 lowercase letters, digits, spaces, - and _');
+  const now = opts.now ?? Math.floor(Date.now() / 1000);
+  if (typeof m.deadline !== 'number' || m.deadline < now) throw new Error('the signed request has expired');
+  if (m.deadline > now + 86_400) throw new Error('the signed request is valid for more than a day');
+  if (!req.public_key.startsWith('ed25519:')) throw new Error('the key must be ed25519');
+  const key = base58Decode(req.public_key.slice(8));
+  const nonce = base64ToBytes(req.nonce);
+  const sig = base64ToBytes(req.signature);
+  if (key.length !== 32 || nonce.length !== 32 || sig.length !== 64) throw new Error('the request is malformed');
+  if (!ed25519.verify(sig, nep413Hash(req.message, nonce, opts.attestations), key)) throw new Error('the signature does not verify');
+  const implicit = /^[0-9a-f]{64}$/.test(m.account);
+  if (implicit ? bytesToHex(key) !== m.account : !(await opts.hasFullAccessKey(m.account, req.public_key))) {
+    throw new Error(`${req.public_key} is not a full-access key of ${m.account}`);
+  }
+  return { dao: m.dao, account: m.account, role: m.role };
 }
 
 /** A proposal that replaces the DAO's policy; only a role allowed `policy:*` can pass it. */

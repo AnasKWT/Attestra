@@ -42,7 +42,7 @@ A hosted, read-only endpoint is at `https://attestra.site/mcp` (Streamable HTTP)
 | `verify_attestation` | answer "is this claim valid right now?" (status: active, pending, revoking, revoked, expired) |
 | `get_attestation`, `list_attestations` | read an attestation with its data decoded; list them by schema, attester or subject |
 | `prove_attestation` | prove the event behind an attestation is in a final block (light client proof, checked locally) |
-| `get_agent_reputation` | Know Your Agent: identity (owner, model, capabilities), delegations, reviews and average score |
+| `get_agent_reputation` | Know Your Agent: identity (owner, model, capabilities) with `identity_status`, delegations, the reviews that count, which are paid, `trusted` and `trust_reasons` |
 | `get_authority`, `get_delegates` | who an issuer is, whether governance verified it, who may issue for it |
 | `get_schema`, `list_schemas`, `well_known_schemas`, `compute_schema_uid`, `decode_data` | schemas and data |
 | `linked_account`, `wallet_link_message` | find the NEAR account behind a wallet on another chain; get the text a wallet signs to link itself |
@@ -60,7 +60,10 @@ A hosted, read-only endpoint is at `https://attestra.site/mcp` (Streamable HTTP)
 
 Decision rules:
 - Trust a claim only when `verify_attestation` says `valid: true`; for high stakes also run `prove_attestation`.
-- Trust an agent only with an active identity attestation; weigh `average_score` by `review_count`.
+- Trust an agent only when `get_agent_reputation` says `trusted: true`: a `verified` identity (attested by the agent account itself, or by an account it is a sub-account of, naming that attester as owner), at least one paid review and a `paid_average_score` of at least 3.5.
+- Reviews count once per reviewer (the newest active one); reviews by the agent, its owner, their sub-accounts or an account above the agent never count.
+- A review is paid only when its `job_ref` is the hash of a transaction in which the reviewer paid the agent or its owner (NEAR transfer, `ft_transfer`, `ft_transfer_call`, or an x402 settlement), in NEAR or the deployment's payment token; it is read from the chain, so a made-up `job_ref` stays unpaid.
+- When you review an agent with `rate_agent`, put your payment's transaction hash in `job_ref`.
 - An attestation whose attester is a Sputnik DAO (`*.sputnik-v2.testnet`, `*.sputnik-dao.near`) was issued by a passed proposal; `list_dao_proposals` shows the vote.
 - Never put secrets or raw evidence in `create_attestation` values: attestations are public.
   Use `request_private_check`.

@@ -13,7 +13,7 @@ function fakeClient(): AttestraClient {
     proveAttestation: async () => ({ success: true, data: { verified: true, block: { height: 42 }, checks: [{ ok: true }, { ok: true }] } }),
     getAgentProfile: async (a: string) => ({
       success: true,
-      data: { account_id: a, identity: { uid: 'ef'.repeat(32), status: 'active' }, identity_fields: { name: 'Scout', model: 'z-ai/glm-5.3-flash' }, reviews: [], review_count: 2, average_score: 4.5, delegations: [{}] },
+      data: { account_id: a, identity: { uid: 'ef'.repeat(32), status: 'active' }, identity_fields: { name: 'Scout', model: 'z-ai/glm-5.3-flash' }, reviews: [], review_count: 2, average_score: 4.5, paid_review_count: 1, paid_average_score: 5, excluded_review_count: 1, identity_status: 'verified', trusted: true, trust_reasons: [], delegations: [{}] },
     }),
   } as unknown as AttestraClient;
 }
@@ -33,6 +33,8 @@ describe('agent market worker', () => {
     const agent = await report(fakeClient(), { kind: 'agent', account: 'scout.testnet' });
     expect(agent).toContain('Scout on z-ai/glm-5.3-flash');
     expect(agent).toContain('Reviews: 2, average 4.5 of 5');
+    expect(agent).toContain('Paid reviews: 1, average 5 of 5 (1 more not counted)');
+    expect(agent).toContain('Trusted: **yes**');
     expect(await report(fakeClient(), { kind: 'claim', uid: '00'.repeat(32) })).toContain('Not found on testnet');
     expect(await report(fakeClient(), null)).toContain('Ask like this');
   });

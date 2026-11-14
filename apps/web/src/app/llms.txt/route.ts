@@ -11,7 +11,7 @@ export function GET() {
 
 Source: ${REPO_URL} (MIT). Site: ${site || 'https://attestra.site'}.
 
-Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=mainnet). Contracts (Rust, reproducible builds with NEP-330 metadata):
+Network: NEAR ${NETWORK}, live; a mainnet launch is planned (roadmap in MAINNET.md), the code selects it with NEAR_NETWORK=mainnet. Contracts (Rust, reproducible builds with NEP-330 metadata):
 - schemas: ${CONTRACTS.schemas}
 - attestations: ${CONTRACTS.attestations}
 - verdicts (AI-checked facts, EVM and Solana facts, wallet links): ${CONTRACTS.verdicts}
@@ -20,7 +20,7 @@ Network: NEAR ${NETWORK}, live; mainnet-ready behind one switch (NEAR_NETWORK=ma
 - resolvers: ${Object.values(CONTRACTS.resolvers).join(', ')}
 - token (NEP-141 test token with a faucet, for fees, rewards, staking and x402; native USDC on mainnet): ${CONTRACTS.token}
 - MPC signer used for cross-chain facts: ${NET.mpc}
-${DEPLOYMENT_DAOS[NETWORK] ? `- Sputnik DAO attester (membership attestations issued by proposal and council vote; the keeper votes by a fixed rule): ${DEPLOYMENT_DAOS[NETWORK]}\n` : ''}
+${DEPLOYMENT_DAOS[NETWORK] ? `- Sputnik DAO attester (membership attestations by council vote, or through a delegate grant its council voted, limited to the membership schema): ${DEPLOYMENT_DAOS[NETWORK]}\n` : ''}
 ## Concepts
 - Schema: comma-separated "type name" fields (bool, u8..u128, i8..i128, string, account_id, bytes, bytes32, T[]). UID = sha256(borsh(("attestra:schema:v1", definition, resolver, revocable))).
 - Attestation: attester, subject (NEAR account or CAIP-10), Borsh data, expiration, revocation, nonce. UID = sha256(borsh(("attestra:attestation:v1", schema_uid, subject, attester, data, nonce))).

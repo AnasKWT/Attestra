@@ -472,36 +472,6 @@ test.describe('live on testnet with one passkey account', () => {
     expect(read.text).toMatch(/executed/i);
   });
 
-  test('a Sputnik DAO issues a membership attestation once its council approves', async () => {
-    const DAO = 'attestra.sputnik-v2.testnet';
-    await open('/sandbox/app/dao-attestation');
-    await expect(page.getByText('keeper.attestra.testnet').first()).toBeVisible({ timeout: 30_000 });
-    await page.locator('#role').selectOption('contributor');
-    const p = await submit('Ask for membership', 'Submit proposal');
-    if (p.tx) run.tx.dao_propose = p.tx;
-    const pid = Number(await page.locator('#pid').inputValue());
-    expect(Number.isInteger(pid)).toBe(true);
-
-    // The keeper, a council member, checks the request against the DAO's rule and votes; the DAO attests in that transaction.
-    const review = await submit('Council review', 'Ask the council', { timeout: 180_000 });
-    if (review.tx) run.tx.dao_approve = review.tx;
-    expect(review.text).toMatch(/Approved/);
-    const href = await review.card.getByRole('status').locator('a[href^="/attestations/"]').first().getAttribute('href');
-    const uid = href!.split('/attestations/')[1];
-    await eventually(async () => {
-      const att = await reader.getAttestation(uid);
-      expect(att.data?.attester, att.error?.message).toBe(DAO);
-      expect(att.data?.subject).toBe(me.accountId);
-      expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(att.data!.data)).toMatchObject({ organization: DAO, role: 'contributor' });
-      expect((await reader.getDaoProposal(DAO, pid)).data?.status).toBe('Approved');
-    }, 60_000);
-
-    // The explorer names the DAO as the attester and shows the vote that issued it.
-    await open(`/attestations/${uid}`, { signIn: false });
-    await expect(page.getByText('Sputnik DAO').first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(`#${pid}`, { exact: true })).toBeVisible({ timeout: 30_000 });
-  });
-
   test('staking test tokens earns a tier that shows on the authority record', async () => {
     await open('/sandbox/app/register-authority');
     await page.locator('#meta').fill(`Live test issuer ${TAG}`);
@@ -563,7 +533,8 @@ test.describe('live on testnet with one passkey account', () => {
     const health = (await (await fetch(`${AGENT}/health`)).json()) as { checker: { mode: 'local' | 'outlayer' } };
     await expect(page.getByText(health.checker.mode === 'outlayer' ? 'Live: OutLayer TEE' : 'Live: local mode (bootstrap key)')).toBeVisible();
     await page.locator('#rule').selectOption('age_over_18');
-    await page.locator('#sub').fill(me.accountId);
+    // The check is about the signed-in account, which signs the request itself.
+    await expect(page.getByText(me.accountId).first()).toBeVisible();
     await page.locator('#ev').fill(EVIDENCE);
     const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 660_000 });
     if (r.tx) run.tx.private_check = r.tx;
@@ -575,6 +546,31 @@ test.describe('live on testnet with one passkey account', () => {
     expect(fields).toMatchObject({ rule_id: 'age_over_18', result: true });
     // Only the hash of the evidence is on chain, never the text.
     expect(JSON.stringify(fields)).not.toContain('Test Person');
+  });
+
+  test('a Sputnik DAO issues a membership through the grant its council voted', async () => {
+    const DAO = 'attestra.sputnik-v2.testnet';
+    // Runs after the private check: another issuer (the verdicts contract) already vouches for this account.
+    await open('/sandbox/app/dao-attestation');
+    await expect(page.getByText('membership schema only').first()).toBeVisible({ timeout: 30_000 });
+    const r = await submit('Ask the membership desk', 'Request membership', { timeout: 120_000 });
+    if (r.tx) run.tx.dao_membership = r.tx;
+    const href = await r.card.locator('div[role="status"] a[href^="/attestations/"]').first().getAttribute('href');
+    const uid = href!.split('/attestations/')[1];
+    await eventually(async () => {
+      const att = await reader.getAttestation(uid);
+      expect(att.data?.attester, att.error?.message).toBe(DAO);
+      expect(att.data?.subject).toBe(me.accountId);
+      expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(att.data!.data)).toMatchObject({ organization: DAO, role: 'member' });
+    }, 60_000);
+    // A second request is refused: one membership per account.
+    const again = await submit('Ask the membership desk', 'Request membership', { expectError: true });
+    expect(again.text).toMatch(/already a member/);
+
+    // The explorer names the DAO as the attester and the grant its council voted.
+    await open(`/attestations/${uid}`, { signIn: false });
+    await expect(page.getByText('Sputnik DAO').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/a delegate grant of the DAO, voted in proposal #\d+/)).toBeVisible({ timeout: 60_000 });
   });
 
   test('a fact from Base Sepolia is verified by the MPC network and attested', async () => {
@@ -633,7 +629,10 @@ test.describe('live on testnet with one passkey account', () => {
     await eventually(async () => {
       await page.reload();
       await expect(page.getByRole('heading', { name: `Live agent ${TAG}` })).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByText('4.00 from 1')).toBeVisible({ timeout: 5000 });
+      // The passkey account is not the agent account or its parent, and it reviewed the agent it registered: neither counts.
+      await expect(page.getByText('unverified identity').first()).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("the agent's owner reviewed it")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('not trusted').first()).toBeVisible({ timeout: 5000 });
       await expect(page.getByText('Answered every check on time.')).toBeVisible({ timeout: 5000 });
     });
   });

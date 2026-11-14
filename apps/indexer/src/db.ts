@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
-import type { AttestationRecord, AuthorityRecord, DelegateRecord, SchemaRecord } from 'attestra';
+import type { AttestationRecord, AuthorityRecord, CachedTxLookup, DelegateRecord, SchemaRecord, TxLookupCache } from 'attestra';
 import type { EventRow } from './events';
 
 export type Db = pg.Pool;
@@ -21,7 +21,7 @@ export async function migrate(db: Db): Promise<void> {
 
 /** Removes every indexed row (the resync path); the chain is the source of truth. */
 export async function reset(db: Db): Promise<void> {
-  await db.query('truncate cursors, events, schemas, attestations, authorities, delegates, meta restart identity');
+  await db.query('truncate cursors, events, schemas, attestations, authorities, delegates, meta, tx_payments restart identity');
 }
 
 export async function getCursor(db: Db, account: string): Promise<number | null> {
@@ -130,4 +130,25 @@ export async function setMeta(db: Db, key: string, value: string): Promise<void>
 export async function getMeta(db: Db, key: string): Promise<string | null> {
   const r = await db.query<{ value: string }>('select value from meta where key = $1', [key]);
   return r.rows[0]?.value ?? null;
+}
+
+/** The reputation rules' transaction cache (`tx_payments`): payment verdicts survive restarts. */
+export function txPaymentCache(db: Db): TxLookupCache {
+  return {
+    async get(txHash) {
+      const r = await db.query<{ found: boolean; final: boolean; payments: CachedTxLookup['payments']; checked_at: string }>(
+        'select found, final, payments, checked_at from tx_payments where tx_hash = $1',
+        [txHash],
+      );
+      const row = r.rows[0];
+      return row ? { found: row.found, final: row.final, payments: row.payments, checked_at: Number(row.checked_at) } : null;
+    },
+    async set(txHash, e) {
+      await db.query(
+        `insert into tx_payments (tx_hash, found, final, payments, checked_at) values ($1,$2,$3,$4,$5)
+         on conflict (tx_hash) do update set found = excluded.found, final = excluded.final, payments = excluded.payments, checked_at = excluded.checked_at`,
+        [txHash, e.found, e.final, JSON.stringify(e.payments), e.checked_at],
+      );
+    },
+  };
 }

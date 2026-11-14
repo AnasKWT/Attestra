@@ -14,7 +14,7 @@ The product overview is [README.md](README.md); each judging criterion is mapped
 | Service health | https://attestra.site/status |
 | Indexer REST API | https://api.attestra.site/indexer (`/api/stats`, `/api/schemas`, `/api/attestations`, `/api/events`) |
 | Agent (chat, private checks, x402, A2A) | https://api.attestra.site/agent, card at https://api.attestra.site/.well-known/agent-card.json |
-| Contracts | NEAR testnet under `attestra.testnet`, listed in [deployments/testnet.json](deployments/testnet.json); mainnet-ready, see [MAINNET.md](MAINNET.md) |
+| Contracts | NEAR testnet under `attestra.testnet`, listed in [deployments/testnet.json](deployments/testnet.json); mainnet launch on the roadmap in [MAINNET.md](MAINNET.md) |
 
 Connect an agent in one line: `claude mcp add --transport http attestra https://attestra.site/mcp`.
 The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the protocol, the schemas and the tools.
@@ -44,7 +44,7 @@ The skill in [skills/attestra/SKILL.md](skills/attestra/SKILL.md) teaches the pr
 - `apps/web`: Next.js 16 site, explorer, sandbox (32 tools), docs, `/mcp`, `/llms.txt`.
 - `apps/indexer`: FastNEAR transactions API to Postgres, REST API on port 5100.
 - `apps/agent`: NEAR AI Cloud agent (chat, private checks, x402 paid verification, A2A, MCP) on port 5300.
-- `services/`: relayer (5200), keeper (5400, also a Sputnik DAO reviewer), top-up (5500).
+- `services/`: relayer (5200), keeper (5400, also the deployment DAO's membership desk), top-up (5500).
 - `tools/nearai-verify`: independent TEE attestation checks with the official `@nearai/inference-sdk`.
 - `scripts/`: `deploy.ts` (testnet, mainnet, local sandbox rehearsal), `dao.ts` (the deployment's Sputnik DAO), `verify.ts`, `security.ts`, `cli-e2e.ts`, `dev.ts`, `accounts.ts`, `outlayer-publish.ts`.
 - `deployments/<network>.json`: deployed accounts, code hashes, transactions and the commit they were built from.
@@ -123,8 +123,11 @@ pnpm outlayer:publish <wasm>        # publish a checker build to FastFS and reco
 - The SDK reads views at `optimistic` finality, so a just-sent transaction is visible at once.
 - `AttestraClient.rpc` fails over across RPC endpoints and asks the archival endpoint for transactions, receipts and blocks older than the regular nodes keep.
 - A Sputnik DAO attests through a `FunctionCall` proposal: when the council approves, the DAO account calls `attest` and pays from its NEP-145 storage balance on the attestations contract.
-  On the deployment DAO the keeper is a reviewer whose role can only vote on function calls; it votes on membership requests by a fixed rule (`review` in `council.ts`) and leaves every other proposal to the council.
+  The keeper holds no role in the deployment DAO: the council voted it an Attestra delegate grant (membership schema, use limit, expiry), and it issues with `attest_on_behalf` on an account's own NEP-413 request, once per account and only when another issuer vouches for it (`MembershipDesk` in `council.ts`, `POST /v1/dao/membership`).
+- Know Your Agent reputation has one implementation, `packages/sdk/src/reputation.ts`, used by the indexer (`/api/agents`, verdicts cached in its `tx_payments` table), `getAgentProfile` (which reruns it over RPC with an in-memory cache), the agent's `verify-agent`, the MCP tool and the site.
+  An identity is `verified` only when its `owner` is its attester and the attester is the agent account or an account the agent is a sub-account of; reviews count once per reviewer and never from the agent, its owner, their sub-accounts or an account above the agent; a review is `paid` when its `job_ref` is a transaction in which the reviewer paid the agent (NEAR, `ft_transfer`, `ft_transfer_call` or an x402 settlement) in NEAR or the payment token; `trusted` needs a verified identity and paid reviews averaging at least 3.5.
 - Private checks run as agent jobs (`POST /v1/check` with `async: true`, then `GET /v1/check/jobs/:id`), and the agent resends a TEE run that its queue did not answer in time.
+- Public endpoints that spend NEAR AI credits, OutLayer fees, gas or load are rate limited with the SDK's `ratelimit.ts` (429 with `Retry-After`; never `/live` or `/health`); settings are `AGENT_RATE_*`, `AGENT_*_DAILY`, `RELAYER_RATE_*`, `KEEPER_RATE_*`, `TOPUP_RATE_*`, `INDEXER_RATE_*` and `MCP_RATE_IP` as `count/window` (`0` is off), with `TRUST_PROXY` (on in `compose.yaml`) to read the client from `X-Forwarded-For`; serial test runs from one address fit the defaults, raise them for load tests.
 - A new `checker/` build has a new key: register it with `set_enclave_keys` on the verdicts contract and set `OUTLAYER_WASM_HASH`.
 - NEAR keys are base58 and case-sensitive.
 - The site lints with `pnpm --filter @attestra/web lint`; its landing page motion lives in `globals.css` (Motion section) and `components/marketing/Motion.tsx`, and every animation rests in a readable final state under `prefers-reduced-motion`.

@@ -16,8 +16,10 @@ import { bytesToBase64 } from './borsh';
 import { NEAR_AI_VERIFY_URL, resolveNetwork, type NetworkConfig } from './config';
 import { attempt, fail, ok } from './errors';
 import { IndexerClient, type AgentProfile } from './indexer-client';
-import { findEventReceipt, proveReceipt, type ProofResult } from './lightclient';
-import { signRequest, type MessageSigner, type SignedRequest } from './nep413';
+import { createLightClientCache, findEventReceipt, proveReceipt, type ProofResult } from './lightclient';
+import { MemoryTxCache, NEAR_ASSET, assessReputation, recentPayments, rpcTxLookup, type TxLookupFn, type TxPayment } from './reputation';
+import { keySigner, signRequest, type MessageSigner, type SignedRequest } from './nep413';
+import { signPrivateCheck } from './subject-proof';
 import { KNOWN_SCHEMAS, knownSchemaUid } from './schemas';
 import { SchemaEncoder } from './encoder';
 import { computeAttestationUid, computeSchemaUid, normalizeUid } from './uid';
@@ -27,6 +29,7 @@ import {
   DAO_CREATE_DEPOSIT,
   daoAttestProposal,
   daoRevokeProposal,
+  signDaoMembership,
   parseDaoCall,
   receiptFailure,
   SPUTNIK_FACTORIES,
@@ -82,6 +85,8 @@ export interface AttestraClientConfig {
   relayerUrl?: string;
   /** Attestra agent base URL, for private checks and paid verification. */
   agentUrl?: string;
+  /** Keeper base URL, for DAO membership requests. */
+  keeperUrl?: string;
   /** Extra headers for every RPC request (for example an RPC API key). */
   rpcHeaders?: Record<string, string>;
 }
@@ -152,12 +157,20 @@ export class AttestraClient {
   readonly indexer?: IndexerClient;
   private readonly relayerUrl?: string;
   private readonly agentUrl?: string;
+  private readonly keeperUrl?: string;
   private readonly rpcHeaders?: Record<string, string>;
   private rpcId = 0;
+  /** The configured key, to sign requests the subject must sign (a private check). */
+  private readonly secretKey?: string;
+  /** Payment lookups for agent reviews, cached for the client's lifetime. */
+  private txLookup?: TxLookupFn;
+  /** The light client's walk from the pinned checkpoint, kept so repeated proofs start from the last trusted head. */
+  private readonly lightClient = createLightClientCache();
 
   constructor(cfg: AttestraClientConfig = {}) {
     this.config = resolveNetwork(cfg.network ?? 'testnet', { root: cfg.root, rpcUrl: cfg.rpcUrl });
     this.accountId = cfg.accountId;
+    this.secretKey = cfg.privateKey;
     this.rpcHeaders = cfg.rpcHeaders;
     this.near =
       cfg.near ??
@@ -172,6 +185,7 @@ export class AttestraClient {
     this.indexer = cfg.indexerUrl ? new IndexerClient(cfg.indexerUrl) : undefined;
     this.relayerUrl = cfg.relayerUrl?.replace(/\/+$/, '');
     this.agentUrl = cfg.agentUrl?.replace(/\/+$/, '');
+    this.keeperUrl = cfg.keeperUrl?.replace(/\/+$/, '');
   }
 
   get network(): Network {
@@ -787,6 +801,28 @@ export class AttestraClient {
     });
   }
 
+  /**
+   * Asks a DAO's membership desk (the keeper, the DAO's scoped delegate) for a membership about
+   * this account. The account signs the request (NEP-413) with `signer` or this client's key; the
+   * membership is issued with the DAO as the attester.
+   */
+  async requestDaoMembership(p: { dao: string; role: string; signer?: MessageSigner }): Promise<ServiceResponse<{ attestationUid: string; tx: string }>> {
+    return attempt(async () => {
+      if (!this.keeperUrl) throw Object.assign(new Error('membership requests need keeperUrl'), { config: true });
+      const account = this.signer();
+      const signer = p.signer ?? (this.secretKey ? keySigner(this.secretKey) : undefined);
+      if (!signer) throw Object.assign(new Error('a membership request is signed by the account: pass signer or a private key'), { config: true });
+      const request = await signDaoMembership(signer, { dao: p.dao, account, role: p.role }, this.contracts.attestations);
+      const res = await fetchWithRetry(`${this.keeperUrl}/v1/dao/membership`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ request }) }, { write: true });
+      const body = (await res.json().catch(() => ({}))) as { attestation?: string; tx?: string; error?: string };
+      if (!res.ok || !body.attestation) {
+        const type = res.status === 403 || res.status === 409 || res.status === 400 ? AttestraErrorType.VALIDATION_ERROR : AttestraErrorType.NETWORK_ERROR;
+        return fail(new Error(body.error ?? `the keeper answered ${res.status}`), type);
+      }
+      return ok({ attestationUid: body.attestation, tx: body.tx ?? '' }, body.tx);
+    });
+  }
+
   /** Adds to a DAO's storage balance on the attestations contract, which pays for what it issues. Anyone can. */
   async fundDaoStorage(dao: string, amount: bigint | string): Promise<ServiceResponse<StorageBalance>> {
     return this.write(async () => {
@@ -799,10 +835,10 @@ export class AttestraClient {
    * Creates a Sputnik DAO with an attesting policy (`attestingDaoPolicy`): anyone proposes calls,
    * the council approves. The factory keeps about 5 NEAR of the deposit for the DAO's storage.
    */
-  async createSputnikDao(p: { name: string; purpose: string; council: string[]; reviewers?: string[]; approvals?: number; proposalBond?: bigint; deposit?: bigint }): Promise<ServiceResponse<{ dao: string }>> {
+  async createSputnikDao(p: { name: string; purpose: string; council: string[]; approvals?: number; proposalBond?: bigint; deposit?: bigint }): Promise<ServiceResponse<{ dao: string }>> {
     return this.write(async () => {
       const factory = SPUTNIK_FACTORIES[this.config.network];
-      const args = sputnikCreateArgs({ name: p.name, purpose: p.purpose, policy: attestingDaoPolicy(p.council, { approvals: p.approvals, reviewers: p.reviewers, proposalBond: p.proposalBond }) });
+      const args = sputnikCreateArgs({ name: p.name, purpose: p.purpose, policy: attestingDaoPolicy(p.council, { approvals: p.approvals, proposalBond: p.proposalBond }) });
       const r = await this.callRaw<unknown>(factory, 'create', args, { deposit: p.deposit ?? DAO_CREATE_DEPOSIT, gas: 300n * TGAS });
       const failure = receiptFailure(r.outcome);
       if (failure) throw new Error(`the factory could not create ${p.name}.${factory}: ${failure}`);
@@ -985,9 +1021,16 @@ export class AttestraClient {
     });
   }
 
-  /** Proves a receipt (and the event line it logged) is in a final block. */
+  private lightClientOptions() {
+    return { network: this.config.network, cache: this.lightClient };
+  }
+
+  /**
+   * Proves a receipt (and the event line it logged) is in a final block, with the validator set
+   * chained from the checkpoint pinned in the SDK.
+   */
   async proveReceipt(receiptId: string, receiverId: string, expectedLog?: string): Promise<ServiceResponse<ProofResult>> {
-    return attempt(() => proveReceipt(<T>(m: string, p: unknown) => this.rpc<T>(m, p), { receiptId, receiverId, expectedLog }));
+    return attempt(() => proveReceipt(<T>(m: string, p: unknown) => this.rpc<T>(m, p), { receiptId, receiverId, expectedLog }, this.lightClientOptions()));
   }
 
   /**
@@ -1008,7 +1051,11 @@ export class AttestraClient {
         (e) => e.event === which && (e.data?.[0] as { uid?: string })?.uid === id,
       );
       if (!receipt) return fail(new Error('event receipt not found'), AttestraErrorType.NOT_FOUND);
-      const proof = await proveReceipt(<T>(m: string, p: unknown) => this.rpc<T>(m, p), { receiptId: receipt.receiptId, receiverId: receipt.executorId, expectedLog: receipt.log });
+      const proof = await proveReceipt(
+        <T>(m: string, p: unknown) => this.rpc<T>(m, p),
+        { receiptId: receipt.receiptId, receiverId: receipt.executorId, expectedLog: receipt.log },
+        this.lightClientOptions(),
+      );
       return { ...proof, txHash: ev.tx_hash };
     });
   }
@@ -1092,7 +1139,11 @@ export class AttestraClient {
    * sent to the Attestra agent, whose enclave checks it against the rule with a NEAR AI Cloud
    * verifiable model; the signed verdict becomes an attestation (only the evidence hash is stored).
    */
-  async requestPrivateCheck(p: { ruleId: string; subject: string; evidence: string; github?: string }): Promise<
+  /**
+   * Proves a private fact about `subject`. The subject signs the request (NEP-413) with `signer`,
+   * or with this client's key when the client is the subject; the checker refuses anything else.
+   */
+  async requestPrivateCheck(p: { ruleId: string; subject: string; evidence: string; github?: string; signer?: MessageSigner }): Promise<
     ServiceResponse<{ outcome: Outcome; verdict: Record<string, unknown>; nearai: Record<string, unknown>; verifyUrl: string; txHash?: string }>
   > {
     return attempt(async () => {
@@ -1102,12 +1153,15 @@ export class AttestraClient {
       if (!keyRes.ok) throw new Error(`agent answered ${keyRes.status} for the model key`);
       const model = (await keyRes.json()) as { model: string; public_key: string };
       const encrypted = p.evidence ? encryptForModel(p.evidence, model.public_key) : '';
+      const signer = p.signer ?? (this.secretKey ? keySigner(this.secretKey) : undefined);
+      if (!signer) throw Object.assign(new Error('a private check is signed by its subject: pass signer, or use the subject account with its key'), { config: true });
+      const subjectProof = await signPrivateCheck(signer, { ruleId: p.ruleId, subject: p.subject, encryptedEvidence: encrypted, github: p.github ?? null }, this.contracts.verdicts);
       // A check spends NEAR AI credits and a transaction: retried only when the agent did not take it.
       // It runs as a job (the TEE queue can take minutes); an agent without jobs answers at once.
       const res = await fetchWithRetry(`${this.agentUrl}/v1/check`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ rule_id: p.ruleId, subject: p.subject, encrypted_evidence: encrypted, model: model.model, github: p.github ?? null, async: true }),
+        body: JSON.stringify({ rule_id: p.ruleId, subject: p.subject, encrypted_evidence: encrypted, model: model.model, github: p.github ?? null, subject_proof: subjectProof, async: true }),
       }, { write: true });
       type CheckBody = { status?: string; job?: string; outcome?: Outcome; verdict?: Record<string, unknown>; nearai?: Record<string, unknown>; tx_hash?: string; error?: string };
       let body = (await res.json()) as CheckBody;
@@ -1222,10 +1276,45 @@ export class AttestraClient {
     return this.createAttestation({ schemaUid: knownSchemaUid('agentReview'), subject: p.agent, data, refUid: p.identityUid });
   }
 
-  async getAgentProfile(agent: string): Promise<ServiceResponse<AgentProfile>> {
+  /**
+   * An agent's identity, reviews, delegations and whether it is trusted. The indexer supplies the
+   * attestations; the reputation rules (`reputation.ts`) run here again, and every job_ref that
+   * claims a payment is checked against the chain with the `tx` RPC method (cached in memory), so
+   * the verdict does not rest on the indexer's word. `verifyPayments: false` returns the indexer's
+   * own verdict.
+   */
+  async getAgentProfile(agent: string, opts: { verifyPayments?: boolean } = {}): Promise<ServiceResponse<AgentProfile>> {
     return attempt(async () => {
       if (!this.indexer) throw new Error('agent profiles need indexerUrl');
-      return this.indexer.getAgent(agent);
+      const raw = await this.indexer.getAgent(agent);
+      if (opts.verifyPayments === false) return raw;
+      this.txLookup ??= rpcTxLookup(<T>(m: string, p: unknown) => this.rpc<T>(m, p), new MemoryTxCache());
+      const identities = raw.identities ?? (raw.identity ? [raw.identity] : []);
+      const rep = await assessReputation({ agent, identities, reviews: raw.reviews ?? [] }, this.txLookup, { acceptedAssets: this.paymentAssets() });
+      return { ...raw, ...rep, account_id: raw.account_id ?? agent };
+    });
+  }
+
+  /** The assets a review's payment may be made in: NEAR and the deployment's payment token. */
+  paymentAssets(): string[] {
+    return [NEAR_ASSET, this.config.paymentToken];
+  }
+
+  /**
+   * `payer`'s recent payments to the agent (and to its verified owner), newest first, from
+   * FastNEAR's transactions API: a hash to put in a review's job_ref. Profiles verify it again.
+   */
+  async recentPaymentsTo(agent: string, payer = this.accountId): Promise<ServiceResponse<Array<{ txHash: string; blockHeight: number; payment: TxPayment }>>> {
+    return attempt(async () => {
+      if (!payer) throw new Error('recent payments need a payer account');
+      let payees = [agent];
+      if (this.indexer) {
+        const p = await this.indexer.getAgent(agent).catch(() => null);
+        const owner = p?.identity_status === 'verified' ? p.identity_fields?.owner : null;
+        if (typeof owner === 'string' && owner !== agent) payees = [agent, owner];
+      }
+      const assets = this.paymentAssets();
+      return (await recentPayments(this.config.txApiUrl, payer, payees)).filter((p) => assets.includes(p.payment.asset));
     });
   }
 

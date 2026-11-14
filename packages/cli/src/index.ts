@@ -24,6 +24,7 @@ import {
   daoApprovalsNeeded,
   daoCan,
   daoCouncil,
+  daoDelegateProposal,
   keySigner,
   knownSchemaUid,
   knownSchemas,
@@ -388,6 +389,22 @@ dao
     }),
   );
 dao
+  .command('request-membership').description('ask the DAO\'s membership desk (its delegate under a grant the council voted) to admit your account; you sign the request')
+  .option(daoOpt, daoHelp)
+  .option('-r, --role <role>', 'member or contributor; other roles go to the council with propose-membership', 'member')
+  .action(wrap(async (o) => out(client().requestDaoMembership({ dao: daoId(o), role: o.role }))));
+dao
+  .command('grant-desk <delegate>').description('propose that the DAO let a delegate issue one schema on its behalf (a scoped Attestra delegate grant the council votes)')
+  .option(daoOpt, daoHelp)
+  .option('-s, --schema <uid>', 'the schema the delegate may issue', knownSchemaUid('membership'))
+  .option('--uses <n>', 'most attestations it may issue', '1000')
+  .option('--days <n>', 'how long the grant lasts', '120')
+  .action(
+    wrap(async (delegate, o) =>
+      out(client().addDaoProposal(daoId(o), daoDelegateProposal(client().contracts.attestations, delegate, { schemas: [o.schema], maxUses: num(o.uses), expiresAt: Math.floor(Date.now() / 1000) + num(o.days) * 86_400 }))),
+    ),
+  );
+dao
   .command('propose-revoke <uid>').description('propose that the DAO revoke an attestation it issued')
   .option(daoOpt, daoHelp)
   .option('-d, --description <text>')
@@ -412,10 +429,9 @@ dao
 dao
   .command('create <name>').description('create a Sputnik DAO that issues attestations: anyone proposes, the council approves (about 6 NEAR)')
   .requiredOption('--council <accounts>', 'comma-separated; the council may vote on anything')
-  .option('--reviewers <accounts>', 'comma-separated; reviewers (such as a bot) may only vote on function calls, one vote deciding')
   .option('--approvals <k>', 'council votes a proposal needs', '1')
   .option('--purpose <text>', 'what the DAO attests', 'Issues attestations its council approves.')
-  .action(wrap(async (name, o) => out(client().createSputnikDao({ name, purpose: o.purpose, council: o.council.split(',').map((a: string) => a.trim()).filter(Boolean), reviewers: o.reviewers ? o.reviewers.split(',').map((a: string) => a.trim()).filter(Boolean) : undefined, approvals: num(o.approvals) }))));
+  .action(wrap(async (name, o) => out(client().createSputnikDao({ name, purpose: o.purpose, council: o.council.split(',').map((a: string) => a.trim()).filter(Boolean), approvals: num(o.approvals) }))));
 
 // ─── staking and the test token ─────────────────────────────────────────────
 const staking = program.command('staking').description('authority staking tiers (NEP-141)');
@@ -448,14 +464,16 @@ events
 // ─── only on NEAR ───────────────────────────────────────────────────────────
 const check = program.command('check').description('private facts checked by verifiable AI (NEAR AI Cloud + enclave)');
 check
-  .command('run <ruleId>').description('run a private AI check: evidence encrypted to the model, verdict attested on chain')
-  .requiredOption('--subject <subject>')
+  .command('run <ruleId>').description('run a private AI check about your own account: you sign the request, the evidence is encrypted to the model, the verdict is attested on chain')
+  .option('--subject <subject>', 'defaults to your account (the check is signed with its key)')
   .option('--evidence <text>', 'private evidence (or @file)')
   .option('--github <login>', 'GitHub login for github_contributor')
   .action(
     wrap(async (rule, o) => {
       const evidence = o.evidence?.startsWith('@') ? readFileSync(o.evidence.slice(1), 'utf8') : (o.evidence ?? '');
-      await out(client().requestPrivateCheck({ ruleId: rule, subject: o.subject, evidence, github: o.github }));
+      const subject = o.subject ?? client().accountId;
+      if (!subject) throw new Error('set an account: a check is about, and signed by, its subject');
+      await out(client().requestPrivateCheck({ ruleId: rule, subject, evidence, github: o.github }));
     }),
   );
 check.command('rules').description('the private-check rules the verdicts contract accepts').action(wrap(async () => out(client().verdictsConfig())));
@@ -508,7 +526,7 @@ agent
 agent
   .command('rate <agent> <score>').description('rate an agent you hired: a review attestation with a score from 1 to 5')
   .option('--comment <text>')
-  .option('--job <ref>')
+  .option('--job <tx-hash>', 'the transaction hash of your payment to the agent; only then the review counts as paid')
   .action(wrap(async (a, s, o) => out(client().rateAgent({ agent: a, score: num(s), comment: o.comment, jobRef: o.job }))));
 agent.command('profile <agent>').description('an agent\'s identity, reviews, average score and delegations').action(wrap(async (a) => out(client().getAgentProfile(a))));
 agent

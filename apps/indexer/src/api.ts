@@ -5,9 +5,9 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { KNOWN_SCHEMAS, SchemaEncoder, knownSchemaUid } from 'attestra';
+import { KNOWN_SCHEMAS, NEAR_ASSET, RATE_LIMIT_HEADERS, SchemaEncoder, TokenBucket, assessReputation, knownSchemaUid, rateLimit, rpcTxLookup, type Rate, type RpcCall, type TxLookupFn } from 'attestra';
 import type { Db } from './db';
-import { getMeta } from './db';
+import { getMeta, txPaymentCache } from './db';
 
 export interface ApiDeps {
   db: Db;
@@ -15,7 +15,22 @@ export interface ApiDeps {
   /** Current chain height (final), for the lag report. */
   chainHead: () => Promise<number | null>;
   startedAt: number;
+  /** JSON-RPC (the SDK client's `rpc`, with archival fallback), to check that a review's job_ref is a real payment; without it no review is paid. */
+  rpc?: RpcCall;
+  /** Assets a paid review may pay in (`NEAR` and the deployment's payment token); null accepts any. */
+  paymentAssets?: string[] | null;
+  /** Per client address: every `/api/*` request and, stricter, `/api/search` (default `DEFAULT_LIMITS`). */
+  limits?: ApiLimits;
 }
+
+export interface ApiLimits {
+  /** Client addresses come from the first `X-Forwarded-For` hop (TRUST_PROXY, on behind Caddy). */
+  trustProxy: boolean;
+  ip: Rate;
+  search: Rate;
+}
+
+export const DEFAULT_LIMITS: ApiLimits = { trustProxy: false, ip: { limit: 1200, windowMs: 60_000 }, search: { limit: 120, windowMs: 60_000 } };
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -45,12 +60,12 @@ const num = (v: unknown) => (v === null || v === undefined ? v : Number(v));
 
 function attestationRow(r: Record<string, unknown>) {
   const out = {
-    uid: r.uid,
-    schema_uid: r.schema_uid,
-    attester: r.attester,
-    subject: r.subject,
-    data: r.data,
-    created_at: num(r.created_at),
+    uid: r.uid as string,
+    schema_uid: r.schema_uid as string,
+    attester: r.attester as string,
+    subject: r.subject as string,
+    data: r.data as string,
+    created_at: Number(r.created_at),
     expiration_time: num(r.expiration_time),
     revoked: Boolean(r.revoked) || (Number(r.revoke_at) > 0 && Number(r.revoke_at) <= now()),
     revocation_time: Number(r.revocation_time) || (Number(r.revoke_at) > 0 && Number(r.revoke_at) <= now() ? Number(r.revoke_at) : 0),
@@ -108,8 +123,22 @@ function decode(definition: string, data: string): Record<string, unknown> | nul
 
 export function createApi(deps: ApiDeps) {
   const app = new Hono();
-  app.use('*', cors());
+  app.use('*', cors({ origin: '*', exposeHeaders: RATE_LIMIT_HEADERS }));
+  // Per client address, never on /live or /health: generous for pages and agents, stricter for
+  // search (several pattern scans per request).
+  const limits = deps.limits ?? DEFAULT_LIMITS;
+  const search = new TokenBucket(limits.search);
+  app.use(
+    '/api/*',
+    rateLimit({
+      what: 'indexer requests',
+      trustProxy: limits.trustProxy,
+      rules: [{ limiter: new TokenBucket(limits.ip) }, { limiter: search, key: (c, address) => (c.req.path === '/api/search' ? address : undefined), what: 'searches', scope: 'from one address' }],
+    }),
+  );
   const q = <T extends Record<string, unknown>>(sql: string, params: unknown[] = []) => deps.db.query<T>(sql, params).then((r) => r.rows);
+  const txLookup: TxLookupFn = deps.rpc ? rpcTxLookup(deps.rpc, txPaymentCache(deps.db)) : async () => null;
+  const paymentAssets = deps.paymentAssets === undefined ? [NEAR_ASSET] : deps.paymentAssets;
 
   app.get('/live', (c) => c.json({ ok: true }));
 
@@ -276,25 +305,21 @@ export function createApi(deps: ApiDeps) {
     });
   });
 
+  /** An agent's profile under the reputation rules in the SDK's `reputation.ts`. */
   async function agentProfile(id: string) {
-    const identityUid = knownSchemaUid('agentIdentity');
-    const reviewUid = knownSchemaUid('agentReview');
-    const [identity] = await q(
-      `select a.* from attestations a where a.schema_uid = $1 and a.subject = $2 and a.state = 'active' and not a.revoked order by a.created_at desc limit 1`,
-      [identityUid, id],
+    const identities = await q(
+      `select a.* from attestations a where a.schema_uid = $1 and a.subject = $2 and a.state = 'active' and not a.revoked order by a.created_at desc limit 20`,
+      [knownSchemaUid('agentIdentity'), id],
     );
-    const reviews = await q(`select a.* from attestations a where a.schema_uid = $1 and a.subject = $2 and a.state <> 'pending' order by a.created_at desc limit 100`, [reviewUid, id]);
+    const reviews = await q(`select a.* from attestations a where a.schema_uid = $1 and a.subject = $2 and a.state <> 'pending' order by a.created_at desc limit 100`, [knownSchemaUid('agentReview'), id]);
     const delegations = await q<{ record: Record<string, unknown> }>('select record from delegates where delegate = $1', [id]);
     const [authority] = await q(`select au.* from authorities au where au.account_id = $1`, [id]);
-    const decodedReviews = reviews.map((r) => ({ ...attestationRow(r), fields: decode(KNOWN_SCHEMAS.agentReview.definition, String(r.data)) }));
-    const scores = decodedReviews.filter((r) => r.status === 'active').map((r) => Number(r.fields?.score)).filter((s) => s >= 1 && s <= 5);
+    const identityRows = identities.map(attestationRow).filter((r) => r.status === 'active');
+    const reputation = await assessReputation({ agent: id, identities: identityRows, reviews: reviews.map(attestationRow) }, txLookup, { acceptedAssets: paymentAssets });
     return {
       account_id: id,
-      identity: identity ? attestationRow(identity) : null,
-      identity_fields: identity ? decode(KNOWN_SCHEMAS.agentIdentity.definition, String(identity.data)) : null,
-      reviews: decodedReviews,
-      review_count: scores.length,
-      average_score: scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : null,
+      ...reputation,
+      identities: identityRows,
       delegations: delegations.map((d) => d.record),
       authority: authority ? authorityRow(authority) : null,
     };

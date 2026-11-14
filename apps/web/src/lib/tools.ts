@@ -33,7 +33,7 @@ export const TOOLS: ToolDef[] = [
   { slug: 'nft-credential', title: 'Credential', group: 'NEAR native', blurb: 'Mint a non-transferable NEP-171 credential; it burns on revoke.', write: true },
   { slug: 'scheduled-revocation', title: 'Scheduled Revocation', group: 'NEAR native', blurb: 'Set a revoke time the contract enforces.', write: true },
   { slug: 'multisig-authority', title: 'Multisig Authority', group: 'NEAR native', blurb: 'A k-of-n authority enforced by the contract.', write: true },
-  { slug: 'dao-attestation', title: 'DAO Attestation', group: 'NEAR native', blurb: 'A Sputnik DAO issues a credential by proposal and council vote.', write: true },
+  { slug: 'dao-attestation', title: 'DAO Attestation', group: 'NEAR native', blurb: 'A Sputnik DAO issues credentials by council vote or a grant it voted.', write: true },
   { slug: 'token-staking', title: 'Staking Tiers', group: 'NEAR native', blurb: 'Stake a NEP-141 for a Bronze, Silver or Gold tier.', write: true },
   { slug: 'file-schema', title: 'Large Schema', group: 'NEAR native', blurb: 'Store a large definition on chain with NEP-145 storage.', write: true },
   { slug: 'private-check', title: 'Private AI Check', group: 'Only on NEAR', blurb: 'Prove a private fact with a verifiable model in a TEE.', write: true },

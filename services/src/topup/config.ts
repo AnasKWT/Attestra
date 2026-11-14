@@ -1,7 +1,8 @@
 /** Top-up settings: the watched wallets, the verdicts contract's storage balance and the treasury limits. */
 
 import { isValidAccountId } from 'near-kit';
-import { int, loadServiceConfig, type ServiceConfig } from '../lib/config';
+import type { Rate } from 'attestra';
+import { int, loadServiceConfig, rate, type ServiceConfig } from '../lib/config';
 import { parseNear } from '../lib/units';
 
 export interface Watch {
@@ -21,6 +22,8 @@ export interface TopUpConfig extends ServiceConfig {
   treasuryWarn: bigint;
   /** Never spend the treasury below this (it pays its own gas). */
   treasuryReserve: bigint;
+  /** Per client address: POST /v1/run and GET /api/balances. */
+  rates: { runIp: Rate; balancesIp: Rate };
 }
 
 /** Parses `account:min:target` triples (NEAR), comma-separated. */
@@ -53,5 +56,6 @@ export function loadTopUpConfig(env: NodeJS.ProcessEnv = process.env): TopUpConf
     dailyCap: parseNear(env.TOPUP_DAILY_CAP_NEAR || '10'),
     treasuryWarn: parseNear(env.TREASURY_WARN_NEAR || '15'),
     treasuryReserve: parseNear('0.5'),
+    rates: { runIp: rate(env, 'TOPUP_RATE_RUN_IP', '5/1h'), balancesIp: rate(env, 'TOPUP_RATE_BALANCES_IP', '60/1m') },
   };
 }

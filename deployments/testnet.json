@@ -116,15 +116,15 @@
     "schema": "6188b4a3c67135eca14a59bd3e0bb69a3e3437170ae52a14b2ba2040f96ed9e0",
     "created_tx": "8Fj4pP9UfoivLrEtHuQv8ZEZ2Tirh6bzi3DLPL4bNVYA",
     "example": {
-      "proposal_id": 4,
+      "proposal_id": 11,
       "proposer": "treasury.attestra.testnet",
-      "propose_tx": "Asck7Z98nLKA1KRVy2YBXXeSAjgWnpqghGkwTs1EdNmF",
-      "vote_tx": "FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP",
-      "attestation": "fa281bcc83b5568c88ec2a893388ceba50f856c9b4be96dead5b42c4cc501423"
+      "propose_tx": "7udeWbqjxLQdELji9CUQQYdv9YZwJBeSk4fD1edEzWz1",
+      "vote_tx": "GGtxFaJkWzmzgPMzZnuW2SLEjaSfkVnk65v4VdFT6SvH",
+      "attestation": "6955cf6a087ba24db4006e16c6d10222ab77da5c2c5d0504be77ad574ec2e163"
     },
-    "reviewers": [
-      "keeper.attestra.testnet"
-    ],
-    "policy_tx": "D3xWKLveLoYE9vqWqRsHwNir1cM7z7pwUr6XSTeEj8gL"
+    "policy_tx": "B2whFaDyafQXc9X3nMBjtYQ73eEZmsdH7wKmBZwqq7Bx",
+    "delegate": "keeper.attestra.testnet",
+    "grant_proposal": 10,
+    "grant_tx": "9vWVUVtxbkSpBsEnvehrwFj7Gs9QiWLUqFLxkr51Qsgy"
   }
 }

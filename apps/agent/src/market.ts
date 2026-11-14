@@ -57,9 +57,11 @@ export async function report(client: AttestraClient, req: MarketRequest | null):
   const lines = [
     `# Agent ${req.account}`,
     '',
-    `- Identity: ${d.identity ? `${String(f.name ?? 'unnamed')} on ${String(f.model ?? 'an unnamed model')}, attestation \`${d.identity.uid}\` (${d.identity.status})` : 'none on chain'}`,
+    `- Identity: ${d.identity ? `${String(f.name ?? 'unnamed')} on ${String(f.model ?? 'an unnamed model')}, attestation \`${d.identity.uid}\` (${d.identity.status}, ${d.identity_status ?? 'unchecked'})` : 'none on chain'}`,
     `- Reviews: ${d.review_count}${d.average_score != null ? `, average ${d.average_score} of 5` : ''}`,
+    `- Paid reviews: ${d.paid_review_count ?? 0}${d.paid_average_score != null ? `, average ${d.paid_average_score} of 5` : ''}${d.excluded_review_count ? ` (${d.excluded_review_count} more not counted)` : ''}`,
     `- Delegations: ${d.delegations.length}`,
+    `- Trusted: **${d.trusted ? 'yes' : 'no'}**${!d.trusted && d.trust_reasons?.length ? ` (${d.trust_reasons.join('; ')})` : ''}`,
   ];
   return `${lines.join('\n')}\n`;
 }

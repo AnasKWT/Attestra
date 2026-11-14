@@ -1,0 +1,105 @@
+# Every suite that runs without secrets or a live deployment: TypeScript (build, typecheck, lint,
+# unit tests with the indexer's Postgres tests), the contracts and the OutLayer checker, and the
+# site's Playwright suites against a production build (they answer the RPC themselves).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: attestra_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # A set TEST_DATABASE_URL makes the indexer's database tests required instead of skipped.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/attestra_test
+    steps:
+      - uses: actions/checkout@v4
+      # The pnpm version (10.7.0) comes from packageManager in package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  rust:
+    name: Contracts and checker
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the toolchain from contracts/rust-toolchain.toml
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' contracts/rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      # The checker has no toolchain file of its own: it builds with this one as the default.
+      # Its tests run natively against a mocked host, so the wasm32-wasip2 target is not needed.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            contracts -> target
+            checker -> target
+      # pnpm test:contracts
+      - name: Contract unit and property tests
+        working-directory: contracts
+        run: cargo test --workspace --exclude attestra-sandbox-tests
+      # pnpm test:checker
+      - name: Checker tests
+        working-directory: checker
+        run: cargo test
+
+  e2e:
+    name: Site end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The site imports the SDK from its dist/.
+      - run: pnpm build
+      - run: pnpm --filter @attestra/web exec playwright install --with-deps chromium
+      # Builds the site for production, starts it and runs every suite except the live and screenshot ones.
+      - run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7

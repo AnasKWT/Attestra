@@ -23,9 +23,18 @@ export function useAsync<T>(load: () => Promise<T>, key: unknown[]): { data: T |
 
 /** Browsers report an unreachable host as a bare "Failed to fetch" (Chrome), "NetworkError..." (Firefox) or "Load failed" (Safari). */
 export function readableError(message: string): string {
+  if (isRateLimited(message)) {
+    // The Attestra services explain the limit and the wait themselves; anything else gets a plain sentence.
+    return /Too Many Requests: .+/.exec(message)?.[0] ?? 'Too Many Requests: the service is limiting requests from this browser for now. Wait a minute, then try again.';
+  }
   if (/failed to fetch|networkerror|load failed|fetch failed/i.test(message)) return 'Not reachable from this browser.';
   // A view on a contract account that was never created: the deployment is missing, not the record.
   const missing = /account ([\w.-]+) does not exist/i.exec(message);
   if (missing) return `${missing[1]} is not deployed on this network yet, so there is nothing to read.`;
   return message;
+}
+
+/** A 429 from a service or an RPC, however the caller worded it. */
+export function isRateLimited(message: string): boolean {
+  return /\b429\b|Too Many Requests|TOO_MANY_REQUESTS|rate.?limit/i.test(message);
 }

@@ -45,7 +45,7 @@ const CLI: Array<[string, string]> = [
   ['credential', 'mint, fetch, list'],
   ['schedule', 'revoke, status, finalize'],
   ['multisig', 'create, propose-attest, propose-revoke, approve, execute, cancel, fetch, proposal'],
-  ['dao', 'info, propose-attest, propose-membership, propose-revoke, vote, proposals, proposal, fund, create'],
+  ['dao', 'info, request-membership, propose-attest, propose-membership, propose-revoke, vote, proposals, proposal, grant-desk, fund, create'],
   ['staking', 'stake, unstake, info, tiers'],
   ['token', 'faucet, balance'],
   ['events', 'list, prove, prove-receipt'],

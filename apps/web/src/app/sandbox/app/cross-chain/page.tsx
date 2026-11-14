@@ -33,7 +33,7 @@ export default function CrossChain() {
           <p>The contract recomputes the expected payload hash itself and checks the signature against the MPC network&apos;s public key with <code>ecrecover</code>. No oracle, no relayer to trust.</p>
           <p>The nodes verify only finalized blocks: about 20 to 25 minutes after the transaction on an L2 test network, under a minute on Solana; step 1 tells you when a transaction is not final yet.</p>
           <p>On Solana the fact is an inner instruction: the program a transaction called and the accounts and data it called it with, such as an SPL token transfer.</p>
-          <p>The attestation&apos;s subject defaults to the log&apos;s emitter or the instruction&apos;s program as a CAIP-10 id; set it to the payer or anyone else.</p>
+          <p>The attestation&apos;s subject defaults to the log&apos;s emitter or the instruction&apos;s program as a CAIP-10 id. To claim the event for yourself, set it to your account or to a wallet you linked in <a className="text-accent hover:underline" href="/sandbox/app/wallet-link">Wallet Link</a>: the contract refuses any other subject, and records each event once per subject.</p>
         </>
       }
     >

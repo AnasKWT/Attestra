@@ -6,6 +6,7 @@ import { loadServiceConfig } from '../src/lib/config';
 import { DailyLedger } from '../src/lib/ledger';
 import { LanePool, SerialQueue } from '../src/lib/queue';
 import { formatNear, parseNear } from '../src/lib/units';
+import { loadRelayerConfig } from '../src/relayer/config';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,6 +38,13 @@ describe('config', () => {
     const c = loadServiceConfig('keeper', { KEEPER_PRIVATE_KEY: 'not-a-key' });
     expect(c.privateKey).toBeUndefined();
     expect(c.idleReason).toMatch(/not a valid/);
+  });
+
+  it('trusts X-Forwarded-For only with TRUST_PROXY, and names a bad rate setting', () => {
+    expect(loadServiceConfig('relayer', {}).trustProxy).toBe(false);
+    expect(loadServiceConfig('relayer', { TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+    expect(() => loadRelayerConfig({ RELAYER_RATE_IP: 'lots' })).toThrow(/^RELAYER_RATE_IP: a rate is a count per window/);
+    expect(loadRelayerConfig({}).rates).toEqual({ requestsIp: { limit: 60, windowMs: 600_000 }, sponsorIp: { limit: 20, windowMs: 86_400_000 } });
   });
 
   it('follows ATTESTRA_ROOT', () => {

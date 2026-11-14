@@ -8,7 +8,7 @@ import { reader } from '@/lib/client';
 import { txUrl } from '@/lib/config';
 import { formatAmount } from '@/lib/format';
 import { toolBySlug } from '@/lib/tools';
-import { readableError, useAsync } from '@/lib/useFetch';
+import { isRateLimited, readableError, useAsync } from '@/lib/useFetch';
 import { ConnectButton } from '../wallet/ConnectButton';
 import { useWallet } from '../wallet/WalletProvider';
 import { CopyButton } from '../ui/Copy';
@@ -112,7 +112,7 @@ export function Result<T>({ res, render }: { res: ServiceResponse<T>; render?: (
       <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[13px] text-red-700 dark:text-red-400">
         <XCircle className="mt-0.5 size-4 shrink-0" />
         <div className="min-w-0">
-          <p className="font-semibold">{res.error?.type.replaceAll('_', ' ').toLowerCase()}</p>
+          <p className="font-semibold">{isRateLimited(res.error?.message ?? '') ? 'rate limited' : res.error?.type.replaceAll('_', ' ').toLowerCase()}</p>
           <p className="mt-0.5 break-words">{readableError(res.error?.message ?? '')}</p>
         </div>
       </div>

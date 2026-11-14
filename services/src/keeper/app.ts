@@ -1,19 +1,20 @@
 /**
- * The keeper's HTTP API: `/live`, `/health` (last pass, drift, lag, balance, DAO reviews),
- * `POST /v1/run`, and `POST /v1/dao/review` (review the DAOs' open proposals now).
+ * The keeper's HTTP API: `/live`, `/health` (last pass, drift, lag, balance), `POST /v1/run`,
+ * `GET /v1/dao` and `POST /v1/dao/membership` (a DAO membership issued by the keeper as the DAO's
+ * scoped delegate, for an account that signed its own request).
  */
 
-import { errorMessage } from 'attestra';
+import { errorMessage, TokenBucket, tooManyRequests } from 'attestra';
 import { withTimeout, type ChainReader, type ChainWriter } from '../lib/chain';
-import { baseApp, type HealthReport } from '../lib/http';
+import { baseApp, limited, type HealthReport } from '../lib/http';
 import type { RecentErrors } from '../lib/log';
 import { formatNear } from '../lib/units';
 import type { KeeperConfig } from './config';
-import type { Council } from './council';
+import { Refusal, type MembershipDesk } from './council';
 import type { Keeper } from './keeper';
 
-export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; council?: Council; reader: ChainReader; writer: ChainWriter | null; errors: RecentErrors; startedAt?: number }) {
-  const { config, keeper, council, reader, writer, errors } = deps;
+export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; desk?: MembershipDesk; reader: ChainReader; writer: ChainWriter | null; errors: RecentErrors; startedAt?: number }) {
+  const { config, keeper, desk, reader, writer, errors } = deps;
   const startedAt = deps.startedAt ?? Date.now();
 
   async function health(): Promise<HealthReport> {
@@ -53,26 +54,50 @@ export function createKeeperApp(deps: { config: KeeperConfig; keeper: Keeper; co
       max_lag_blocks: config.maxLagBlocks,
       drift: last?.drift ?? [],
       queue: { length: writer?.queueLength() ?? 0 },
-      dao_council: { daos: config.daos, auto_roles: config.daoRoles, last_review: council?.last ?? null },
+      dao_membership: desk?.info() ?? null,
       recent_errors: errors.list(),
     };
   }
 
   const app = baseApp(health);
+  // Per client address: a pass and a DAO request read the chain and the indexer and can send transactions.
+  app.on('POST', '/v1/run', limited(config.trustProxy, 'keeper passes', { limiter: new TokenBucket(config.rates.runIp) }));
+  app.on('POST', '/v1/dao/*', limited(config.trustProxy, 'DAO requests', { limiter: new TokenBucket(config.rates.daoIp) }));
+  // Per account: counted only when a membership is issued (a signed request), so nobody can use up
+  // another account's limit; it also stops a second issue while the indexer has not seen the first.
+  const memberships = new TokenBucket(config.rates.membershipAccount);
+  const accountOf = (message: string): string | undefined => {
+    try {
+      const account = (JSON.parse(message) as { account?: unknown }).account;
+      return typeof account === 'string' ? account : undefined;
+    } catch {
+      return undefined;
+    }
+  };
   // Runs a pass now, at most every 10 seconds; otherwise answers with the last one.
   app.post('/v1/run', async (c) => {
     const last = keeper.last;
     if (last && Date.now() - Date.parse(last.at) < 10_000) return c.json(last);
     return c.json(await keeper.tick());
   });
-  // Reviews the DAOs' open proposals now (the sandbox calls this right after a proposal), at most every 3 seconds.
-  let reviewedAt = 0;
-  app.post('/v1/dao/review', async (c) => {
-    if (!council || !writer || !config.daos.length) return c.json({ ok: false, error: writer ? 'no DAO to review (KEEPER_DAOS)' : config.idleReason ?? 'read-only' }, 503);
-    if (Date.now() - reviewedAt < 3000 && council.last) return c.json({ ok: true, ...council.last });
-    reviewedAt = Date.now();
-    const reviewed = await council.run();
-    return c.json({ ok: true, at: council.last?.at ?? new Date().toISOString(), reviewed });
+  app.get('/v1/dao', (c) => c.json(desk?.info() ?? { daos: [] }));
+  app.post('/v1/dao/membership', async (c) => {
+    if (!desk || !writer || !config.daos.length) return c.json({ error: writer ? 'no DAO to issue for (KEEPER_DAOS)' : config.idleReason ?? 'read-only' }, 503);
+    const body = (await c.req.json().catch(() => null)) as { request?: unknown } | null;
+    const request = body?.request as Parameters<MembershipDesk['request']>[0] | undefined;
+    if (!request || typeof request.message !== 'string') return c.json({ error: 'request is the account\'s signed membership request' }, 400);
+    const account = accountOf(request.message);
+    const quota = account ? memberships.peek(account) : null;
+    if (account && quota && !quota.ok) return tooManyRequests({ ...quota, refused: { limiter: memberships, key: account, scope: 'for one account' } }, 'memberships');
+    try {
+      const issued = await desk.request(request);
+      memberships.take(issued.account);
+      return c.json(issued);
+    } catch (e) {
+      if (e instanceof Refusal) return c.json({ error: e.message }, e.status);
+      errors.add(`membership request: ${errorMessage(e)}`);
+      return c.json({ error: errorMessage(e) }, 502);
+    }
   });
   return app;
 }

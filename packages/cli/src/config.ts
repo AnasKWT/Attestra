@@ -20,9 +20,9 @@ export interface CliOptions {
 }
 
 /** The hosted testnet services, so every command works with nothing running locally. */
-export const HOSTED_TESTNET = { indexer: 'https://api.attestra.site/indexer', relayer: 'https://api.attestra.site/relayer', agent: 'https://api.attestra.site/agent' } as const;
+export const HOSTED_TESTNET = { indexer: 'https://api.attestra.site/indexer', relayer: 'https://api.attestra.site/relayer', agent: 'https://api.attestra.site/agent', keeper: 'https://api.attestra.site/keeper' } as const;
 /** A local stack (`pnpm dev` or Docker Compose), the default on mainnet. */
-export const LOCAL = { indexer: 'http://localhost:5100', relayer: 'http://localhost:5200', agent: 'http://localhost:5300' } as const;
+export const LOCAL = { indexer: 'http://localhost:5100', relayer: 'http://localhost:5200', agent: 'http://localhost:5300', keeper: 'http://localhost:5400' } as const;
 
 export function credentialsPath(network: string, accountId: string, home = homedir()): string {
   return join(home, '.near-credentials', network, `${accountId}.json`);
@@ -55,5 +55,6 @@ export function resolveConfig(opts: CliOptions, env: NodeJS.ProcessEnv = process
     indexerUrl: opts.indexer ?? env.ATTESTRA_INDEXER_URL ?? services.indexer,
     relayerUrl: opts.relayer ?? env.ATTESTRA_RELAYER_URL ?? services.relayer,
     agentUrl: opts.agent ?? env.ATTESTRA_AGENT_URL ?? services.agent,
+    keeperUrl: env.ATTESTRA_KEEPER_URL ?? services.keeper,
   };
 }

@@ -1,3 +1,4 @@
+import { ed25519 } from '@noble/curves/ed25519.js';
 import { describe, expect, it } from 'vitest';
 import {
   attestingDaoPolicy,
@@ -7,7 +8,14 @@ import {
   daoAttestProposal,
   daoCan,
   daoCouncil,
+  daoDelegateProposal,
   daoPolicyProposal,
+  daoRemoveDelegateProposal,
+  keySigner,
+  base58Encode,
+  bytesToHex,
+  signDaoMembership,
+  verifyDaoMembershipRequest,
   daoRevokeProposal,
   isSputnikDao,
   parseDaoCall,
@@ -86,18 +94,36 @@ describe('Sputnik DAO policy', () => {
     expect(() => attestingDaoPolicy(['a'], { approvals: 2 })).toThrow();
   });
 
-  it('gives a reviewer only votes on function calls, one vote deciding', () => {
-    const p = attestingDaoPolicy(['attestra.testnet'], { reviewers: ['keeper.attestra.testnet'], approvals: 1 });
-    const reviewer = p.roles.find((r) => r.name === 'reviewer')!;
-    expect(daoCan(p, 'keeper.attestra.testnet', 'VoteApprove')).toBe(true);
-    expect(daoCan(p, 'keeper.attestra.testnet', 'VoteReject')).toBe(true);
-    for (const label of ['transfer', 'policy', 'add_member_to_role', 'remove_member_from_role', 'upgrade_self']) expect(daoCan(p, 'keeper.attestra.testnet', 'VoteApprove', label)).toBe(false);
-    expect(daoCan(p, 'keeper.attestra.testnet', 'Finalize')).toBe(false);
-    expect(daoCan(p, 'attestra.testnet', 'VoteApprove', 'policy')).toBe(true);
-    expect(daoCouncil(p)).toEqual(['attestra.testnet', 'keeper.attestra.testnet']);
-    expect(daoApprovalsNeeded(p, reviewer)).toBe(1);
-    expect(daoApprovalsNeeded(attestingDaoPolicy(['a', 'b'], { reviewers: ['k'], approvals: 2 }), reviewer)).toBe(1);
-    expect(daoPolicyProposal(p).kind).toEqual({ ChangePolicy: { policy: p } });
+  it('grants issuing through a scoped delegate, not a voting role', () => {
+    const p = daoDelegateProposal(A, 'keeper.attestra.testnet', { schemas: [S], expiresAt: 1_900_000_000, maxUses: 100 });
+    const call = (p.kind as { FunctionCall: { receiver_id: string; actions: Array<{ method_name: string; args: string }> } }).FunctionCall;
+    expect(call.receiver_id).toBe(A);
+    expect(call.actions[0].method_name).toBe('add_delegate');
+    expect(JSON.parse(new TextDecoder().decode(base64ToBytes(call.actions[0].args)))).toEqual({
+      delegate: 'keeper.attestra.testnet',
+      scope: { schemas: [S], expires_at: 1_900_000_000, max_uses: 100, can_revoke: false, label: 'issues on behalf of the DAO' },
+    });
+    expect(attestingDaoPolicy(['attestra.testnet']).roles.map((r) => r.name)).toEqual(['all', 'council']);
+    expect(daoPolicyProposal(attestingDaoPolicy(['a'])).kind).toEqual({ ChangePolicy: { policy: attestingDaoPolicy(['a']) } });
+    const removal = daoRemoveDelegateProposal(A, 'keeper.attestra.testnet').kind as { FunctionCall: { actions: Array<{ method_name: string }> } };
+    expect(removal.FunctionCall.actions[0].method_name).toBe('remove_delegate');
+  });
+
+  it('signs and verifies membership requests by the account itself', async () => {
+    const seed = new Uint8Array(32).fill(5);
+    const signer = keySigner(`ed25519:${base58Encode(seed)}`);
+    const now = 1_790_000_000;
+    const req = await signDaoMembership(signer, { dao: 'attestra.sputnik-v2.testnet', account: 'bob.testnet', role: 'member', deadline: now + 600 }, A);
+    expect(JSON.parse(req.message)).toEqual({ action: 'dao_membership', dao: 'attestra.sputnik-v2.testnet', account: 'bob.testnet', role: 'member', deadline: now + 600 });
+    const owns = (account: string, key: string) => Promise.resolve(account === 'bob.testnet' && key === signer.publicKey);
+    expect(await verifyDaoMembershipRequest(req, { attestations: A, hasFullAccessKey: owns, now })).toEqual({ dao: 'attestra.sputnik-v2.testnet', account: 'bob.testnet', role: 'member' });
+    await expect(verifyDaoMembershipRequest(req, { attestations: 'other.testnet', hasFullAccessKey: owns, now })).rejects.toThrow(/does not verify/);
+    await expect(verifyDaoMembershipRequest(req, { attestations: A, hasFullAccessKey: () => Promise.resolve(false), now })).rejects.toThrow(/full-access key/);
+    await expect(verifyDaoMembershipRequest(req, { attestations: A, hasFullAccessKey: owns, now: now + 601 })).rejects.toThrow(/expired/);
+    await expect(verifyDaoMembershipRequest({ ...req, message: req.message.replace('"role":"member"', '"role":"admin"') }, { attestations: A, hasFullAccessKey: owns, now })).rejects.toThrow(/does not verify/);
+    const implicit = bytesToHex(ed25519.getPublicKey(seed));
+    const own = await signDaoMembership(signer, { dao: 'd.sputnik-v2.testnet', account: implicit, role: 'member', deadline: now + 60 }, A);
+    expect((await verifyDaoMembershipRequest(own, { attestations: A, hasFullAccessKey: () => Promise.reject(new Error('no lookup')), now })).account).toBe(implicit);
   });
 
   it('encodes the factory arguments', () => {

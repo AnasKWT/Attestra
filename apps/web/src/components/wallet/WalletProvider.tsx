@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AttestraClient } from 'attestra';
-import { AGENT_URL, INDEXER_URL, NETWORK, RELAYER_URL, ROOT } from '@/lib/config';
+import { AGENT_URL, INDEXER_URL, NETWORK, RELAYER_URL, ROOT, KEEPER_URL } from '@/lib/config';
 import { createPasskeyAccount, forgetPasskey, signInWithPasskey, type PasskeyAccount } from '@/lib/passkey';
 
 type Kind = 'wallet' | 'passkey';
@@ -53,7 +53,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connectorReady, setConnectorReady] = useState(false);
   const nearKit = useRef<typeof import('near-kit') | null>(null);
 
-  const base = { network: NETWORK, root: ROOT, indexerUrl: INDEXER_URL, relayerUrl: RELAYER_URL, agentUrl: AGENT_URL };
+  const base = { network: NETWORK, root: ROOT, indexerUrl: INDEXER_URL, relayerUrl: RELAYER_URL, agentUrl: AGENT_URL, keeperUrl: KEEPER_URL };
 
   const adoptWallet = useCallback(async (id: string) => {
     const kit = nearKit.current ?? (await import('near-kit'));

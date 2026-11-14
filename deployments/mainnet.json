@@ -2,7 +2,7 @@
   "network": "mainnet",
   "status": "planned",
   "root": "attestra.near",
-  "note": "Mainnet-ready: scripts/deploy.ts mainnet deploys the same reproducible build and writes this file (see MAINNET.md).",
+  "note": "Not deployed yet: the mainnet launch is on the roadmap in MAINNET.md; scripts/deploy.ts mainnet deploys the same reproducible build and writes this file.",
   "contracts": {
     "schemas": "schemas.attestra.near",
     "attestations": "attestations.attestra.near",

@@ -14,7 +14,7 @@
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
-import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, fetchWithRetry, verdictDigest, type AiVerdict } from 'attestra';
+import { base58Decode, base58Encode, bytesToBase64, bytesToHex, decryptWithEd25519Seed, encryptForModel, fetchWithRetry, githubOwnerAgrees, verdictDigest, verifySubjectProof, type AiVerdict, type SubjectProof } from 'attestra';
 import { NearAi, signedHashes, verifySignature } from './nearai';
 
 export interface Rule {
@@ -29,6 +29,8 @@ export interface CheckInput {
   /** Hex ciphertext to the model key (protocol v2), or empty for GitHub rules. */
   encryptedEvidence: string;
   github?: string | null;
+  /** The subject's signed request (NEP-413), required. */
+  subjectProof?: SubjectProof;
 }
 
 export interface CheckOutput {
@@ -67,11 +69,30 @@ export function publicKeyOf(secret: string): string {
   return `ed25519:${base58Encode(ed25519.getPublicKey(seedFromSecret(secret)))}`;
 }
 
-export async function runCheck(ai: NearAi, model: string, checkerSecret: string, input: CheckInput, opts: { githubToken?: string; now?: () => number } = {}): Promise<CheckOutput> {
+export async function runCheck(
+  ai: NearAi,
+  model: string,
+  checkerSecret: string,
+  input: CheckInput,
+  opts: { githubToken?: string; now?: () => number; hasFullAccessKey?: (accountId: string, publicKey: string) => Promise<boolean>; recipient?: string; fetch?: typeof fetch } = {},
+): Promise<CheckOutput> {
+  // The same steps as the checker in the TEE: the subject asked for this check.
+  await verifySubjectProof({
+    proof: input.subjectProof,
+    ruleId: input.rule.id,
+    subject: input.subject,
+    encryptedEvidence: input.encryptedEvidence,
+    github: input.github,
+    recipient: opts.recipient ?? 'verdicts.attestra.testnet',
+    hasFullAccessKey: opts.hasFullAccessKey ?? (() => Promise.resolve(false)),
+    now: opts.now ? Math.floor(opts.now() / 1000) : undefined,
+  });
   const keys = await ai.modelKeys(model);
   let evidence = input.encryptedEvidence;
   if (input.rule.id.startsWith('github')) {
     if (!input.github) throw new Error('this rule needs a GitHub login');
+    if (!/^[A-Za-z0-9-]{1,39}$/.test(input.github)) throw new Error('not a GitHub login');
+    await githubOwnerAgrees(input.github, input.subject, { token: opts.githubToken, fetch: opts.fetch });
     const merged = await githubMergedPrs(input.github, opts.githubToken);
     evidence = encryptForModel(`Fetched by the checker from api.github.com just now: the GitHub user "${input.github}" has ${merged} merged pull requests in public repositories.`, keys.ed25519);
   }

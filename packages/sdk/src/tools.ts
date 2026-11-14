@@ -136,7 +136,8 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: 'get_agent_reputation',
-    description: "Know Your Agent: an AI agent's identity (owner, model, capabilities, endpoint), reviews with the average score, and the delegations it holds.",
+    description:
+      "Know Your Agent: an AI agent's identity (owner, model, capabilities, endpoint) with identity_status (verified only when the owner registered it from the agent account or its parent account), the reviews that count (one per reviewer, none by the agent, its owner or their sub-accounts), which of them are paid (job_ref is the hash of the reviewer's payment to the agent, checked on chain), the average and paid average scores, trusted with trust_reasons, and the delegations it holds.",
     parameters: { type: 'object', properties: { agent: str('Agent account id') }, required: ['agent'] },
     write: false,
     run: async (c, a) => unwrap(await c.getAgentProfile(String(a.agent))),
@@ -283,10 +284,10 @@ export const TOOLS: ToolSpec[] = [
   },
   {
     name: 'rate_agent',
-    description: 'Leave a 1 to 5 review of an AI agent you hired (an attestation under the agent review schema).',
+    description: "Leave a 1 to 5 review of an AI agent you hired (an attestation under the agent review schema). Put the hash of your payment to the agent in job_ref: only then does the review count as paid; a review by the agent, its owner or their sub-accounts never counts.",
     parameters: {
       type: 'object',
-      properties: { agent: str('Agent account id'), score: int('1 to 5'), comment: str('Short comment'), job_ref: str('What the job was') },
+      properties: { agent: str('Agent account id'), score: int('1 to 5'), comment: str('Short comment'), job_ref: str('Transaction hash of your payment to the agent (a NEAR transfer, an ft_transfer, or an x402 settlement)') },
       required: ['agent', 'score'],
     },
     write: true,
@@ -295,15 +296,15 @@ export const TOOLS: ToolSpec[] = [
   {
     name: 'request_private_check',
     description:
-      'Check a private fact without revealing it: evidence is encrypted to a NEAR AI Cloud verifiable model, an enclave checks it against a rule (age_over_18, income_at_least, github_contributor) and a passing check becomes an attestation that stores only the evidence hash.',
+      'Check a private fact about your own account without revealing it: your key signs the request, the evidence is encrypted to a NEAR AI Cloud verifiable model, an enclave checks it against a rule (age_over_18, income_at_least, github_contributor) and a passing check becomes an attestation that stores only the evidence hash. A GitHub rule also needs a public gist attestra.txt from that login with the line attestra:<your account>.',
     parameters: {
       type: 'object',
-      properties: { rule_id: str('Rule id'), subject: str('Who the fact is about'), evidence: str('The private evidence text'), github: str('GitHub login, for github_contributor') },
-      required: ['rule_id', 'subject'],
+      properties: { rule_id: str('Rule id'), subject: str('Your account (defaults to it); a check is signed by its subject'), evidence: str('The private evidence text'), github: str('GitHub login, for github_contributor') },
+      required: ['rule_id'],
     },
     write: true,
     run: async (c, a) =>
-      unwrap(await c.requestPrivateCheck({ ruleId: String(a.rule_id), subject: String(a.subject), evidence: String(a.evidence ?? ''), github: a.github as string | undefined })),
+      unwrap(await c.requestPrivateCheck({ ruleId: String(a.rule_id), subject: String(a.subject ?? c.accountId ?? ''), evidence: String(a.evidence ?? ''), github: a.github as string | undefined })),
   },
   {
     name: 'attest_foreign_event',

@@ -28,7 +28,6 @@ export function requirements(deps: PaidDeps, amount: string, description: string
   };
 }
 
-/** Handles one paid request: returns a 402 challenge, a 402 refusal, or runs `serve` after settlement. */
 /** The URL a client should call: the request's path and query under the public base URL when one is set. */
 export function publicResource(requestUrl: string, publicUrl?: string): string {
   if (!publicUrl) return requestUrl;
@@ -36,6 +35,7 @@ export function publicResource(requestUrl: string, publicUrl?: string): string {
   return `${publicUrl.replace(/\/+$/, '')}${u.pathname}${u.search}`;
 }
 
+/** Handles one paid request: returns a 402 challenge, a 402 refusal, or runs `serve` after settlement. */
 export async function paid(req: Request, deps: PaidDeps, reqs: x402.PaymentRequirements, serve: () => Promise<unknown>): Promise<Response> {
   const header = req.headers.get(x402.X402_HEADERS.signature);
   const challenge: x402.PaymentRequired = { x402Version: x402.X402_VERSION, resource: { url: publicResource(req.url, deps.publicUrl), description: reqs.description, mimeType: 'application/json' }, accepts: [reqs] };

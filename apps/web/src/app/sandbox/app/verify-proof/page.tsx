@@ -14,10 +14,10 @@ export default function VerifyProof() {
       slug="verify-proof"
       notes={
         <>
-          <p>1. A light client block is fetched and its hash computed from its fields; the block producers&apos; ed25519 approvals are checked and must hold more than 2/3 of the epoch&apos;s stake.</p>
+          <p>1. The validator set is chained from a checkpoint pinned in the SDK with <code>next_light_client_block</code>, epoch by epoch: each block&apos;s hash is computed from its fields, its block producers&apos; ed25519 approvals must hold more than 2/3 of the epoch&apos;s stake, and its <code>next_bps</code> must hash to its <code>next_bp_hash</code>. The walk ends at a recent final head.</p>
           <p>2. <code>EXPERIMENTAL_light_client_proof</code> returns merkle paths. The receipt&apos;s outcome is hashed and walked to the block&apos;s outcome root, and the block&apos;s hash to the head&apos;s block merkle root.</p>
           <p>3. The event line must be in the outcome&apos;s logs. All of this runs here, in your browser.</p>
-          <p>Trusted: the epoch&apos;s ordered block producer list as the RPC reports it.</p>
+          <p>Trusted: the checkpoint pinned in the SDK (a block hash and its block producers). The RPC supplies data that is checked: it can make a proof fail, never pass.</p>
         </>
       }
     >

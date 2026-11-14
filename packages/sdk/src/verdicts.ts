@@ -102,6 +102,7 @@ export async function fetchEvmLog(network: 'testnet' | 'mainnet', chain: string,
   if (!url) throw new Error(`unknown chain ${chain}; one of ${Object.keys(EVM_CHAINS[network]).join(', ')}`);
   const call = async <T>(method: string, params: unknown[]): Promise<T | undefined> => {
     const res = await fetchWithRetry(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    if (!res.ok) throw new Error(`the ${chain} RPC answered ${res.status} for ${method}`);
     return ((await res.json()) as { result?: T }).result;
   };
   const receipt = await call<{ logs: Array<Record<string, string | string[] | boolean>>; transactionIndex: string; blockHash: string; blockNumber: string }>('eth_getTransactionReceipt', [txHash]);
@@ -156,6 +157,7 @@ export async function fetchSolanaInstruction(network: 'testnet' | 'mainnet', sig
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { commitment: 'finalized', encoding: 'json', maxSupportedTransactionVersion: 0 }] }),
   });
+  if (!res.ok) throw new Error(`the Solana RPC answered ${res.status} for getTransaction`);
   const j = (await res.json()) as {
     result?: {
       transaction: { message: { accountKeys: string[] } };

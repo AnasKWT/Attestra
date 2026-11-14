@@ -86,3 +86,51 @@ export class DailyLedger {
     renameSync(tmp, this.file);
   }
 }
+
+/**
+ * Keys that may be used once, ever (one sponsorship per account), kept in a small JSON file so a
+ * restart or a new day does not forget them. It grows only as fast as the daily budget allows.
+ */
+export class OnceLedger {
+  private readonly keys: Set<string>;
+
+  /** `file` null keeps the keys in memory only (tests). */
+  constructor(private readonly file: string | null) {
+    this.keys = new Set(this.load());
+  }
+
+  has(key: string): boolean {
+    return this.keys.has(key);
+  }
+
+  /** Marks `key` used; false when it already was. */
+  take(key: string): boolean {
+    if (this.keys.has(key)) return false;
+    this.keys.add(key);
+    this.save();
+    return true;
+  }
+
+  /** Forgets a key taken for something that did not happen. */
+  release(key: string): void {
+    if (this.keys.delete(key)) this.save();
+  }
+
+  private load(): string[] {
+    if (!this.file) return [];
+    try {
+      const parsed = JSON.parse(readFileSync(this.file, 'utf8')) as { keys?: unknown };
+      return Array.isArray(parsed.keys) ? parsed.keys.filter((k): k is string => typeof k === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private save(): void {
+    if (!this.file) return;
+    mkdirSync(dirname(this.file), { recursive: true });
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ keys: [...this.keys] }));
+    renameSync(tmp, this.file);
+  }
+}

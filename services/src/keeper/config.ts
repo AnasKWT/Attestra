@@ -1,7 +1,7 @@
 /** Keeper settings: the shared ones plus its interval and drift thresholds. */
 
-import { DEFAULT_ROOTS, DEPLOYMENT_DAOS } from 'attestra';
-import { int, loadServiceConfig, type ServiceConfig } from '../lib/config';
+import { DEFAULT_ROOTS, DEPLOYMENT_DAOS, type Rate } from 'attestra';
+import { int, loadServiceConfig, rate, type ServiceConfig } from '../lib/config';
 import { parseNear } from '../lib/units';
 
 export interface KeeperConfig extends ServiceConfig {
@@ -17,6 +17,8 @@ export interface KeeperConfig extends ServiceConfig {
   daos: string[];
   /** Membership roles the keeper approves without a human vote. */
   daoRoles: string[];
+  /** Per client address: POST /v1/run and POST /v1/dao/*; per account: memberships issued. */
+  rates: { runIp: Rate; daoIp: Rate; membershipAccount: Rate };
 }
 
 
@@ -38,5 +40,10 @@ export function loadKeeperConfig(env: NodeJS.ProcessEnv = process.env): KeeperCo
     lowBalance: parseNear(env.KEEPER_LOW_BALANCE_NEAR || '0.5'),
     daos: list(env.KEEPER_DAOS, base.root === DEFAULT_ROOTS[base.network] && DEPLOYMENT_DAOS[base.network] ? [DEPLOYMENT_DAOS[base.network] as string] : []),
     daoRoles: list(env.KEEPER_DAO_ROLES, ['member', 'contributor']),
+    rates: {
+      runIp: rate(env, 'KEEPER_RATE_RUN_IP', '5/1h'),
+      daoIp: rate(env, 'KEEPER_RATE_DAO_IP', '5/1h'),
+      membershipAccount: rate(env, 'KEEPER_RATE_MEMBERSHIP_ACCOUNT', '1/1d'),
+    },
   };
 }

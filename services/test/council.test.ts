@@ -1,8 +1,8 @@
-import { attestingDaoPolicy, daoAttestProposal, daoRevokeProposal, KNOWN_SCHEMAS, knownSchemaUid, SchemaEncoder, type DaoPolicy, type DaoProposal } from 'attestra';
+import { base58Encode, KNOWN_SCHEMAS, keySigner, knownSchemaUid, SchemaEncoder, signDaoMembership, type IndexedAttestation } from 'attestra';
 import { describe, expect, it } from 'vitest';
 import { createKeeperApp } from '../src/keeper/app';
 import { loadKeeperConfig } from '../src/keeper/config';
-import { Council, review } from '../src/keeper/council';
+import { MembershipDesk, Refusal } from '../src/keeper/council';
 import { Keeper } from '../src/keeper/keeper';
 import type { ChainReader } from '../src/lib/chain';
 import { RecentErrors } from '../src/lib/log';
@@ -12,129 +12,132 @@ const NOW = 1_800_000_000;
 const DAO = 'guild.sputnik-v2.testnet';
 const A = 'attestations.attestra.testnet';
 const KEEPER = 'keeper.attestra.testnet';
-const enc = new SchemaEncoder(KNOWN_SCHEMAS.membership.definition);
-const rule = { dao: DAO, attestations: A, roles: ['member', 'contributor'], nowSecs: NOW };
+const MEMBERSHIP = knownSchemaUid('membership');
+const bob = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(5))}`);
 
-function proposal(id: number, over: { proposer?: string; subject?: string; organization?: string; role?: string; since?: number; schemaUid?: string; status?: DaoProposal['status']; kind?: DaoProposal['kind'] } = {}): DaoProposal {
-  const proposer = over.proposer ?? 'alice.testnet';
-  const data = enc.encode({ organization: over.organization ?? DAO, role: over.role ?? 'member', since: over.since ?? NOW - 60 });
-  const kind = over.kind ?? daoAttestProposal(A, { schemaUid: over.schemaUid ?? knownSchemaUid('membership'), subject: over.subject ?? proposer, data }).kind;
-  return { id, proposer, description: 'membership', kind, status: over.status ?? 'InProgress', vote_counts: {}, votes: {}, submission_time: '0' };
-}
+const row = (attester: string, subject: string, schema = 'ab'.repeat(32)): IndexedAttestation =>
+  ({ uid: `${attester.length}`.padEnd(64, 'c'), schema_uid: schema, attester, subject, status: 'active' }) as unknown as IndexedAttestation;
 
-describe('council rule', () => {
-  it('approves a well-formed membership request about the proposer', () => {
-    expect(review(proposal(0), rule).decision).toBe('approve');
-    expect(review(proposal(0, { role: 'contributor' }), rule).decision).toBe('approve');
-  });
-
-  it('rejects requests that break the rule, with the reason', () => {
-    expect(review(proposal(0, { subject: 'bob.testnet' }), rule)).toMatchObject({ decision: 'reject', reason: expect.stringMatching(/own account/) });
-    expect(review(proposal(0, { organization: 'other.sputnik-v2.testnet' }), rule)).toMatchObject({ decision: 'reject', reason: expect.stringMatching(/organization/) });
-    expect(review(proposal(0, { role: 'admin' }), rule)).toMatchObject({ decision: 'reject', reason: expect.stringMatching(/human vote/) });
-    expect(review(proposal(0, { since: NOW + 3600 }), rule)).toMatchObject({ decision: 'reject', reason: expect.stringMatching(/future/) });
-    const deposit = proposal(0);
-    (deposit.kind as { FunctionCall: { actions: Array<{ deposit: string }> } }).FunctionCall.actions[0].deposit = '1';
-    expect(review(deposit, rule).decision).toBe('reject');
-  });
-
-  it('leaves everything else to the human council', () => {
-    expect(review(proposal(0, { schemaUid: 'ab'.repeat(32) }), rule)).toMatchObject({ decision: 'skip', reason: expect.stringMatching(/membership schema/) });
-    expect(review(proposal(0, { kind: daoRevokeProposal(A, 'cd'.repeat(32)).kind }), rule)).toMatchObject({ decision: 'skip', reason: expect.stringMatching(/revocation/) });
-    expect(review(proposal(0, { kind: { Transfer: { token_id: '', receiver_id: 'x.testnet', amount: '1' } } }), rule).decision).toBe('skip');
-    expect(review(proposal(0, { kind: daoAttestProposal('evil.testnet', { schemaUid: knownSchemaUid('membership'), subject: 'alice.testnet', data: enc.encode({ organization: DAO, role: 'member', since: NOW }) }).kind }), rule).decision).toBe('skip');
-    expect(review(proposal(0, { status: 'Approved' }), rule).decision).toBe('skip');
-  });
-});
-
-/** A DAO and the attestations contract as views. */
-function chain(policy: DaoPolicy, proposals: DaoProposal[], storage = '0'): ChainReader & { proposals: DaoProposal[] } {
+/** The chain as views: the keeper's grant from the DAO and the DAO's storage balance. */
+function chain(grant: boolean, storage = '0'): ChainReader {
   return {
-    proposals,
-    view<T>(contract: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
+    view<T>(contract: string, method: string): Promise<T> {
+      if (contract === A && method === 'get_delegate') return Promise.resolve((grant ? { schemas: [MEMBERSHIP], max_uses: 100, uses: 0 } : null) as T);
       if (contract === A && method === 'storage_balance_of') return Promise.resolve({ total: storage, available: storage } as T);
-      if (contract !== DAO) return Promise.reject(new Error(`unexpected view ${contract}.${method}`));
-      if (method === 'get_policy') return Promise.resolve(policy as T);
-      if (method === 'get_last_proposal_id') return Promise.resolve(proposals.length as T);
-      if (method === 'get_proposals') return Promise.resolve(proposals.slice(Number(args.from_index), Number(args.from_index) + Number(args.limit)) as T);
-      if (method === 'get_proposal') return Promise.resolve(proposals[Number(args.id)] as T);
-      return Promise.reject(new Error(`unexpected view ${method}`));
+      return Promise.reject(new Error(`unexpected view ${contract}.${method}`));
     },
     balance: () => Promise.resolve(10n ** 24n),
     hasKey: () => Promise.resolve(false),
   };
 }
 
-describe('council member', () => {
-  const created = (uid: string) => ({ receipts_outcome: [{ outcome: { logs: [`EVENT_JSON:${JSON.stringify({ standard: 'attestra', version: '1.0.0', event: 'attestation_created', data: [{ uid }] })}`] } }] });
-
-  it('votes once per open proposal, tops up the DAO storage first, and reports the attestation', async () => {
-    const reader = chain(attestingDaoPolicy([KEEPER, 'attestra.testnet']), [proposal(0), proposal(1, { subject: 'bob.testnet' }), proposal(2, { role: 'admin' }), proposal(3, { status: 'Approved' })]);
-    const writer = new FakeWriter(KEEPER);
-    const outcomes: Record<number, unknown> = {};
-    writer.respond = (tx) => {
-      if (tx.method === 'act_proposal') {
-        const p = reader.proposals[Number(tx.args!.id)];
-        p.status = tx.args!.action === 'VoteApprove' ? 'Approved' : 'Rejected';
-        if (p.status === 'Approved') outcomes[p.id] = created('ee'.repeat(32));
-      }
-      return null;
-    };
-    // The fake writer has no outcome; hand the vote its receipts like the real one.
+function desk(o: { grant?: boolean; attestations?: IndexedAttestation[]; writer?: FakeWriter | null; storage?: string } = {}) {
+  const writer = o.writer === undefined ? new FakeWriter(KEEPER) : o.writer;
+  if (writer) {
     const call = writer.call.bind(writer);
-    writer.call = async (c, m, a, o) => ({ ...(await call(c, m, a, o)), outcome: outcomes[Number((a as { id?: number }).id)] });
-    const council = new Council({ daos: [DAO], roles: ['member'], attestations: A, reader, writer, log: quietLog(), errors: new RecentErrors(), nowSecs: () => NOW });
-    const out = await council.run();
-    expect(writer.sent.map((t) => `${t.receiver}.${t.method}`)).toEqual([`${A}.storage_deposit`, `${DAO}.act_proposal`, `${DAO}.act_proposal`, `${DAO}.act_proposal`]);
-    expect(writer.sent[0].args).toEqual({ account_id: DAO });
-    expect(writer.sent[1].args).toMatchObject({ id: 0, action: 'VoteApprove', proposal: reader.proposals[0].kind });
-    expect(writer.sent[2].args).toMatchObject({ id: 1, action: 'VoteReject' });
-    expect(out.find((r) => r.id === 0)).toMatchObject({ decision: 'approve', status: 'Approved', attestation: 'ee'.repeat(32) });
-    expect(out.find((r) => r.id === 2)).toMatchObject({ decision: 'reject', status: 'Rejected' });
-    expect(out.some((r) => r.id === 3)).toBe(false);
-    // A second pass reads the same proposals and sends nothing.
-    await council.run();
-    expect(writer.sent.length).toBe(4);
+    writer.respond = () => null;
+    writer.call = async (c, m, a, opts) => ({
+      ...(await call(c, m, a, opts)),
+      outcome: m === 'attest_on_behalf' ? { receipts_outcome: [{ outcome: { logs: [`EVENT_JSON:${JSON.stringify({ standard: 'attestra', version: '1.0.0', event: 'attestation_created', data: [{ uid: 'ee'.repeat(32) }] })}`] } }] } : undefined,
+    });
+  }
+  const rows = o.attestations ?? [row('verdicts.attestra.testnet', 'bob.testnet')];
+  const indexer = {
+    listAttestations: (q: { attester?: string; subject?: string; schema?: string }) =>
+      Promise.resolve({ data: rows.filter((r) => (!q.attester || r.attester === q.attester) && (!q.subject || r.subject === q.subject) && (!q.schema || r.schema_uid === q.schema)), pagination: { total: 0, limit: 50, offset: 0 } }),
+  };
+  const d = new MembershipDesk({
+    daos: [DAO],
+    roles: ['member', 'contributor'],
+    attestations: A,
+    reader: chain(o.grant ?? true, o.storage),
+    writer,
+    indexer,
+    log: quietLog(),
+    hasFullAccessKey: (account, key) => Promise.resolve(account === 'bob.testnet' && key === bob.publicKey),
+    nowSecs: () => NOW,
+  });
+  return { d, writer };
+}
+
+const ask = (role = 'member', account = 'bob.testnet', dao = DAO, signer = bob) => signDaoMembership(signer, { dao, account, role, deadline: NOW + 600 }, A);
+
+describe('DAO membership desk', () => {
+  it('issues a membership as the DAO, through its scoped delegate grant, after topping up its storage', async () => {
+    const { d, writer } = desk();
+    const out = await d.request(await ask());
+    expect(out).toMatchObject({ dao: DAO, account: 'bob.testnet', role: 'member', attestation: 'ee'.repeat(32) });
+    expect(writer!.sent.map((t) => `${t.receiver}.${t.method}`)).toEqual([`${A}.storage_deposit`, `${A}.attest_on_behalf`]);
+    const issued = writer!.sent[1].args!;
+    expect(issued).toMatchObject({ authority: DAO, schema_uid: MEMBERSHIP, subject: 'bob.testnet', expiration_time: NOW + 365 * 86_400 });
+    expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(issued.data as string)).toMatchObject({ organization: DAO, role: 'member' });
+    // The keeper never votes: no call ever goes to the DAO.
+    expect(writer!.sent.some((t) => t.receiver === DAO)).toBe(false);
+    // Asking again before the indexer has the new membership is still refused.
+    await expect(d.request(await ask())).rejects.toThrow(/already a member/);
+    expect(writer!.sent.filter((t) => t.method === 'attest_on_behalf').length).toBe(1);
   });
 
-  it('does not vote on a DAO whose council it is not on, and gives up a failing vote after three tries', async () => {
-    const outsider = new FakeWriter('someone.testnet');
-    const notMember = new Council({ daos: [DAO], roles: ['member'], attestations: A, reader: chain(attestingDaoPolicy([KEEPER]), [proposal(0)]), writer: outsider, log: quietLog(), errors: new RecentErrors(), nowSecs: () => NOW });
-    expect(await notMember.run()).toEqual([]);
-    expect(outsider.sent).toEqual([]);
-
-    const writer = new FakeWriter(KEEPER);
-    writer.respond = (tx) => {
-      if (tx.method === 'act_proposal') throw new Error('Exceeded the prepaid gas');
-      return null;
-    };
-    const errors = new RecentErrors();
-    const council = new Council({ daos: [DAO], roles: ['member'], attestations: A, reader: chain(attestingDaoPolicy([KEEPER]), [proposal(0)], '1000000000000000000000000'), writer, log: quietLog(), errors, nowSecs: () => NOW });
-    for (let i = 0; i < 5; i++) await council.run();
-    expect(writer.sent.filter((t) => t.method === 'act_proposal').length).toBe(3);
-    expect(errors.list().some((e) => /try 3 of 3/.test(e.message))).toBe(true);
+  it('refuses requests that break the rules, with the reason', async () => {
+    const refusal = async (p: Promise<unknown>) => p.then(() => null, (e: Refusal) => [e.status, e.message] as const);
+    expect(await refusal(desk().d.request(await ask('admin')))).toEqual([400, expect.stringMatching(/needs a council vote/)]);
+    expect(await refusal(desk().d.request(await ask('member', 'bob.testnet', 'other.sputnik-v2.testnet')))).toEqual([400, expect.stringMatching(/not a DAO this keeper issues for/)]);
+    // Signed by someone else's key.
+    const mallory = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(6))}`);
+    expect(await refusal(desk().d.request(await ask('member', 'bob.testnet', DAO, mallory)))).toEqual([403, expect.stringMatching(/not a full-access key/)]);
+    // Already a member.
+    expect(await refusal(desk({ attestations: [row('verdicts.attestra.testnet', 'bob.testnet'), row(DAO, 'bob.testnet', MEMBERSHIP)] }).d.request(await ask()))).toEqual([409, expect.stringMatching(/already a member/)]);
+    // Nobody else vouches: only self-issued attestations.
+    expect(await refusal(desk({ attestations: [row('bob.testnet', 'bob.testnet')] }).d.request(await ask()))).toEqual([403, expect.stringMatching(/no other issuer vouches/)]);
   });
 
-  it('is reachable over HTTP and on by default only for the deployment DAO', async () => {
+  it('needs the council grant and a key', async () => {
+    await expect(desk({ grant: false }).d.request(await ask())).rejects.toThrow(/not a delegate of/);
+    await expect(desk({ writer: null }).d.request(await ask())).rejects.toThrow(/read-only/);
+  });
+
+  it('is on by default only for the deployment DAO', () => {
     expect(loadKeeperConfig({}).daos).toEqual(['attestra.sputnik-v2.testnet']);
     expect(loadKeeperConfig({ KEEPER_DAOS: '' }).daos).toEqual(['attestra.sputnik-v2.testnet']);
     expect(loadKeeperConfig({ KEEPER_DAOS: 'none' }).daos).toEqual([]);
     expect(loadKeeperConfig({ ATTESTRA_ROOT: 'other.testnet' }).daos).toEqual([]);
     expect(loadKeeperConfig({ NEAR_NETWORK: 'mainnet' }).daos).toEqual([]);
     expect(loadKeeperConfig({ KEEPER_DAOS: `${DAO}, x.sputnik-v2.testnet`, KEEPER_DAO_ROLES: 'member' })).toMatchObject({ daos: [DAO, 'x.sputnik-v2.testnet'], daoRoles: ['member'] });
+  });
 
+  it('answers over HTTP with the right status', async () => {
     const config = { ...loadKeeperConfig({ KEEPER_DAOS: DAO }), intervalMs: 60_000 };
-    const reader = chain(attestingDaoPolicy([KEEPER]), [proposal(0)], '1000000000000000000000000');
-    const writer = new FakeWriter(KEEPER);
-    writer.respond = () => null;
+    const { d, writer } = desk({ storage: '1000000000000000000000000' });
+    const reader = chain(true, '1000000000000000000000000');
     const errors = new RecentErrors();
-    const council = new Council({ daos: [DAO], roles: ['member'], attestations: A, reader, writer, log: quietLog(), errors, nowSecs: () => NOW });
     const keeper = new Keeper({ config, indexer: new FakeIndexer(), reader, writer, log: quietLog(), errors });
-    const app = createKeeperApp({ config, keeper, council, reader, writer, errors });
-    const res = await app.request('/v1/dao/review', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { reviewed: Array<{ id: number; decision: string }> }).reviewed).toMatchObject([{ id: 0, decision: 'approve' }]);
-    const idle = createKeeperApp({ config, keeper, council, reader, writer: null, errors });
-    expect((await idle.request('/v1/dao/review', { method: 'POST' })).status).toBe(503);
+    const app = createKeeperApp({ config, keeper, desk: d, reader, writer, errors });
+    expect(((await (await app.request('/v1/dao')).json()) as { delegate: string }).delegate).toBe(KEEPER);
+    expect((await app.request('/v1/dao/membership', { method: 'POST', body: JSON.stringify({ request: await ask('admin') }) })).status).toBe(400);
+    const ok = await app.request('/v1/dao/membership', { method: 'POST', body: JSON.stringify({ request: await ask() }) });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { attestation: string }).attestation).toBe('ee'.repeat(32));
+    expect((await app.request('/v1/dao/membership', { method: 'POST', body: '{}' })).status).toBe(400);
+    const idle = createKeeperApp({ config, keeper, desk: d, reader, writer: null, errors });
+    expect((await idle.request('/v1/dao/membership', { method: 'POST', body: JSON.stringify({ request: await ask() }) })).status).toBe(503);
+  });
+
+  it('issues one membership per account a day, counted only once the account signed', async () => {
+    const config = { ...loadKeeperConfig({ KEEPER_DAOS: DAO }), intervalMs: 60_000 };
+    const { d, writer } = desk({ storage: '1000000000000000000000000' });
+    const reader = chain(true, '1000000000000000000000000');
+    const errors = new RecentErrors();
+    const keeper = new Keeper({ config, indexer: new FakeIndexer(), reader, writer, log: quietLog(), errors });
+    const app = createKeeperApp({ config, keeper, desk: d, reader, writer, errors });
+    const post = (request: unknown) => app.request('/v1/dao/membership', { method: 'POST', body: JSON.stringify({ request }) });
+    // A request signed in bob's name by another key is refused and does not use bob's limit.
+    const eve = keySigner(`ed25519:${base58Encode(new Uint8Array(32).fill(9))}`);
+    expect((await post(await ask('member', 'bob.testnet', DAO, eve))).status).toBe(403);
+    expect((await post(await ask())).status).toBe(200);
+    const again = await post(await ask('contributor'));
+    expect(again.status).toBe(429);
+    expect(Number(again.headers.get('retry-after'))).toBeGreaterThan(80_000);
+    expect(((await again.json()) as { error: string }).error).toMatch(/^Too Many Requests: memberships are limited to 1 per day for one account/);
+    expect(writer!.sent.filter((t) => t.method === 'attest_on_behalf')).toHaveLength(1);
   });
 });

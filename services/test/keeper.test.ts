@@ -156,4 +156,24 @@ describe('keeper pass', () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ ok: false, mode: 'read-only', reason: expect.stringMatching(/KEEPER_PRIVATE_KEY/) });
   });
+
+  it('limits POST /v1/run and POST /v1/dao/* per client address, never /health', async () => {
+    const config = loadKeeperConfig({ KEEPER_RATE_RUN_IP: '2/1h', KEEPER_RATE_DAO_IP: '1/1h', TRUST_PROXY: '1' });
+    const reader = new FakeReader();
+    const errors = new RecentErrors();
+    const keeper = new Keeper({ config, indexer: new FakeIndexer(), reader, writer: null, log: quietLog(), errors, nowSecs: () => NOW });
+    const app = createKeeperApp({ config, keeper, reader, writer: null, errors });
+    const run = (ip: string) => app.request('/v1/run', { method: 'POST', headers: { 'x-forwarded-for': ip } });
+    expect((await run('203.0.113.1')).status).toBe(200);
+    expect((await run('203.0.113.1')).status).toBe(200);
+    const refused = await run('203.0.113.1');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('1800');
+    expect((await run('203.0.113.2')).status).toBe(200);
+    const dao = () => app.request('/v1/dao/membership', { method: 'POST', body: '{}', headers: { 'x-forwarded-for': '203.0.113.1' } });
+    expect((await dao()).status).toBe(503);
+    expect((await dao()).status).toBe(429);
+    expect((await app.request('/v1/dao')).status).toBe(200);
+    for (let i = 0; i < 5; i++) expect([200, 503]).toContain((await app.request('/health')).status);
+  });
 });

@@ -1,6 +1,6 @@
 /** Settings every service shares, from the environment, with working public testnet defaults. */
 
-import { resolveNetwork, type Network, type NetworkConfig } from 'attestra';
+import { parseRate, resolveNetwork, trustProxySetting, type Network, type NetworkConfig, type Rate } from 'attestra';
 import { isPrivateKey, isValidAccountId } from 'near-kit';
 
 export type ServiceName = 'relayer' | 'keeper' | 'topup';
@@ -22,6 +22,8 @@ export interface ServiceConfig {
   privateKey?: string;
   /** Why the service is idle, when it is. */
   idleReason?: string;
+  /** Client addresses come from the first `X-Forwarded-For` hop (TRUST_PROXY, on behind Caddy). */
+  trustProxy: boolean;
 }
 
 /** Env names of the signing account: `RELAYER_*`, `KEEPER_*`, and the treasury for the top-up. */
@@ -35,6 +37,15 @@ export function int(value: string | undefined, fallback: number): number {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) throw new Error(`expected a non-negative number, got "${value}"`);
   return Math.floor(n);
+}
+
+/** A rate setting such as `5/1h` (see `parseRate`); `0` turns that limit off. */
+export function rate(env: NodeJS.ProcessEnv, name: string, fallback: string): Rate {
+  try {
+    return parseRate(env[name], fallback);
+  } catch (e) {
+    throw new Error(`${name}: ${(e as Error).message}`);
+  }
 }
 
 export function loadServiceConfig(service: ServiceName, env: NodeJS.ProcessEnv = process.env): ServiceConfig {
@@ -65,5 +76,6 @@ export function loadServiceConfig(service: ServiceName, env: NodeJS.ProcessEnv =
     accountId,
     privateKey,
     idleReason,
+    trustProxy: trustProxySetting(env.TRUST_PROXY),
   };
 }

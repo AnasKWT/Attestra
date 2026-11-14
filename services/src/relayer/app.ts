@@ -3,12 +3,12 @@
  * storage deposits. Every route checks everything it can off chain before spending gas.
  */
 
-import { errorMessage, type StorageBalance } from 'attestra';
+import { errorMessage, takeAll, TokenBucket, tooManyRequests, type StorageBalance } from 'attestra';
 import { bodyLimit } from 'hono/body-limit';
 import { isValidAccountId } from 'near-kit';
 import type { ChainReader, ChainWriter } from '../lib/chain';
 import { withTimeout } from '../lib/chain';
-import { baseApp, jsonBody, type HealthReport } from '../lib/http';
+import { addressOf, baseApp, jsonBody, limited, secsToUtcMidnight, type HealthReport } from '../lib/http';
 import type { Logger, RecentErrors } from '../lib/log';
 import { TGAS, formatNear } from '../lib/units';
 import type { RelayerConfig } from './config';
@@ -72,6 +72,16 @@ export function createRelayerApp(deps: RelayerDeps) {
 
   const app = baseApp(health);
   app.use('/v1/*', bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: 'body too large' }, 413) }));
+  // Per client address, on top of the per-account budgets: every request reads the chain and most
+  // spend gas; the sponsorships that send NEAR have their own, smaller daily limit.
+  const sponsorIp = new TokenBucket(config.rates.sponsorIp);
+  app.on('POST', '/v1/*', limited(config.trustProxy, 'relayer requests', { limiter: new TokenBucket(config.rates.requestsIp) }));
+  const takeSponsorship = (c: Parameters<typeof addressOf>[0]) => takeAll([{ limiter: sponsorIp, key: addressOf(c, config.trustProxy), scope: 'from one address' }]);
+  /** A daily budget refusal: retried after midnight UTC, when the budgets start again. */
+  const spent = (c: Parameters<typeof addressOf>[0], error: string) => {
+    c.header('Retry-After', String(secsToUtcMidnight()));
+    return c.json({ error }, 429);
+  };
 
   const idle = () => ({ error: `relayer is idle: ${config.idleReason}` });
   const chainError = (what: string, e: unknown) => {
@@ -113,7 +123,7 @@ export function createRelayerApp(deps: RelayerDeps) {
     const over = policy.takeSubmission(attester);
     if (over) {
       log(`submit refused (429): ${over}`);
-      return c.json({ error: over }, 429);
+      return spent(c, over);
     }
 
     let storage: StorageBalance | null = null;
@@ -126,7 +136,7 @@ export function createRelayerApp(deps: RelayerDeps) {
     if (deposit > 0n && !policy.takeStorage(deposit)) {
       policy.refundSubmission(attester);
       log(`submit refused (429): storage budget spent, ${attester} needs a storage deposit`);
-      return c.json({ error: `${attester} has no storage balance left and the relayer's daily storage budget is spent` }, 429);
+      return spent(c, `${attester} has no storage balance left and the relayer's daily storage budget is spent`);
     }
 
     try {
@@ -161,7 +171,7 @@ export function createRelayerApp(deps: RelayerDeps) {
     const over = policy.takeMeta(sender);
     if (over) {
       log(`meta refused (429): ${over}`);
-      return c.json({ error: over }, 429);
+      return spent(c, over);
     }
     try {
       const r = await writer.relay(signed);
@@ -192,14 +202,24 @@ export function createRelayerApp(deps: RelayerDeps) {
       log(`sponsor-storage skipped: ${account} already holds storage on ${which}`);
       return c.json({ deposited: '0', storage_balance: current, tx_hash: null });
     }
+    if (policy.wasSponsored(account, which)) {
+      log(`sponsor-storage refused (409): ${account} was sponsored on ${which} before`);
+      return c.json({ error: `${account} was already sponsored on ${which} (once per account)` }, 409);
+    }
+    const ip = takeSponsorship(c);
+    if (!ip.ok) {
+      log('sponsor-storage refused (429): sponsorships from this address');
+      return tooManyRequests(ip, 'sponsored deposits');
+    }
     if (!policy.takeSponsor(account, which)) {
-      log(`sponsor-storage refused (429): ${account} was sponsored on ${which} today`);
-      return c.json({ error: `${account} was already sponsored on ${which} today` }, 429);
+      sponsorIp.refund(addressOf(c, config.trustProxy));
+      return c.json({ error: `${account} was already sponsored on ${which} (once per account)` }, 409);
     }
     if (!policy.takeStorage(SPONSOR_AMOUNT)) {
       policy.refundSponsor(account, which);
+      sponsorIp.refund(addressOf(c, config.trustProxy));
       log('sponsor-storage refused (429): storage budget spent');
-      return c.json({ error: "the relayer's daily storage budget is spent" }, 429);
+      return spent(c, "the relayer's daily storage budget is spent");
     }
     try {
       const r = await writer.call(contract, 'storage_deposit', { account_id: account, registration_only: null }, { deposit: SPONSOR_AMOUNT, gas: STORAGE_GAS });
@@ -213,7 +233,8 @@ export function createRelayerApp(deps: RelayerDeps) {
 
   /**
    * Funds a passkey account so it exists on chain: a passkey derives an ed25519 key whose implicit
-   * account (64 hex characters) the transfer creates. Once per account, within the storage budget.
+   * account (64 hex characters) the transfer creates. Once per account ever, within the storage
+   * budget and the per-address sponsorship limit (an account that exists costs nothing and is not counted).
    */
   app.post('/v1/passkey-account', async (c) => {
     if (!writer) return c.json(idle(), 503);
@@ -228,10 +249,17 @@ export function createRelayerApp(deps: RelayerDeps) {
       exists = false;
     }
     if (exists) return c.json({ created: false, account_id: account, tx_hash: null });
-    if (!policy.takeSponsor(account, 'passkey')) return c.json({ error: `${account} was already funded today` }, 429);
+    if (policy.wasSponsored(account, 'passkey')) return c.json({ error: `${account} was already funded (once per account)` }, 409);
+    const ip = takeSponsorship(c);
+    if (!ip.ok) return tooManyRequests(ip, 'funded passkey accounts');
+    if (!policy.takeSponsor(account, 'passkey')) {
+      sponsorIp.refund(addressOf(c, config.trustProxy));
+      return c.json({ error: `${account} was already funded (once per account)` }, 409);
+    }
     if (!policy.takeStorage(SPONSOR_AMOUNT)) {
       policy.refundSponsor(account, 'passkey');
-      return c.json({ error: "the relayer's daily budget is spent" }, 429);
+      sponsorIp.refund(addressOf(c, config.trustProxy));
+      return spent(c, "the relayer's daily budget is spent");
     }
     try {
       const r = await writer.transfer(account, SPONSOR_AMOUNT);
@@ -240,6 +268,7 @@ export function createRelayerApp(deps: RelayerDeps) {
     } catch (e) {
       policy.refundStorage(SPONSOR_AMOUNT);
       policy.refundSponsor(account, 'passkey');
+      sponsorIp.refund(addressOf(c, config.trustProxy));
       return c.json(chainError(`passkey-account ${account}`, e), 502);
     }
   });

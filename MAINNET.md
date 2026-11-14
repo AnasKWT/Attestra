@@ -1,7 +1,17 @@
-# Mainnet
+# Mainnet roadmap
 
-Attestra is mainnet-ready.
-The same reproducible build runs on mainnet behind one switch, and this is the runbook that takes every part of it there.
+Attestra runs on NEAR testnet today, and we plan to launch on mainnet.
+The code already knows mainnet: one switch selects it, the same reproducible build deploys there, and the full mainnet configuration has been rehearsed on a local node.
+What is left before the launch is in [The road to mainnet](#the-road-to-mainnet); the rest of this page is the runbook for the launch itself.
+
+## The road to mainnet
+
+1. An independent audit of the contracts and the checker.
+2. A multisig owner for every contract (today one testnet key owns them) and a governance DAO that verifies authorities.
+3. The private checker published to OutLayer on mainnet, its key registered with the mainnet verdicts contract, and the NEAR AI model keys checked with `tools/nearai-verify` against mainnet.
+4. Native USDC for x402 payments and fees, and a real NEP-141 for staking, configured and tested end to end.
+5. Each component deployed and tested on mainnet with small amounts first: contracts, then the indexer, relayer, keeper and agent, then the site.
+6. Monitoring and on-call for the services, and refreshed light client checkpoints in the SDK.
 
 ## The switch
 

@@ -9,7 +9,8 @@
 <p align="center">
   <a href="https://attestra.site"><img alt="Live: attestra.site" src="https://img.shields.io/badge/live-attestra.site-f97316?style=flat-square"></a>
   <a href="deployments/testnet.json"><img alt="NEAR testnet: live" src="https://img.shields.io/badge/NEAR_testnet-live-1c1917?style=flat-square"></a>
-  <a href="MAINNET.md"><img alt="NEAR mainnet: ready" src="https://img.shields.io/badge/NEAR_mainnet-ready-1c1917?style=flat-square"></a>
+  <a href="MAINNET.md"><img alt="NEAR mainnet: on the roadmap" src="https://img.shields.io/badge/NEAR_mainnet-roadmap-1c1917?style=flat-square"></a>
+  <a href="https://github.com/AnasKWT/Attestra/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AnasKWT/Attestra/actions/workflows/ci.yml/badge.svg"></a>
   <a href="#verify-it-yourself"><img alt="Tests: 813 passing" src="https://img.shields.io/badge/tests-813_passing-16a34a?style=flat-square"></a>
   <a href="#deployed-contracts"><img alt="Reproducible builds: NEP-330" src="https://img.shields.io/badge/builds-reproducible_NEP--330-1c1917?style=flat-square"></a>
   <a href="https://attestra.site/mcp"><img alt="MCP: hosted" src="https://img.shields.io/badge/MCP-hosted-f97316?style=flat-square"></a>
@@ -49,7 +50,7 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
   <tr>
     <td valign="top">Evidence such as an ID scan or a payslip is encrypted in the browser to a NEAR AI Cloud model. A checker in NEAR OutLayer's TEE signs the verdict, and only the verdict and a hash reach the chain.</td>
     <td valign="top">The contract asks the NEAR MPC network to verify a transaction on Solana, Base, Arbitrum, Polygon, BNB or Avalanche (<code>verify_foreign_transaction</code>) and checks the signed answer itself.</td>
-    <td valign="top">AI agents get an on-chain identity, reviews, scoped delegation and a function-call key that can only attest and revoke. Other agents read all of it over MCP before they trust or pay one.</td>
+    <td valign="top">AI agents get an on-chain identity, reviews, scoped delegation and a function-call key that can only attest and revoke. An agent is trusted only with an identity its own account (or its parent) registered and paid reviews, each naming the reviewer's payment to the agent on chain. Other agents read all of it over MCP before they trust or pay one.</td>
   </tr>
 </table>
 
@@ -58,7 +59,7 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
 | | |
 |---|---|
 | **Live** | site [attestra.site](https://attestra.site), services [api.attestra.site](https://api.attestra.site/indexer/health), [status](https://attestra.site/status) |
-| **Networks** | live on NEAR testnet under `attestra.testnet`; mainnet-ready behind one switch ([MAINNET.md](MAINNET.md)) |
+| **Networks** | live on NEAR testnet under `attestra.testnet`; mainnet launch planned, with the code behind one switch and a roadmap in [MAINNET.md](MAINNET.md) |
 | **Contracts** | seven Rust contracts and five resolver kinds, reproducible builds with NEP-330 metadata: [Deployed contracts](#deployed-contracts) |
 | **Packages** | `attestra`, `attestra-cli` (binary `attestra`), `attestra-mcp` |
 | **For agents** | MCP at `https://attestra.site/mcp`, [llms.txt](https://attestra.site/llms.txt), [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md) |
@@ -120,17 +121,17 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 
 | Feature | NEAR primitive | Code | On testnet |
 |---|---|---|---|
-| Private AI checks | NEAR AI Cloud verifiable models, end-to-end encryption, a checker in NEAR OutLayer's TEE with a key bound to its build, both signatures checked with `env::ed25519_verify` | [ai.rs](contracts/verdicts/src/ai.rs), [checker](checker/src/check.rs), [outlayer.ts](apps/agent/src/outlayer.ts) | run on OutLayer [GSXM8bdD](https://testnet.nearblocks.io/txns/GSXM8bdDuKr1vDqQ9Go4kXKPfsfbgHfuYqETLtkdBKat), verdict [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1), the checker's key from its attested run [6n3rj51G](https://testnet.nearblocks.io/txns/6n3rj51Gb7XN1QV3pF6tyiUYrYsPr2i2dto42Am98Ru3) |
+| Private AI checks | NEAR AI Cloud verifiable models, end-to-end encryption, a checker in NEAR OutLayer's TEE with a key bound to its build that runs only for a subject who signed the request (NEP-413, key read from the chain), both signatures checked with `env::ed25519_verify` | [ai.rs](contracts/verdicts/src/ai.rs), [checker](checker/src/check.rs), [outlayer.ts](apps/agent/src/outlayer.ts) | run on OutLayer [GSXM8bdD](https://testnet.nearblocks.io/txns/GSXM8bdDuKr1vDqQ9Go4kXKPfsfbgHfuYqETLtkdBKat), verdict [FRoM2PTu](https://testnet.nearblocks.io/txns/FRoM2PTuCZ4wcWvLPnCR9tAd6TasuERH1Q8QAdX8SHr1), the checker's key from its attested run [6n3rj51G](https://testnet.nearblocks.io/txns/6n3rj51Gb7XN1QV3pF6tyiUYrYsPr2i2dto42Am98Ru3) |
 | Facts about EVM chains | Chain Signatures `verify_foreign_transaction` on an EVM log, answer checked with `env::ecrecover` | [foreign.rs](contracts/verdicts/src/foreign.rs), [mpc.rs](contracts/verdicts/src/mpc.rs) | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
 | Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) |
 | Wallet links | EIP-191 and ed25519 signatures verified on chain | [wallet.rs](contracts/verdicts/src/wallet.rs) | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
-| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts) | `agent.attestra.testnet`: identity [4BBKBgVK](https://testnet.nearblocks.io/txns/4BBKBgVKNfNYGCgm5RkV95v5XqWWearzuR8mDXPYYNhy), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), function-call key [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
+| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke; an identity is verified only when the agent account or its parent attested it, a review counts once per reviewer and never from the agent, its owner or their sub-accounts, and it is paid when its `job_ref` is a transaction (NEAR transfer, `ft_transfer`, or x402 settlement) in which the reviewer paid the agent, read with the `tx` RPC method; trusted means a verified identity and paid reviews averaging at least 3.5 | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts), [reputation.ts](packages/sdk/src/reputation.ts) | `agent.attestra.testnet`: identity [4BBKBgVK](https://testnet.nearblocks.io/txns/4BBKBgVKNfNYGCgm5RkV95v5XqWWearzuR8mDXPYYNhy), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), the function-call key its owner `attestra.testnet` added to its own account for the agent to hold [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
 | Paid verification | x402 on NEAR: a signed delegate action carrying `ft_transfer`, settled on chain before the answer | [x402.ts](packages/sdk/src/x402.ts), [paid.ts](apps/agent/src/paid.ts) | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
 | Gasless issuing | NEP-413 signed requests and NEP-366 meta transactions through the relayer | [relayer](services/src/relayer/app.ts), [ops.rs](contracts/attestations/src/ops.rs) | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
 | Passkey accounts | WebAuthn PRF to an ed25519 implicit account | [passkey.ts](apps/web/src/lib/passkey.ts) | the same transaction, signed by a passkey account |
 | Resolver gate | an asynchronous cross-contract call with commit or rollback, five resolver kinds in one wasm | [gate.rs](contracts/attestations/src/gate.rs), [resolvers](contracts/resolvers/src/lib.rs) | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) (a refusal) |
-| Light client proofs | block approvals over 2/3 of stake and the outcome's merkle path, checked locally | [lightclient.ts](packages/sdk/src/lightclient.ts) | proves the transactions above; `pnpm verify` runs one |
-| DAO attesters | Sputnik DAO v2: a `FunctionCall` proposal that the council votes on, after which the DAO account itself calls `attest`; on the deployment DAO the keeper is a reviewer that can only vote on function calls, and it votes on membership requests by a fixed rule | [dao.ts](packages/sdk/src/dao.ts), [council.ts](services/src/keeper/council.ts) | `attestra.sputnik-v2.testnet`: proposal [Asck7Z98](https://testnet.nearblocks.io/txns/Asck7Z98nLKA1KRVy2YBXXeSAjgWnpqghGkwTs1EdNmF), approval and attestation [FrssFLjq](https://testnet.nearblocks.io/txns/FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP) |
+| Light client proofs | block approvals over 2/3 of stake, with the validator set chained from a pinned checkpoint, and the outcome's merkle path, checked locally | [lightclient.ts](packages/sdk/src/lightclient.ts) | proves the transactions above; `pnpm verify` runs one |
+| DAO attesters | Sputnik DAO v2: a `FunctionCall` proposal the council votes on makes the DAO account call `attest` itself; for routine memberships the council votes the keeper an Attestra delegate grant (membership schema, use limit, expiry), and the keeper issues with `attest_on_behalf`, so the DAO stays the attester and the keeper has no vote or say over the DAO | [dao.ts](packages/sdk/src/dao.ts), [council.ts](services/src/keeper/council.ts) | `attestra.sputnik-v2.testnet`: council vote [GGtxFaJk](https://testnet.nearblocks.io/txns/GGtxFaJkWzmzgPMzZnuW2SLEjaSfkVnk65v4VdFT6SvH), the grant voted [9vWVUVtx](https://testnet.nearblocks.io/txns/9vWVUVtxbkSpBsEnvehrwFj7Gs9QiWLUqFLxkr51Qsgy) |
 | Credentials | NEP-171, non-transferable, burned when the attestation is revoked | [credentials](contracts/credentials/src/lib.rs) | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | Reproducible builds | NEP-330 metadata, `near contract verify` | [build.sh](contracts/scripts/build.sh) | see [Deployed contracts](#deployed-contracts) |
 
@@ -138,7 +139,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 
 ## Live on testnet
 
-Every flow below ran against the deployed testnet contracts, and each link is its transaction; the same build is mainnet-ready.
+Every flow below ran against the deployed testnet contracts, and each link is its transaction.
 The test runs create their own accounts and delete them afterwards, returning the NEAR to the root, so several signers no longer exist; their transactions and attestations stay on chain.
 
 | Flow | Transaction |
@@ -152,8 +153,8 @@ The test runs create their own accounts and delete them afterwards, returning th
 | An Ethereum wallet linked to a NEAR account by its EIP-191 signature | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
 | A resolver refusing an attestation, which is removed and its storage refunded | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) |
 | A multisig authority reaching its threshold and attesting | [5uWRoyvR](https://testnet.nearblocks.io/txns/5uWRoyvRPEkcpQJSMqkVCtDjioRrKPWbJzyRyd2YGNuQ) |
-| A Sputnik DAO issuing a membership attestation: a member proposed it, the keeper voted as the DAO's reviewer, and the DAO account attested in the same transaction | [FrssFLjq](https://testnet.nearblocks.io/txns/FrssFLjqH73ELobhHcC4z4YBTaAYc8q1W7oV99camKqP) |
-| The keeper rejecting a request about someone else's account, with the reason as the vote's memo | [F17B8Zmp](https://testnet.nearblocks.io/txns/F17B8ZmpZ9fjpg62PoEPUX9BoZs6jiNcoaUcKNG2RNuc) |
+| A Sputnik DAO issuing a membership by council vote: the treasury proposed it, the council approved, and the DAO account attested in the same transaction | [GGtxFaJk](https://testnet.nearblocks.io/txns/GGtxFaJkWzmzgPMzZnuW2SLEjaSfkVnk65v4VdFT6SvH) |
+| The same DAO's council voting the keeper a delegate grant limited to the membership schema, 1000 uses and 120 days | [9vWVUVtx](https://testnet.nearblocks.io/txns/9vWVUVtxbkSpBsEnvehrwFj7Gs9QiWLUqFLxkr51Qsgy) |
 | A credential minted, then burned when its attestation was revoked | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | A scheduled revocation | [ETjb9aGT](https://testnet.nearblocks.io/txns/ETjb9aGTawxQiNi6TWjQsgGtvm2Mm9caw8WHc7HGfMCm) |
 | A token reward paid by a resolver | [2Pdm1UN8](https://testnet.nearblocks.io/txns/2Pdm1UN8s7hL9k736nZGX5i1CDvHJW33d6bA68Svw4Ak) |
@@ -288,6 +289,9 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 - **What is public:** every attestation's schema, subject, attester and data.
   Never put secrets or raw evidence in attestation data.
 - **What stays private:** evidence for a private check is encrypted in the browser to the NEAR AI model's key; the chain stores only the verdict, the rule, the model and the evidence hash.
+  A GitHub rule proves the login is yours (a public gist naming your account) without the login ever going on chain.
+- **Who can be the subject of a private check:** only the account that asks.
+  Its key signs the request (NEP-413) naming the rule, the subject and the hash of the exact encrypted evidence, and the checker in the TEE verifies the signature and reads from the chain that the key is a full-access key of that account before it signs a verdict.
 - **Whom you trust for an AI verdict:** the model's signing key, published by NEAR AI Cloud from inside its TEE, and the checker key that the verdicts contract's owner allowlisted.
   The contract checks both signatures and that the NEAR AI signature covers the exact request it was given.
   The model's answer stays encrypted end to end: the checker verifies that the model's signature covers it, and the contract accepts the result under the checker's signature.
@@ -297,9 +301,11 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
   On testnet the checks run on OutLayer (`CHECKER_MODE=outlayer`): `deployments/testnet.json` records the build's hash, its FastFS URL, the key and the run that produced it, and `pnpm verify` checks that OutLayer's TDX attestation of that run binds the key to the build.
   The agent can also run the same steps locally with a configured key (`CHECKER_MODE=local`) for development; the status page, the private check tool and the Only on NEAR page say which mode is live.
 - **Whom you trust for a foreign event:** the NEAR MPC network's key; the contract recomputes the signed payload hash itself.
+  The default subject is the emitting contract or program; any other subject must be the caller or a wallet linked to the caller, and each event is recorded once per subject, so nobody can claim someone else's payment or block them from claiming it.
   For Solana the attested fact is the instruction exactly as the program recorded it, decoded by each schema's reader.
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself: more than 2/3 of stake approved the block, and the outcome's merkle path leads to it.
-  The head's approvals are checked against the epoch's validator set (`EXPERIMENTAL_validators_ordered`), and the proof runs in your own process.
+  The validator set is not taken from the RPC: it is chained from a checkpoint pinned in the SDK ([checkpoints.ts](packages/sdk/src/checkpoints.ts)), epoch by epoch, each epoch's producers approving the next set's hash (`next_bp_hash`), as NEAR's light client spec defines.
+  What is still trusted is that pinned checkpoint (a block hash you can compare with any explorer) and more than 2/3 of stake in each epoch since; a lying RPC can make a proof fail, never pass, and the proof runs in your own process.
 - **Contract owners** manage allowlisted keys and resolver settings, a role meant for a multisig on mainnet; the security review, its fixes and the design decisions are in [SECURITY.md](SECURITY.md).
 
 ---
@@ -308,9 +314,8 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 
 - **Privacy and Private AI:** private facts checked by verifiable AI with end-to-end encryption; only a verdict and a hash go on chain.
 - **Agent Economy:** Know Your Agent identity, reviews, scoped delegation and function-call keys; MCP and A2A interfaces; x402 paid verification and an Agent Market listing ready to publish.
-- **AI Security and Defense:** function-call keys that can only attest and revoke within a gas allowance, per-tool and per-day caps on the MCP write tools, TEE attestations checked before a verdict is trusted, and reputation an agent can read before it trusts or pays another.
-- **Social Money:** Sputnik DAOs as attesters, so a community issues membership credentials by proposal and council vote; gasless issuing, passkey accounts, and credentials that let communities vouch for people and gate rewards.
-- **NFTs That Do Something:** NEP-171 credentials that carry an attestation, cannot be transferred, and burn the moment the attestation is revoked.
+- **AI Security and Defense:** function-call keys that can only attest and revoke within a gas allowance, rate limits and per-day caps on every endpoint and tool that spends, verdicts accepted only under a checker key bound to its TEE-attested build and only for a subject that signed the request, and reputation that counts only paid reviews from accounts the agent's owner does not control.
+- **Social Money:** Sputnik DAOs as attesters with reputation-based access: a community issues membership credentials by council vote, or through a scoped delegate grant its council voted, to accounts that another issuer already vouches for; plus gasless issuing, passkey accounts, token-gated and token-reward resolvers.
 - **Open Innovation:** facts about Solana and EVM chains with no oracle through Chain Signatures, and light client proofs any client can check.
 
 ---
@@ -343,7 +348,7 @@ skills/attestra/  the agent skill
 |---|---|
 | **Site** | [attestra.site](https://attestra.site) on Vercel |
 | **Services** | indexer, agent, relayer, keeper and top-up at [api.attestra.site](https://api.attestra.site/indexer/health), running `compose.yaml` behind Caddy; [/status](https://attestra.site/status) shows their health |
-| **Contracts** | NEAR testnet from a reproducible build; mainnet-ready with the same build behind one switch ([MAINNET.md](MAINNET.md)) |
+| **Contracts** | NEAR testnet from a reproducible build; mainnet is next, see the roadmap in [MAINNET.md](MAINNET.md) |
 | **Private checks** | live inside NEAR OutLayer's TEE: the checker build is published on FastFS, its key comes from a TDX-attested run of that build, and the verdicts contract allowlists only that key |
 | **Packages** | `attestra`, `attestra-cli` and `attestra-mcp`, clean-install tested; every command above runs from the repository |
 | **Checks** | `pnpm verify` passes every check against the hosted stack |

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ToolFrame } from '@/components/sandbox/ToolFrame';
 import { Badge, Panel } from '@/components/ui/primitives';
 import { AGENT_URL } from '@/lib/config';
+import { readableError } from '@/lib/useFetch';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -38,7 +39,7 @@ export default function AgentChat() {
       if (!res.ok || !body.reply) throw new Error(body.error ?? `the agent answered ${res.status}`);
       setMsgs([...next, { role: 'assistant', content: body.reply, tools: body.tools, verification: body.verification }]);
     } catch (e) {
-      setErr((e as Error).message);
+      setErr(readableError((e as Error).message));
     } finally {
       setBusy(false);
     }

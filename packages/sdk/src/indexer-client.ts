@@ -13,15 +13,16 @@ import type {
   ProfileSummary,
 } from './types';
 
+import type { AgentReputation, ReputationReview } from './reputation';
 import { fetchWithRetry } from './retry';
 
-export interface AgentProfile {
+export type AgentReview = ReputationReview<IndexedAttestation>;
+
+/** An agent's profile: the reputation rules in `reputation.ts` applied to its attestations, plus its delegations. */
+export interface AgentProfile extends AgentReputation<IndexedAttestation, IndexedAttestation> {
   account_id: string;
-  identity: IndexedAttestation | null;
-  identity_fields: Record<string, unknown> | null;
-  reviews: Array<IndexedAttestation & { fields: Record<string, unknown> | null }>;
-  review_count: number;
-  average_score: number | null;
+  /** Every active identity attestation about the agent, newest first, whoever attested it. */
+  identities?: IndexedAttestation[];
   delegations: Array<Record<string, unknown>>;
   authority: IndexedAuthority | null;
 }

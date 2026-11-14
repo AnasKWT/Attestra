@@ -128,6 +128,18 @@ describe('top-up service', () => {
     expect(t.topup.dailyUsed).toBe(0n);
   });
 
+  it('limits /api/balances and POST /v1/run per client address, never /health', async () => {
+    const t = setup({ env: { TOPUP_RATE_BALANCES_IP: '2/1m', TOPUP_RATE_RUN_IP: '1/1h' } });
+    expect((await t.app.request('/api/balances')).status).toBe(200);
+    expect((await t.app.request('/api/balances')).status).toBe(200);
+    const refused = await t.app.request('/api/balances');
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('30');
+    expect((await t.app.request('/v1/run', { method: 'POST' })).status).toBe(200);
+    expect((await t.app.request('/v1/run', { method: 'POST' })).status).toBe(429);
+    for (let i = 0; i < 4; i++) expect([200, 503]).toContain((await t.app.request('/health')).status);
+  });
+
   it('serves /api/balances with mins, targets and the treasury warning', async () => {
     const t = setup();
     t.reader.balances.set(t.config.accountId, n('12'));

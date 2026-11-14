@@ -1,7 +1,10 @@
 import { keySigner, signRequest, type DelegatedAction, type SignedRequest } from 'attestra';
 import { Near, generateKey, type PrivateKey } from 'near-kit';
 import { describe, expect, it } from 'vitest';
-import { DailyLedger } from '../src/lib/ledger';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DailyLedger, OnceLedger } from '../src/lib/ledger';
 import { RecentErrors } from '../src/lib/log';
 import { parseNear } from '../src/lib/units';
 import { createRelayerApp } from '../src/relayer/app';
@@ -202,13 +205,13 @@ describe('relayer API', () => {
     expect(r.writer!.sent).toHaveLength(1);
   });
 
-  it('sponsors 0.05 NEAR of storage once per account and day', async () => {
+  it('sponsors 0.05 NEAR of storage once per account, ever', async () => {
     const r = relayer({ env: { RELAYER_STORAGE_BUDGET_NEAR: '1' } });
     r.writer!.respond = () => ({ total: '5', available: '5' });
     const res = await r.post('/v1/sponsor-storage', { account_id: 'newbie.testnet', contract: 'schemas' });
     expect(res.status).toBe(200);
     expect(r.writer!.sent[0]).toMatchObject({ receiver: 'schemas.attestra.testnet', method: 'storage_deposit', deposit: parseNear('0.05'), args: { account_id: 'newbie.testnet' } });
-    expect((await r.post('/v1/sponsor-storage', { account_id: 'newbie.testnet', contract: 'schemas' })).status).toBe(429);
+    expect((await r.post('/v1/sponsor-storage', { account_id: 'newbie.testnet', contract: 'schemas' })).status).toBe(409);
     expect((await r.post('/v1/sponsor-storage', { account_id: 'newbie.testnet', contract: 'nope' })).status).toBe(400);
     r.reader.setView('attestations.attestra.testnet', 'storage_balance_of', 'rich.testnet', { total: '1', available: String(parseNear('1')) });
     expect(await (await r.post('/v1/sponsor-storage', { account_id: 'rich.testnet', contract: 'attestations' })).json()).toMatchObject({ deposited: '0' });
@@ -221,11 +224,68 @@ describe('relayer API', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ created: true, account_id: id });
     expect(r.writer!.sent[0]).toMatchObject({ kind: 'transfer', receiver: id, amount: parseNear('0.05') });
-    expect((await r.post('/v1/passkey-account', { account_id: id })).status).toBe(429);
+    expect((await r.post('/v1/passkey-account', { account_id: id })).status).toBe(409);
     expect((await r.post('/v1/passkey-account', { account_id: 'named.testnet' })).status).toBe(400);
     r.reader.balances.set('cd'.repeat(32), 10n);
     expect(await (await r.post('/v1/passkey-account', { account_id: 'cd'.repeat(32) })).json()).toMatchObject({ created: false });
     expect(r.writer!.sent).toHaveLength(1);
+  });
+
+  it('remembers a sponsorship across restarts and days', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'relayer-')), 'sponsored.json');
+    const cfg = loadRelayerConfig({});
+    const first = new RelayerPolicy(cfg, new DailyLedger(null), new OnceLedger(file));
+    expect(first.takeSponsor('newbie.testnet', 'schemas')).toBe(true);
+    const later = new RelayerPolicy(cfg, new DailyLedger(null, () => new Date('2030-01-01T00:00:00Z')), new OnceLedger(file));
+    expect(later.wasSponsored('newbie.testnet', 'schemas')).toBe(true);
+    expect(later.takeSponsor('newbie.testnet', 'schemas')).toBe(false);
+    later.refundSponsor('newbie.testnet', 'schemas');
+    expect(new OnceLedger(file).has('sponsor:schemas:newbie.testnet')).toBe(false);
+  });
+
+  it('limits sponsorships that spend per client address, behind a trusted proxy', async () => {
+    const r = relayer({ env: { RELAYER_STORAGE_BUDGET_NEAR: '1', RELAYER_RATE_SPONSOR_IP: '1/1d', TRUST_PROXY: 'true' } });
+    const from = (ip: string, account: string) =>
+      r.app.request('/v1/passkey-account', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': ip }, body: JSON.stringify({ account_id: account }) });
+    expect((await from('198.51.100.1', 'a1'.repeat(32))).status).toBe(200);
+    // An account that already exists costs nothing and is not counted.
+    r.reader.balances.set('cd'.repeat(32), 10n);
+    expect((await from('198.51.100.1', 'cd'.repeat(32))).status).toBe(200);
+    const refused = await from('198.51.100.1', 'a2'.repeat(32));
+    expect(refused.status).toBe(429);
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/^Too Many Requests: funded passkey accounts are limited to 1 per day from one address/);
+    expect((await r.post('/v1/sponsor-storage', { account_id: 'newbie.testnet', contract: 'schemas' })).status).toBe(200);
+    expect((await from('198.51.100.2', 'a2'.repeat(32))).status).toBe(200);
+    expect(r.writer!.sent).toHaveLength(3);
+  });
+
+  it('limits every POST per client address and never /live or /health', async () => {
+    const r = relayer({ env: { RELAYER_RATE_IP: '2/10m' } });
+    const req = await signed();
+    expect((await r.post('/v1/submit', { request: req })).status).toBe(200);
+    const second = await r.post('/v1/meta', { signed_delegate: '' });
+    expect(second.status).toBe(400);
+    expect(second.headers.get('ratelimit-remaining')).toBe('0');
+    const third = await r.post('/v1/submit', { request: req });
+    expect(third.status).toBe(429);
+    expect(third.headers.get('retry-after')).toBe('300');
+    expect(third.headers.get('access-control-expose-headers')).toMatch(/Retry-After/);
+    for (let i = 0; i < 5; i++) {
+      expect((await r.app.request('/health')).status).toBe(200);
+      expect((await r.app.request('/live')).status).toBe(200);
+    }
+    expect(r.writer!.sent).toHaveLength(1);
+  });
+
+  it('says when a daily budget starts again', async () => {
+    const r = relayer({ env: { RELAYER_DAILY_PER_ATTESTER: '1' } });
+    expect((await r.post('/v1/submit', { request: await signed() })).status).toBe(200);
+    const spent = await r.post('/v1/submit', { request: await signed() });
+    expect(spent.status).toBe(429);
+    const wait = Number(spent.headers.get('retry-after'));
+    expect(wait).toBeGreaterThan(0);
+    expect(wait).toBeLessThanOrEqual(86_400);
   });
 
   it('shows balance, budgets, queue and gas key use in /health', async () => {

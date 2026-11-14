@@ -1,95 +1,70 @@
 /**
- * The keeper as a Sputnik DAO reviewer. Each pass it reads the newest open proposals of the DAOs
- * whose policy lets it vote on function calls, and votes on membership requests by a fixed rule;
- * everything else (other schemas, revocations, transfers, policy changes) is left to the council.
- * On the deployment DAO its role can only vote on function calls (`attestingDaoPolicy` reviewers).
+ * The keeper as a Sputnik DAO's membership desk. The DAO's council votes once to make the keeper
+ * an Attestra delegate of the DAO (`add_delegate`, proposed with `daoDelegateProposal`), scoped
+ * on chain to the membership schema, a use limit and an expiry. The keeper then issues membership
+ * attestations with `attest_on_behalf`, so the attester is the DAO, and the attestations contract
+ * enforces the scope: the keeper's key cannot vote, move the DAO's funds, change its policy or
+ * attest anything else, and the council revokes the grant with one more proposal.
  *
- * The rule: one `attest` call on the attestations contract, under the well-known membership
- * schema, about the proposer, naming this DAO as the organization, in an allowed role, with no
- * deposit. A request that breaks one of these is rejected with the reason as the vote's memo.
+ * A request is the account's own NEP-413 signature over `daoMembershipMessage` (the account asks
+ * for itself, with a full-access key). It is granted when:
+ *   - the role is one of the automatic roles (others go to the council as a proposal),
+ *   - the account holds no active membership from this DAO yet,
+ *   - another issuer already vouches for the account: at least one active attestation about it
+ *     from an attester that is neither the account nor the DAO (a passed private check, a linked
+ *     wallet, a member's vouch). That is the DAO's reputation-based access rule.
  */
 
 import {
   attestraEvents,
-  daoCan,
-  DAO_MAX_ACTION_GAS,
   errorMessage,
   KNOWN_SCHEMAS,
   knownSchemaUid,
-  parseDaoCall,
-  receiptFailure,
   SchemaEncoder,
-  type DaoPolicy,
-  type DaoProposal,
+  verifyDaoMembershipRequest,
+  type DaoMembershipRequest,
+  type IndexedAttestation,
+  type Paginated,
 } from 'attestra';
 import type { ChainReader, ChainWriter } from '../lib/chain';
-import type { Logger, RecentErrors } from '../lib/log';
+import type { Logger } from '../lib/log';
 import { TGAS } from '../lib/units';
 
-export type Decision = 'approve' | 'reject' | 'skip';
-
-export interface CouncilRule {
-  dao: string;
-  attestations: string;
-  /** Roles the keeper approves without a human. */
-  roles: string[];
-  nowSecs: number;
+export interface MembershipIndexer {
+  listAttestations(q: { schema?: string; attester?: string; subject?: string; status?: string; limit?: number }): Promise<Paginated<IndexedAttestation>>;
 }
 
-export interface ReviewedProposal {
+export interface MembershipResult {
   dao: string;
-  id: number;
-  decision: Decision;
-  reason: string;
-  /** The proposal's status after the vote. */
-  status?: string;
-  tx?: string;
-  attestation?: string;
+  account: string;
+  role: string;
+  attestation: string;
+  tx: string;
 }
 
 const MEMBERSHIP = knownSchemaUid('membership');
 const encoder = new SchemaEncoder(KNOWN_SCHEMAS.membership.definition);
-const VOTE_GAS = 300n * TGAS;
-/** A clock skew allowance for `since`. */
-const SKEW_SECS = 600;
-/** Proposals read per DAO per pass. */
-const WINDOW = 20;
-const MAX_TRIES = 3;
+const ISSUE_GAS = 100n * TGAS;
+/** A membership the desk issues lasts a year; the member asks again after that. */
+const MEMBERSHIP_SECS = 365 * 86_400;
 /** The DAO's storage balance on the attestations contract is topped up to cover what it issues. */
 const STORAGE_LOW = 5n * 10n ** 22n;
 const STORAGE_TOP_UP = 10n ** 23n;
 
-/** What the keeper does with one proposal, and why. */
-export function review(p: DaoProposal, rule: CouncilRule): { decision: Decision; reason: string } {
-  if (p.status !== 'InProgress') return { decision: 'skip', reason: `already ${p.status}` };
-  const call = parseDaoCall(p.kind, rule.attestations);
-  if (!call) return { decision: 'skip', reason: 'not a single call to the attestations contract; left to the council' };
-  if (call.method !== 'attest') return { decision: 'skip', reason: 'a revocation; left to the council' };
-  if (call.schemaUid !== MEMBERSHIP) return { decision: 'skip', reason: 'not the membership schema; left to the council' };
-  if (call.deposit !== '0') return { decision: 'reject', reason: 'the call attaches a deposit from the DAO' };
-  if (BigInt(call.gas) > DAO_MAX_ACTION_GAS) return { decision: 'reject', reason: 'the call asks for too much gas' };
-  if (call.subject !== p.proposer) return { decision: 'reject', reason: `a member can only ask about their own account (${p.proposer})` };
-  let fields: Record<string, unknown>;
-  try {
-    fields = encoder.decode(call.data);
-  } catch {
-    return { decision: 'reject', reason: 'the data does not decode under the membership schema' };
+/** A refusal the caller can act on (HTTP 4xx), as opposed to an outage. */
+export class Refusal extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 403 | 409 = 403,
+  ) {
+    super(message);
   }
-  if (fields.organization !== rule.dao) return { decision: 'reject', reason: `the organization must be ${rule.dao}` };
-  if (!rule.roles.includes(String(fields.role))) return { decision: 'reject', reason: `role "${String(fields.role)}" needs a human vote; automatic roles: ${rule.roles.join(', ')}` };
-  if (Number(fields.since) > rule.nowSecs + SKEW_SECS) return { decision: 'reject', reason: '"since" is in the future' };
-  if (call.expirationTime !== null && call.expirationTime <= rule.nowSecs) return { decision: 'reject', reason: 'the expiration time has passed' };
-  return { decision: 'approve', reason: `membership of ${p.proposer} as ${String(fields.role)} matches the council rule` };
 }
 
-export class Council {
-  last: { at: string; reviewed: ReviewedProposal[] } | null = null;
-  private inFlight: Promise<ReviewedProposal[]> | null = null;
-  /** Proposals this keeper voted on or left alone, so a pass does not read them twice. */
-  private readonly done = new Set<string>();
-  private readonly notMember = new Set<string>();
-  /** Failed votes per proposal: a vote that keeps failing is given up after MAX_TRIES. */
-  private readonly tries = new Map<string, number>();
+export class MembershipDesk {
+  private inFlight = new Set<string>();
+  /** Memberships issued lately, until the indexer has them (it trails the chain by seconds to minutes). */
+  private readonly issued = new Map<string, { uid: string; at: number }>();
 
   constructor(
     private readonly deps: {
@@ -98,94 +73,69 @@ export class Council {
       attestations: string;
       reader: ChainReader;
       writer: ChainWriter | null;
+      indexer: MembershipIndexer;
       log: Logger;
-      errors: RecentErrors;
+      hasFullAccessKey: (accountId: string, publicKey: string) => Promise<boolean>;
       nowSecs?: () => number;
     },
   ) {}
 
-  /** One review of every DAO; never throws. A call during a review gets that review. */
-  run(): Promise<ReviewedProposal[]> {
-    this.inFlight ??= this.pass().finally(() => {
-      this.inFlight = null;
-    });
-    return this.inFlight;
+  private now() {
+    return this.deps.nowSecs?.() ?? Math.floor(Date.now() / 1000);
   }
 
-  private async pass(): Promise<ReviewedProposal[]> {
-    const out: ReviewedProposal[] = [];
+  /** What a client needs to know before asking. */
+  info() {
+    return { daos: this.deps.daos, auto_roles: this.deps.roles, delegate: this.deps.writer?.accountId ?? null, schema: MEMBERSHIP };
+  }
+
+  /** Checks a signed request against the rules and issues the membership as the DAO. */
+  async request(req: DaoMembershipRequest): Promise<MembershipResult> {
     const writer = this.deps.writer;
-    if (!writer) return out;
-    for (const dao of this.deps.daos) {
-      try {
-        out.push(...(await this.reviewDao(dao, writer)));
-      } catch (e) {
-        const message = `reviewing ${dao}: ${errorMessage(e)}`;
-        this.deps.errors.add(message);
-        this.deps.log(message);
-      }
+    if (!writer) throw new Error('the keeper is read-only');
+    let m: { dao: string; account: string; role: string };
+    try {
+      m = await verifyDaoMembershipRequest(req, { attestations: this.deps.attestations, hasFullAccessKey: this.deps.hasFullAccessKey, now: this.now() });
+    } catch (e) {
+      throw new Refusal(errorMessage(e), 403);
     }
-    this.last = { at: new Date().toISOString(), reviewed: out };
-    return out;
-  }
+    if (!this.deps.daos.includes(m.dao)) throw new Refusal(`${m.dao} is not a DAO this keeper issues for`, 400);
+    if (!this.deps.roles.includes(m.role)) throw new Refusal(`role "${m.role}" needs a council vote; automatic roles: ${this.deps.roles.join(', ')}`, 400);
+    const key = `${m.dao}#${m.account}`;
+    if (this.inFlight.has(key)) throw new Refusal(`a request of ${m.account} is already being issued`, 409);
+    this.inFlight.add(key);
+    try {
+      const grant = await this.deps.reader.view<Record<string, unknown> | null>(this.deps.attestations, 'get_delegate', { authority: m.dao, delegate: writer.accountId });
+      if (!grant) throw new Error(`${writer.accountId} is not a delegate of ${m.dao}: the council has to grant it first`);
 
-  private async reviewDao(dao: string, writer: ChainWriter): Promise<ReviewedProposal[]> {
-    const policy = await this.deps.reader.view<DaoPolicy>(dao, 'get_policy');
-    if (!daoCan(policy, writer.accountId, 'VoteApprove')) {
-      if (!this.notMember.has(dao)) this.deps.log(`${writer.accountId} is not on the council of ${dao}; not reviewing it`);
-      this.notMember.add(dao);
-      return [];
+      for (const [k, v] of this.issued) if (this.now() - v.at > 3600) this.issued.delete(k);
+      const recent = this.issued.get(key);
+      if (recent) throw new Refusal(`${m.account} is already a member of ${m.dao} (${recent.uid})`, 409);
+      const held = await this.deps.indexer.listAttestations({ attester: m.dao, subject: m.account, schema: MEMBERSHIP, status: 'active', limit: 1 });
+      if (held.data.length) throw new Refusal(`${m.account} is already a member of ${m.dao} (${held.data[0].uid})`, 409);
+      const about = await this.deps.indexer.listAttestations({ subject: m.account, status: 'active', limit: 50 });
+      if (!about.data.some((a) => a.attester !== m.account && a.attester !== m.dao)) {
+        throw new Refusal(`no other issuer vouches for ${m.account} yet: get one attestation about your account first (a private check, a linked wallet or a member's vouch)`, 403);
+      }
+
+      await this.ensureStorage(m.dao, writer);
+      const now = this.now();
+      const data = encoder.encode({ organization: m.dao, role: m.role, since: now });
+      const r = await writer.call(
+        this.deps.attestations,
+        'attest_on_behalf',
+        { authority: m.dao, schema_uid: MEMBERSHIP, subject: m.account, data, expiration_time: now + MEMBERSHIP_SECS, ref_uid: null },
+        { gas: ISSUE_GAS },
+      );
+      const created = attestraEvents(r.outcome).find((e) => e.event === 'attestation_created' || e.event === 'attestation_pending');
+      const uid = (created?.data[0]?.uid as string | undefined) ?? (r.value as { uid?: string } | null)?.uid;
+      if (!uid) throw new Error(`the attestation was not created (tx ${r.txHash})`);
+      this.issued.set(key, { uid, at: this.now() });
+      this.deps.log(`membership of ${m.account} as ${m.role} issued by ${m.dao}: ${uid} tx ${r.txHash}`);
+      return { dao: m.dao, account: m.account, role: m.role, attestation: uid, tx: r.txHash };
+    } finally {
+      this.inFlight.delete(key);
     }
-    this.notMember.delete(dao);
-    const last = await this.deps.reader.view<number>(dao, 'get_last_proposal_id');
-    const from = Math.max(0, last - WINDOW);
-    const proposals = last > from ? await this.deps.reader.view<DaoProposal[]>(dao, 'get_proposals', { from_index: from, limit: last - from }) : [];
-    const out: ReviewedProposal[] = [];
-    const now = this.deps.nowSecs?.() ?? Math.floor(Date.now() / 1000);
-    for (const p of proposals) {
-      const key = `${dao}#${p.id}`;
-      if (this.done.has(key)) continue;
-      if (p.status !== 'InProgress' || p.votes[writer.accountId]) {
-        this.done.add(key);
-        continue;
-      }
-      const { decision, reason } = review(p, { dao, attestations: this.deps.attestations, roles: this.deps.roles, nowSecs: now });
-      if (decision === 'skip') {
-        this.done.add(key);
-        out.push({ dao, id: p.id, decision, reason });
-        continue;
-      }
-      try {
-        if (decision === 'approve') await this.ensureStorage(dao, writer);
-        const r = await writer.call(dao, 'act_proposal', { id: p.id, action: decision === 'approve' ? 'VoteApprove' : 'VoteReject', proposal: p.kind, memo: reason.slice(0, 200) }, { gas: VOTE_GAS });
-        this.done.add(key);
-        const after = await this.deps.reader.view<DaoProposal>(dao, 'get_proposal', { id: p.id });
-        const created = attestraEvents(r.outcome).find((e) => e.event === 'attestation_created' || e.event === 'attestation_pending');
-        const uid = created?.data[0]?.uid;
-        const item: ReviewedProposal = { dao, id: p.id, decision, reason, status: after.status, tx: r.txHash, ...(typeof uid === 'string' ? { attestation: uid } : {}) };
-        if (after.status === 'Failed') {
-          item.reason = `${reason}; the DAO's call failed: ${receiptFailure(r.outcome) ?? 'see the transaction'}`;
-          this.deps.errors.add(`${dao} proposal ${p.id} failed after approval (tx ${r.txHash})`);
-        }
-        out.push(item);
-        this.deps.log(`${decision} ${dao} proposal ${p.id} (${after.status}) tx ${r.txHash}${item.attestation ? ` attestation ${item.attestation}` : ''}`);
-      } catch (e) {
-        const msg = errorMessage(e);
-        // Another member decided it first, or it expired: nothing left to do.
-        if (/ERR_PROPOSAL_NOT_READY_FOR_VOTE|ERR_ALREADY_VOTED|ERR_NO_PROPOSAL/.test(msg)) {
-          this.done.add(key);
-          continue;
-        }
-        const tries = (this.tries.get(key) ?? 0) + 1;
-        this.tries.set(key, tries);
-        if (tries >= MAX_TRIES) this.done.add(key);
-        this.deps.errors.add(`voting on ${dao} proposal ${p.id} (try ${tries} of ${MAX_TRIES}): ${msg}`);
-        this.deps.log(`voting on ${dao} proposal ${p.id} (try ${tries} of ${MAX_TRIES}): ${msg}`);
-        out.push({ dao, id: p.id, decision, reason: `vote failed: ${msg}` });
-      }
-    }
-    if (this.done.size > 10_000) this.done.clear();
-    return out;
   }
 
   /** Tops up the DAO's storage balance on the attestations contract before it issues. */

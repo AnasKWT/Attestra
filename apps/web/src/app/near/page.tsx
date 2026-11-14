@@ -25,8 +25,8 @@ const FEATURES = [
   {
     title: 'Know Your Agent',
     primitive: 'Attestations, contract-enforced delegation, function-call access keys',
-    flow: ['The owner attests an identity about the agent account: owner, model, capabilities, endpoint.', 'The owner delegates attesting rights with a scope, a use limit and an expiry the contract enforces, or gives the agent a function-call access key that can only attest and revoke within a gas allowance.', 'Clients review the agent; profiles average active reviews.'],
-    trust: 'Everything is an attestation anyone can verify; delegation limits are enforced on chain, not by the agent.',
+    flow: ['The owner attests an identity about the agent account: owner, model, capabilities, endpoint. It is verified only when the agent account registered itself or its parent account did (bot.alice.testnet by alice.testnet).', 'The owner delegates attesting rights with a scope, a use limit and an expiry the contract enforces, or gives the agent a function-call access key that can only attest and revoke within a gas allowance.', 'Clients review the agent, one review per reviewer; reviews by the agent, its owner or their sub-accounts do not count. A review is paid when its job_ref is the hash of the reviewer\'s payment to the agent, read from the chain.'],
+    trust: 'Everything is an attestation anyone can verify; delegation limits are enforced on chain, not by the agent. An agent is trusted only with a verified identity and paid reviews averaging at least 3.5.',
     href: '/agents',
   },
   {
@@ -45,16 +45,16 @@ const FEATURES = [
   },
   {
     title: 'Credentials issued by a DAO vote',
-    primitive: 'Sputnik DAO v2 FunctionCall proposals, NEP-145 storage balances',
-    flow: ['A member proposes that the DAO attest a claim, such as their membership, and pays the proposal bond.', 'The council votes; the deciding approval makes the DAO account call attest itself, in the same transaction.', 'The attestation names the DAO as its attester, and the explorer links it to the proposal and the votes that issued it.'],
-    trust: 'No single member can issue in the DAO\'s name: the DAO\'s policy and its council vote are enforced by the Sputnik contract. On the deployment DAO the keeper votes on membership requests by a fixed rule, and everything else waits for a human vote.',
+    primitive: 'Sputnik DAO v2 FunctionCall proposals, Attestra delegate grants, NEP-145 storage balances',
+    flow: ['A member proposes that the DAO attest a claim and pays the proposal bond; the deciding council vote makes the DAO account call attest itself, in the same transaction.', 'For routine memberships the council votes once to make a delegate (the keeper) issue on the DAO\'s behalf, limited on chain to the membership schema, a use limit and an expiry.', 'The delegate admits an account that signed its own request and that another issuer already vouches for; the attestation names the DAO as its attester.'],
+    trust: 'No single member can issue in the DAO\'s name: Sputnik enforces the policy and the vote, and the attestations contract enforces the delegate\'s scope, so the delegate\'s key cannot vote, spend or change the DAO.',
     href: '/sandbox/app/dao-attestation',
   },
   {
     title: 'A trustless audit trail',
-    primitive: 'NEP-297 events + light client proofs (EXPERIMENTAL_light_client_proof)',
-    flow: ['Every change logs a NEP-297 event in its receipt.', 'The browser checks validator approvals on a light client block (more than 2/3 of stake).', 'It walks the merkle paths from the receipt outcome to that block.'],
-    trust: 'Trusted: the epoch block producer list as the RPC reports it. Not trusted: the indexer or the RPC for the outcome itself.',
+    primitive: 'NEP-297 events + light client proofs (next_light_client_block, EXPERIMENTAL_light_client_proof)',
+    flow: ['Every change logs a NEP-297 event in its receipt.', 'The browser chains the validator set from a checkpoint pinned in the SDK, epoch by epoch, and checks that more than 2/3 of stake approved a recent light client block.', 'It walks the merkle paths from the receipt outcome to that block.'],
+    trust: 'Trusted: the checkpoint pinned in the SDK (a block hash and its block producers). Not trusted: the indexer, or the RPC for the validator set or the outcome.',
     href: '/sandbox/app/verify-proof',
   },
 ];

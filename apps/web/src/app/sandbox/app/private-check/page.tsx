@@ -22,7 +22,7 @@ export default function PrivateCheck() {
   const w = useWallet();
   const rules = useAsync(() => reader().view<Rule[]>(CONTRACTS.verdicts, 'get_rules'), []);
   const [rule, setRule] = useState('age_over_18');
-  const [subject, setSubject] = useState('');
+  const subject = w.accountId ?? '';
   const [evidence, setEvidence] = useState('');
   const [github, setGithub] = useState('');
   const isGithub = rule.startsWith('github');
@@ -31,8 +31,9 @@ export default function PrivateCheck() {
       slug="private-check"
       notes={
         <>
+          <p><b>You ask for it</b>: a check is always about your own account, and your key signs the request (NEP-413) naming the rule and the hash of your encrypted evidence. The checker verifies that signature, and that the key is yours on chain, before it signs anything, so nobody can attest a fact about an account that did not ask.</p>
           <p><b>In your browser</b>, the evidence is encrypted to the attested key of a NEAR AI Cloud verifiable model (X25519 + XChaCha20-Poly1305). Attestra, the checker and the NEAR AI gateway cannot read it.</p>
-          <p><b>In the checker</b>, the rule is added, the model is called, the model&apos;s response signature is checked and a verdict is signed. For GitHub rules the checker fetches the data itself, so the claim cannot be faked. The checker runs in one of two modes:</p>
+          <p><b>In the checker</b>, the rule is added, the model is called, the model&apos;s response signature is checked and a verdict is signed. For GitHub rules the checker first checks that the login is yours (a public gist <code>attestra.txt</code> with the line <code>attestra:&lt;your account&gt;</code>), then fetches the data itself, so the claim cannot be faked; the login is never stored on chain. The checker runs in one of two modes:</p>
           <ul className="list-disc space-y-1 pl-5">
             <li><b>OutLayer</b>: a component inside an OutLayer TEE, whose signing key is bound to its build.</li>
             <li><b>Local</b>: inside the Attestra agent, signing with a bootstrap key its operator holds.</li>
@@ -60,7 +61,7 @@ export default function PrivateCheck() {
         label="Encrypt and check"
         busyNote="Running in the TEE. This can take a few minutes when the OutLayer queue is busy."
         disabled={!subject || (!evidence && !isGithub) || (isGithub && !github)}
-        action={() => need(w.client).requestPrivateCheck({ ruleId: rule, subject: subject.trim(), evidence, github: github || undefined })}
+        action={() => need(w.client).requestPrivateCheck({ ruleId: rule, subject, evidence, github: github || undefined, signer: w.signer ?? undefined })}
         render={(d) => (
           <div className="space-y-3 text-[13px]">
             {d.outcome.status === 'created' ? <UidResult uid={d.outcome.uid} kind="attestations" /> : <Badge tone="warn">the check did not pass: nothing was attested</Badge>}
@@ -82,14 +83,19 @@ export default function PrivateCheck() {
             </Select>
           </div>
           <div>
-            <Label htmlFor="sub">About whom</Label>
-            <Input id="sub" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={w.accountId ?? 'bob.testnet'} />
+            <Label hint="you sign the request">About whom</Label>
+            <p className="truncate py-2 font-mono text-[12.5px] text-soft">{subject || 'sign in first'}</p>
           </div>
         </div>
         {isGithub ? (
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="gh" hint="the checker reads GitHub itself">GitHub login</Label>
             <Input id="gh" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="octocat" />
+            <p className="text-[12.5px] text-mute">
+              First publish a public gist from that login with a file <code className="font-mono">attestra.txt</code> containing the line{' '}
+              <code className="break-all font-mono">attestra:{subject || '<your account>'}</code>.{' '}
+              <a className="text-accent hover:underline" href="https://gist.github.com/" target="_blank" rel="noreferrer">gist.github.com</a>
+            </p>
           </div>
         ) : (
           <div>
