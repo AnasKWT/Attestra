@@ -40,7 +40,8 @@ pub struct ForeignInstructionClaim {
     pub program_id: String,
     pub accounts: Vec<String>,
     pub data: String,
-    /// Defaults to the program, `solana:<chain reference>:<program id>`.
+    /// Defaults to the program, `solana:<chain reference>:<program id>`. Any other subject must be
+    /// the caller or a wallet linked to the caller (`link_wallet`).
     pub subject: Option<String>,
 }
 
@@ -48,6 +49,8 @@ pub(crate) struct Prepared {
     request: mpc::ForeignChainRpcRequest,
     pub(crate) payload_hash: mpc::Hash256,
     subject: String,
+    /// The program, `solana:<chain reference>:<program id>`.
+    default_subject: String,
     data: Vec<u8>,
 }
 
@@ -86,7 +89,12 @@ impl Contract {
         require_gas();
         let p = self.prepare_instruction(&claim).unwrap_or_else(|e| env::panic_str(&e));
         let uid = Uid(p.payload_hash.0);
-        require!(!self.used_payloads.contains(&uid), "this instruction was already attested");
+        require!(
+            self.may_name_subject(&p.subject, &p.default_subject, &env::predecessor_account_id()),
+            "the subject must be the program, the caller, or a wallet linked to the caller"
+        );
+        let lock = fact_lock(&p.payload_hash.0, &p.subject, &p.default_subject);
+        require!(!self.used_payloads.contains(&lock), "this instruction was already attested for this subject");
         let deposit = p.deposit();
         take_deposit(deposit, "the instruction and its attestation");
 
@@ -147,7 +155,9 @@ impl Contract {
         payload_hash: Uid,
         requester: AccountId,
         deposit: U128,
+        lock: Option<Uid>,
     ) -> Outcome {
+        let lock = lock.unwrap_or(payload_hash);
         let outcome = (env::promise_results_count() == 1)
             .then(|| env::promise_result_checked(0, MAX_RESPONSE_LEN).ok())
             .flatten()
@@ -155,13 +165,13 @@ impl Contract {
         match outcome {
             Some(o) if o.status != "rejected" => o,
             Some(o) => {
-                self.used_payloads.remove(&payload_hash);
+                self.used_payloads.remove(&lock);
                 refund(&requester, storage_cost(PAYLOAD_ENTRY_BYTES).min(deposit.0));
                 self.instruction_failed(&claim, payload_hash, "the schema resolver rejected the attestation");
                 o
             }
             None => {
-                self.used_payloads.remove(&payload_hash);
+                self.used_payloads.remove(&lock);
                 refund(&requester, deposit.0);
                 self.instruction_failed(&claim, payload_hash, "the attestation call failed")
             }
@@ -193,6 +203,10 @@ impl Contract {
         if !self.mpc_signed(&response, &p.payload_hash) {
             return fail(self, "invalid MPC signature");
         }
+        if !self.may_name_subject(&p.subject, &p.default_subject, requester) {
+            return fail(self, "the requester may not name this subject");
+        }
+        let lock = fact_lock(&p.payload_hash.0, &p.subject, &p.default_subject);
         let Some(schema_uid) = self.instruction_schema() else {
             return fail(self, "the foreignInstruction schema is not configured");
         };
@@ -200,15 +214,15 @@ impl Contract {
         if forwarded > deposit {
             return fail(self, "the deposit does not cover the storage");
         }
-        if !self.used_payloads.insert(uid) {
-            return fail(self, "this instruction was already attested");
+        if !self.used_payloads.insert(lock) {
+            return fail(self, "this instruction was already attested for this subject");
         }
         emit(
             events::FOREIGN_TX_VERIFIED,
             &json!({
                 "payload_hash": uid, "chain": "solana", "tx_id": claim.tx_id,
                 "instruction_index": claim.instruction_index, "inner_instruction_index": claim.inner_instruction_index,
-                "program_id": claim.program_id, "subject": p.subject,
+                "program_id": claim.program_id, "subject": p.subject, "requester": requester,
             }),
         );
         PromiseOrValue::Promise(
@@ -216,7 +230,7 @@ impl Contract {
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_AFTER_ATTEST)
                     .with_unused_gas_weight(0)
-                    .on_instruction_attested(claim.clone(), uid, requester.clone(), U128(deposit)),
+                    .on_instruction_attested(claim.clone(), uid, requester.clone(), U128(deposit), Some(lock)),
             ),
         )
     }
@@ -235,8 +249,8 @@ impl Contract {
             return Err(format!("instruction data is at most {MAX_DATA_BYTES} bytes"));
         }
         let reference = if self.is_testnet() { SOLANA_DEVNET_REF } else { SOLANA_MAINNET_REF };
-        let subject =
-            claim.subject.clone().unwrap_or_else(|| format!("solana:{reference}:{}", claim.program_id));
+        let default_subject = format!("solana:{reference}:{}", claim.program_id);
+        let subject = claim.subject.clone().unwrap_or_else(|| default_subject.clone());
         if !is_valid_subject(&subject) {
             return Err("subject must be a NEAR account id or a CAIP-10 account id".into());
         }
@@ -260,7 +274,7 @@ impl Contract {
             data,
         ))
         .expect("borsh");
-        Ok(Prepared { request, payload_hash, subject, data })
+        Ok(Prepared { request, payload_hash, subject, default_subject, data })
     }
 
     fn instruction_failed(

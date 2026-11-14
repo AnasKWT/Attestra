@@ -153,7 +153,8 @@ impl Contract {
     }
 
     /// Anyone (usually the keeper) records that an attestation expired, once, so the audit trail
-    /// and indexers see an event at expiry. Expiry itself needs no transaction: reads compute it.
+    /// and indexers see an event at expiry and a linked credential is burned. Expiry itself needs
+    /// no transaction: reads compute it.
     pub fn record_expiry(&mut self, uid: Uid) -> Outcome {
         let a = self.attestations.get(&uid).unwrap_or_else(|| env::panic_str("attestation not found"));
         require!(a.expiration_time != 0 && now_secs() > a.expiration_time, "the attestation has not expired");
@@ -164,6 +165,8 @@ impl Contract {
             events::ATTESTATION_EXPIRED,
             &json!({ "uid": uid, "schema_uid": schema_uid, "attester": attester, "subject": subject, "expiration_time": expiration_time }),
         );
+        // A linked credential is burned now, as on a revocation (it already reads as gone).
+        self.burn_credential(uid);
         Outcome::new(uid, "expired")
     }
 

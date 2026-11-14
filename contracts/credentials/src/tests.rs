@@ -500,3 +500,45 @@ fn concurrent_mints_clear_their_in_flight_record() {
     c.on_attestation_revoked(ATTESTATION);
     assert_eq!(c.credential_for_attestation(ATTESTATION), None);
 }
+
+fn at(predecessor: &AccountId, millis: u64) {
+    testing_env!(VMContextBuilder::new()
+        .current_account_id(me())
+        .predecessor_account_id(predecessor.clone())
+        .block_timestamp(millis * 1_000_000)
+        .build());
+}
+
+#[test]
+fn expired_credentials_leave_every_view_and_anyone_burns_them() {
+    let mut c = setup();
+    let token = mint_with(&mut c, ATTESTATION, &bob(), NEAR, view_json(&ATTESTATION, "bob.testnet", "active", 1_800_000_000)).unwrap();
+    at(&carol(), 1_799_999_999_000);
+    assert!(c.nft_token(token.token_id.clone()).is_some());
+    assert_eq!(c.nft_tokens_for_owner(bob(), None, None).len(), 1);
+    let early = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.burn_expired(token.token_id.clone())));
+    assert!(early.is_err());
+
+    at(&carol(), 1_800_000_000_000);
+    assert_eq!(c.nft_token(token.token_id.clone()), None);
+    assert_eq!(c.credential_for_attestation(ATTESTATION), None);
+    assert!(c.nft_tokens(None, None).is_empty());
+    assert!(c.nft_tokens_for_owner(bob(), None, None).is_empty());
+    assert!(c.burn_expired(token.token_id.clone()));
+    assert_eq!(c.nft_total_supply(), U128(0));
+    assert!(!c.burn_expired(token.token_id));
+    assert_eq!(events().iter().filter(|e| e["event"] == "credential_burned").count(), 1);
+}
+
+#[test]
+fn the_holder_can_refuse_a_credential() {
+    let mut c = setup();
+    let token = mint_ok(&mut c, ATTESTATION, "bob.testnet");
+    ctx(&alice(), 0);
+    let attester = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.nft_burn(token.token_id.clone())));
+    assert!(attester.is_err());
+    ctx(&bob(), 0);
+    c.nft_burn(token.token_id.clone());
+    assert_eq!(c.nft_token(token.token_id), None);
+    assert_eq!(c.nft_supply_for_owner(bob()), U128(0));
+}

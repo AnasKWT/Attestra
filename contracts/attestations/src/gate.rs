@@ -37,6 +37,7 @@ impl Contract {
     pub(crate) fn gate(&mut self, resolver: AccountId, call: ResolverCall, revoke_at: u64) -> Promise {
         let id = self.op_count;
         self.op_count += 1;
+        adjust_pending(1);
         self.pending.insert(
             id,
             PendingOp {
@@ -95,11 +96,13 @@ impl Contract {
 
 #[near]
 impl Contract {
-    /// Commits or rolls back a pending operation. Never panics: a rollback must persist.
+    /// Commits or rolls back a pending operation. Neither outcome panics, so a rollback always
+    /// persists; it panics only on a broken invariant (an operation id it never issued).
     #[private]
     pub fn on_resolver_verdict(&mut self, op_id: u64) -> Outcome {
         let approved = promise_bool();
         let pending = self.pending.remove(&op_id).unwrap_or_else(|| env::panic_str("unknown operation"));
+        adjust_pending(-1);
         let uid = pending.attestation_uid;
         let call = self.resolver_call(&pending);
         let op = PendingCall { resolver: pending.resolver, call, revoke_at: pending.revoke_at };
@@ -159,8 +162,22 @@ impl Contract {
         }
     }
 
-    /// Operations waiting for a resolver.
+    /// Operations waiting for a resolver's answer right now.
     pub fn pending_operation_count(&self) -> u64 {
+        env::storage_read(PENDING_COUNT_KEY).and_then(|b| b.try_into().ok()).map(u64::from_le_bytes).unwrap_or(0)
+    }
+
+    /// Operations ever sent to a resolver.
+    pub fn gated_operation_count(&self) -> u64 {
         self.op_count
     }
+}
+
+/// The pending count, kept in its own storage key so adding it needed no state migration.
+const PENDING_COUNT_KEY: &[u8] = b"pending_count";
+
+fn adjust_pending(delta: i64) {
+    let now = env::storage_read(PENDING_COUNT_KEY).and_then(|b| b.try_into().ok()).map(u64::from_le_bytes).unwrap_or(0);
+    let next = if delta >= 0 { now.saturating_add(delta as u64) } else { now.saturating_sub(delta.unsigned_abs()) };
+    env::storage_write(PENDING_COUNT_KEY, &next.to_le_bytes());
 }

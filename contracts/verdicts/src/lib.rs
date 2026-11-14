@@ -86,6 +86,8 @@ enum Key {
     UsedPayloads,
     Links,
     LinkNonces,
+    /// The `wallet_link` attestation of each link, so a relink revokes the one it replaces.
+    LinkUids,
 }
 
 /// The result of a verdict, the same shape as the attestations contract's `Outcome`. `status` is
@@ -114,6 +116,7 @@ pub trait Attestations {
         expiration_time: Option<u64>,
         ref_uid: Option<Uid>,
     ) -> PromiseOrValue<Outcome>;
+    fn revoke(&mut self, uid: Uid) -> PromiseOrValue<Outcome>;
 }
 
 /// The three schemas this contract attests under.
@@ -334,9 +337,30 @@ impl Contract {
             .attest(schema_uid, subject, Base64VecU8(data), expiration_time, None)
     }
 
+    /// Whether `caller` may attest a foreign fact under `subject`. The default subject (the
+    /// emitting contract or program) is a fact about the event itself, so anyone may record it;
+    /// any other subject must be the caller or a wallet linked to the caller here, so nobody can
+    /// attest someone else's payment under an account of their choosing.
+    pub(crate) fn may_name_subject(&self, subject: &str, default_subject: &str, caller: &AccountId) -> bool {
+        subject == default_subject
+            || subject == caller.as_str()
+            || wallet::link_key(subject).and_then(|k| self.links.get(&k)) == Some(caller)
+    }
+
     /// True when the MPC is the testnet one, so foreign chains are their test networks.
     pub(crate) fn is_testnet(&self) -> bool {
         self.mpc.as_str().ends_with(".testnet")
+    }
+}
+
+/// The single-use key of a foreign fact: the event itself for its default subject, or the event
+/// together with the subject the caller named. A fact is recorded once per subject, so one caller
+/// cannot block another from attesting the same event about themselves.
+pub(crate) fn fact_lock(payload_hash: &[u8; 32], subject: &str, default_subject: &str) -> Uid {
+    if subject == default_subject {
+        Uid(*payload_hash)
+    } else {
+        Uid(env::sha256_array(&[payload_hash.as_slice(), subject.as_bytes()].concat()))
     }
 }
 

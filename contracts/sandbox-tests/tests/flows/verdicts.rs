@@ -399,12 +399,15 @@ async fn foreign_events() -> anyhow::Result<()> {
         json!({ "payload_hash": hex::encode(hash2), "signature": mpc_signature(&env.keys.mpc, &hash2) }),
     ))
     .await?);
-    let second_deposit = event_deposit(&env, claim(&second, Some("bob.test.near"))).await?;
-    let result = ok(request(claim(&second, Some("bob.test.near")), second_deposit).await?);
+    // Someone else's account is refused as the subject; the caller's own account is accepted.
+    let relayer = env.relayer.id().as_str().to_string();
+    let second_deposit = event_deposit(&env, claim(&second, Some(&relayer))).await?;
+    fails_with(request(claim(&second, Some("bob.test.near")), second_deposit).await?, "the subject must be the emitting contract, the caller, or a wallet linked to the caller");
+    let result = ok(request(claim(&second, Some(&relayer)), second_deposit).await?);
     let outcome: Value = result.json()?;
     assert_eq!(outcome["status"], "created");
     let a = env.attestation(outcome["uid"].as_str().expect("uid")).await?.expect("stored");
-    assert_eq!(a["subject"], "bob.test.near");
+    assert_eq!(a["subject"], relayer.as_str());
     assert_eq!(env.attestation_count().await?, count + 2);
     Ok(())
 }

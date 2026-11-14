@@ -825,3 +825,36 @@ fn first_attestation_storage_matches_the_verdicts_estimate() {
     let charged = (c.ledger.get(&acc(me)).unwrap().locked - locked) / env::storage_byte_cost().as_yoctonear();
     assert_eq!(charged as usize, 217 + 3 * me.len() + subject.len() + data.len());
 }
+
+#[test]
+fn pending_count_follows_the_gate() {
+    let mut c = setup();
+    assert_eq!(c.pending_operation_count(), 0);
+    attest(&mut c, "alice.testnet", schema(2), "bob.testnet");
+    attest(&mut c, "alice.testnet", schema(2), "carol.testnet");
+    assert_eq!(c.pending_operation_count(), 2);
+    set_result(PromiseResult::Successful(b"true".to_vec()));
+    c.on_resolver_verdict(0);
+    assert_eq!(c.pending_operation_count(), 1);
+    set_result(PromiseResult::Failed);
+    c.on_resolver_verdict(1);
+    assert_eq!(c.pending_operation_count(), 0);
+    assert_eq!(c.gated_operation_count(), 2);
+}
+
+#[test]
+fn recorded_expiry_burns_the_credential() {
+    let mut c = setup();
+    set("owner.testnet", NearToken::from_yoctonear(1));
+    c.set_credentials(Some(acc("credentials.testnet")));
+    set("alice.testnet", NearToken::from_millinear(50));
+    let uid = value(c.attest(schema(1), "bob.testnet".into(), Base64VecU8(vec![]), Some(T0 + 10), None)).uid;
+    set_at("keeper.testnet", T0 + 11);
+    c.record_expiry(uid);
+    let burn = near_sdk::test_utils::get_created_receipts()
+        .into_iter()
+        .find(|r| r.receiver_id.as_str() == "credentials.testnet")
+        .expect("a burn");
+    let near_sdk::mock::MockAction::FunctionCallWeight { method_name, .. } = &burn.actions[0] else { panic!("call") };
+    assert_eq!(method_name, b"on_attestation_revoked");
+}

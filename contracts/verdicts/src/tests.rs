@@ -859,7 +859,7 @@ fn foreign_verified_attests_once() {
     set_result(mpc_response(hash, 4));
     let o = value(c.on_foreign_verified(claim.clone(), acc(RELAYER), U128(FOREIGN_DEPOSIT)));
     assert_eq!(o, Outcome::new(Uid(hash.0), "failed"));
-    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("this event was already attested"));
+    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("this event was already attested for this subject"));
 }
 
 #[test]
@@ -889,7 +889,7 @@ fn foreign_custom_subject_and_mainnet_chain_ids() {
     claim.chain = "polygon".into();
     claim.subject = Some("bob.near".into());
     set_result(mpc_response(payload_hash(&claim), 4));
-    let args = attest_call(c.on_foreign_verified(claim, acc(RELAYER), U128(FOREIGN_DEPOSIT)));
+    let args = attest_call(c.on_foreign_verified(claim, acc("bob.near"), U128(FOREIGN_DEPOSIT)));
     assert_eq!(args["subject"], json!("bob.near"));
 }
 
@@ -978,19 +978,19 @@ fn foreign_attest_outcome_passes_through_or_releases() {
 
     let created = Outcome::new(Uid([0x77; 32]), "created");
     set_result(PromiseResult::Successful(serde_json::to_vec(&created).unwrap()));
-    assert_eq!(c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(FOREIGN_DEPOSIT)), created);
+    assert_eq!(c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(FOREIGN_DEPOSIT), None), created);
     assert!(c.is_event_attested(hash));
 
     let rejected = Outcome::new(Uid([0x77; 32]), "rejected");
     set_result(PromiseResult::Successful(serde_json::to_vec(&rejected).unwrap()));
-    assert_eq!(c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(FOREIGN_DEPOSIT)), rejected);
+    assert_eq!(c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(FOREIGN_DEPOSIT), None), rejected);
     assert!(!c.is_event_attested(hash));
 
     set_result(mpc_response(payload_hash(&claim), 4));
     drop(c.on_foreign_verified(claim.clone(), acc(RELAYER), U128(FOREIGN_DEPOSIT)));
     set_result(PromiseResult::Failed);
     assert_eq!(
-        c.on_foreign_attested(claim, hash, acc(RELAYER), U128(FOREIGN_DEPOSIT)),
+        c.on_foreign_attested(claim, hash, acc(RELAYER), U128(FOREIGN_DEPOSIT), None),
         Outcome::new(hash, "failed")
     );
     assert!(!c.is_event_attested(hash));
@@ -1215,7 +1215,10 @@ fn link_wallet_forwards_the_attestation_share_and_refunds_the_rest() {
     let data_len = borsh::to_vec(&("eip155", &addr, &caip10)).unwrap().len();
     let remote =
         (ATTESTATION_FIXED_BYTES as usize + 3 * SELF.len() + "alice.testnet".len() + data_len) as u128 * byte;
-    let local = (1 + 4 + caip10.len() + 4 + 13 + 1 + 4 + 13 + 8 + 80) as u128 * byte;
+    let now = (1 + 4 + caip10.len() + 4 + 13 + 1 + 4 + 13 + 8 + 80) as u128 * byte;
+    // The link's attestation uid, recorded once the attestation exists.
+    let later = (1 + 4 + caip10.len() + 32 + 40) as u128 * byte;
+    let local = now + later;
     assert_eq!(required, local + remote);
 
     link_eth_with(&mut c, "alice.testnet", 6, required + 5);
@@ -1225,7 +1228,58 @@ fn link_wallet_forwards_the_attestation_share_and_refunds_the_rest() {
     let before = env::storage_usage();
     c.links.flush();
     c.link_nonces.flush();
-    assert_eq!((env::storage_usage() - before) as u128 * byte, local);
+    assert_eq!((env::storage_usage() - before) as u128 * byte, now);
+    set_result(PromiseResult::Successful(serde_json::to_vec(&Outcome::new(Uid([0x71; 32]), "created")).unwrap()));
+    let before = env::storage_usage();
+    drop(c.on_wallet_linked(caip10, acc("alice.testnet"), None, U128(required)));
+    assert_eq!((env::storage_usage() - before) as u128 * byte, later);
+}
+
+#[test]
+fn relink_revokes_the_replaced_attestation() {
+    let mut c = setup();
+    let addr = eth_addr(&secp(6));
+    let caip10 = format!("eip155:1:{addr}");
+    drop(link_eth(&mut c, "alice.testnet", 6));
+    set_result(PromiseResult::Successful(serde_json::to_vec(&Outcome::new(Uid([0x71; 32]), "created")).unwrap()));
+    drop(c.on_wallet_linked(caip10.clone(), acc("alice.testnet"), None, U128(LINK_DEPOSIT)));
+    assert_eq!(c.link_attestation(caip10.clone()), Some(Uid([0x71; 32])));
+    assert!(calls().iter().all(|call| call.method != "revoke"));
+
+    // bob proves the same wallet: the wallet moves to bob and alice's link attestation is revoked.
+    drop(link_eth(&mut c, "bob.testnet", 6));
+    assert_eq!(c.linked_account(caip10.clone()), Some(acc("bob.testnet")));
+    set_result(PromiseResult::Successful(serde_json::to_vec(&Outcome::new(Uid([0x72; 32]), "created")).unwrap()));
+    drop(c.on_wallet_linked(caip10.clone(), acc("bob.testnet"), Some(acc("alice.testnet")), U128(LINK_DEPOSIT)));
+    let revoke = calls().into_iter().find(|call| call.method == "revoke").expect("revoke");
+    assert_eq!(revoke.receiver, ATTESTATIONS);
+    assert_eq!(serde_json::from_slice::<Value>(&revoke.args).unwrap(), json!({ "uid": Uid([0x71; 32]).to_hex() }));
+    assert_eq!(c.link_attestation(caip10.clone()), Some(Uid([0x72; 32])));
+    assert_eq!(events("wallet_link_replaced")[0]["revoked"], json!(Uid([0x71; 32]).to_hex()));
+}
+
+#[test]
+fn failed_link_attestation_rolls_the_link_back() {
+    let mut c = setup();
+    let addr = eth_addr(&secp(6));
+    let caip10 = format!("eip155:1:{addr}");
+    drop(link_eth(&mut c, "alice.testnet", 6));
+    set_result(PromiseResult::Successful(serde_json::to_vec(&Outcome::new(Uid([0x71; 32]), "created")).unwrap()));
+    drop(c.on_wallet_linked(caip10.clone(), acc("alice.testnet"), None, U128(LINK_DEPOSIT)));
+
+    // bob's relink fails at the attestations contract: alice keeps the wallet and bob is refunded.
+    drop(link_eth(&mut c, "bob.testnet", 6));
+    set_result(PromiseResult::Failed);
+    let out = c.on_wallet_linked(caip10.clone(), acc("bob.testnet"), Some(acc("alice.testnet")), U128(LINK_DEPOSIT));
+    assert_eq!(value(out).status, "failed");
+    assert_eq!(c.linked_account(caip10.clone()), Some(acc("alice.testnet")));
+    assert_eq!(c.link_attestation(caip10.clone()), Some(Uid([0x71; 32])));
+    assert_eq!(transfers(), vec![("bob.testnet".to_string(), LINK_DEPOSIT)]);
+
+    // A first link that fails is removed.
+    set_result(PromiseResult::Failed);
+    drop(c.on_wallet_linked("eip155:1:0xnew".into(), acc("carol.testnet"), None, U128(1)));
+    assert_eq!(c.linked_account("eip155:1:0xnew".into()), None);
 }
 
 #[test]
@@ -1284,7 +1338,7 @@ fn foreign_failures_refund_the_requester() {
     set_result(mpc_response(payload_hash(&claim), 4));
     drop(c.on_foreign_verified(claim.clone(), acc(RELAYER), U128(required)));
     set_result(PromiseResult::Failed);
-    c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(required));
+    c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(required), None);
     assert_eq!(transfers(), vec![(RELAYER.to_string(), required)]);
     // A resolver rejected it: the payload entry's share back, the rest stays in the storage
     // balance at the attestations contract.
@@ -1292,14 +1346,14 @@ fn foreign_failures_refund_the_requester() {
     drop(c.on_foreign_verified(claim.clone(), acc(RELAYER), U128(required)));
     let rejected = Outcome::new(Uid([0x77; 32]), "rejected");
     set_result(PromiseResult::Successful(serde_json::to_vec(&rejected).unwrap()));
-    c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(required));
+    c.on_foreign_attested(claim.clone(), hash, acc(RELAYER), U128(required), None);
     assert_eq!(transfers(), vec![(RELAYER.to_string(), 73 * env::storage_byte_cost().as_yoctonear())]);
     // A created attestation keeps the deposit.
     set_result(mpc_response(payload_hash(&claim), 4));
     drop(c.on_foreign_verified(claim.clone(), acc(RELAYER), U128(required)));
     let created = Outcome::new(Uid([0x77; 32]), "created");
     set_result(PromiseResult::Successful(serde_json::to_vec(&created).unwrap()));
-    c.on_foreign_attested(claim, hash, acc(RELAYER), U128(required));
+    c.on_foreign_attested(claim, hash, acc(RELAYER), U128(required), None);
     assert!(transfers().is_empty());
 }
 
@@ -1442,7 +1496,7 @@ fn solana_verified_attests_once() {
     set_result(mpc_response(hash, 4));
     let o = value(c.on_instruction_verified(claim, acc(RELAYER), U128(FOREIGN_DEPOSIT)));
     assert_eq!(o, Outcome::new(Uid(hash.0), "failed"));
-    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("this instruction was already attested"));
+    assert_eq!(events("foreign_tx_failed")[0]["reason"], json!("this instruction was already attested for this subject"));
 }
 
 #[test]
@@ -1566,4 +1620,94 @@ proptest::proptest! {
         let p = c.prepare_instruction(&claim).unwrap();
         proptest::prop_assert_eq!(p.payload_hash.0, want);
     }
+}
+
+// ---------------------------------------------------------------- foreign fact subjects
+
+#[test]
+#[should_panic(expected = "the subject must be the emitting contract, the caller, or a wallet linked to the caller")]
+fn foreign_subject_of_a_stranger_is_refused() {
+    let mut c = setup();
+    set(RELAYER, FOREIGN_DEPOSIT);
+    let mut claim = claim();
+    claim.subject = Some("bob.testnet".into());
+    let _ = c.attest_foreign_event(claim);
+}
+
+#[test]
+fn foreign_subject_may_be_the_caller_or_a_linked_wallet() {
+    let mut c = setup();
+    // The caller itself.
+    set("alice.testnet", FOREIGN_DEPOSIT);
+    let mut own = claim();
+    own.subject = Some("alice.testnet".into());
+    drop(c.attest_foreign_event(own));
+    // A wallet linked to the caller, named on another EVM chain id than its link.
+    drop(link_eth(&mut c, "carol.testnet", 9));
+    set("carol.testnet", FOREIGN_DEPOSIT);
+    let mut wallet = claim();
+    wallet.subject = Some(format!("eip155:84532:{}", eth_addr(&secp(9))));
+    drop(c.attest_foreign_event(wallet.clone()));
+    // Someone else cannot name carol's wallet.
+    set("mallory.testnet", FOREIGN_DEPOSIT);
+    let stolen = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(c.attest_foreign_event(wallet))));
+    assert!(stolen.is_err());
+}
+
+#[test]
+fn foreign_fact_is_locked_per_subject() {
+    let mut c = setup();
+    let event = claim();
+    let hash = payload_hash(&event);
+    // mallory records the event about herself first.
+    let mut mallory = event.clone();
+    mallory.subject = Some("mallory.testnet".into());
+    set_result(mpc_response(hash, 4));
+    drop(c.on_foreign_verified(mallory.clone(), acc("mallory.testnet"), U128(FOREIGN_DEPOSIT)));
+    // That does not block alice from recording the same event about herself.
+    let mut alice = event.clone();
+    alice.subject = Some("alice.testnet".into());
+    set("alice.testnet", FOREIGN_DEPOSIT);
+    drop(c.attest_foreign_event(alice.clone()));
+    set_result(mpc_response(hash, 4));
+    let attested = c.on_foreign_verified(alice.clone(), acc("alice.testnet"), U128(FOREIGN_DEPOSIT));
+    assert!(matches!(attested, PromiseOrValue::Promise(_)));
+    // Nor the event's default subject (the emitting contract).
+    assert!(!c.is_event_attested(Uid(hash.0)));
+    // But alice cannot record it about herself twice.
+    set("alice.testnet", FOREIGN_DEPOSIT);
+    let twice = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(c.attest_foreign_event(alice))));
+    assert!(twice.is_err());
+    // And a callback for a requester who may not name the subject fails without attesting.
+    let mut forged = event;
+    forged.subject = Some("bob.testnet".into());
+    set_result(mpc_response(hash, 4));
+    let out = value(c.on_foreign_verified(forged, acc("mallory.testnet"), U128(FOREIGN_DEPOSIT)));
+    assert_eq!(out.status, "failed");
+}
+
+#[test]
+fn instruction_subject_is_bound_to_the_caller() {
+    let mut c = setup();
+    set(OWNER, 1);
+    c.set_instruction_schema(schema(9));
+    let mut stranger = ix_claim();
+    stranger.subject = Some("bob.testnet".into());
+    set("alice.testnet", FOREIGN_DEPOSIT);
+    let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(c.attest_foreign_instruction(stranger))));
+    assert!(refused.is_err());
+    let mut own = ix_claim();
+    own.subject = Some("alice.testnet".into());
+    set("alice.testnet", FOREIGN_DEPOSIT);
+    drop(c.attest_foreign_instruction(own));
+}
+
+#[test]
+fn link_keys_cover_every_network_of_a_family() {
+    let addr = eth_addr(&secp(9));
+    assert_eq!(wallet::link_key(&format!("eip155:8453:{}", addr.to_uppercase().replace("0X", "0x"))), Some(format!("eip155:1:{addr}")));
+    let sol = b58(&[0x44; 32]);
+    assert_eq!(wallet::link_key(&format!("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1:{sol}")), Some(format!("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:{sol}")));
+    assert_eq!(wallet::link_key("alice.testnet"), None);
+    assert_eq!(wallet::link_key("cosmos:hub:abc"), None);
 }

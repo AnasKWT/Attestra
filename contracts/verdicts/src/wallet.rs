@@ -3,7 +3,14 @@
 use crate::*;
 use attestra_common::events::{self, emit};
 use near_sdk::borsh;
-use near_sdk::serde_json::json;
+use near_sdk::serde_json::{self, json};
+use near_sdk::store::LookupMap;
+use near_sdk::{Gas, Promise, PromiseOrValue};
+
+/// The callback that keeps or rolls back a link once its attestation is decided, and the
+/// revocation of the attestation a relink replaces.
+const GAS_LINKED: Gas = Gas::from_tgas(15);
+const GAS_REVOKE_OLD: Gas = Gas::from_tgas(30);
 
 const SOLANA_MAINNET: &str = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 
@@ -18,11 +25,19 @@ struct Wallet {
     bytes: Vec<u8>,
 }
 
-/// What a link writes here: `links[caip10] = account` and `link_nonces[account]`.
+/// What a link writes here: `links[caip10] = account`, `link_nonces[account]` and
+/// `link_uids[caip10]`.
 fn link_storage_bytes(account_id: &AccountId, caip10: &str) -> u64 {
     let link = 1 + 4 + caip10.len() + 4 + account_id.len();
     let nonce = 1 + 4 + account_id.len() + 8;
-    (link + nonce) as u64 + 2 * RECORD_OVERHEAD_BYTES
+    let uid = 1 + 4 + caip10.len() + 32;
+    (link + nonce + uid) as u64 + 3 * RECORD_OVERHEAD_BYTES
+}
+
+/// The `wallet_link` attestation each linked wallet carries (kept outside the contract struct, so
+/// adding it needed no state migration).
+fn link_uids() -> LookupMap<String, Uid> {
+    LookupMap::new(Key::LinkUids)
 }
 
 /// The `wallet_link` attestation data: `string chain, string address, string caip10`.
@@ -62,6 +77,22 @@ fn parse_wallet(chain: &str, address: &str) -> Wallet {
     }
 }
 
+/// The key `links` holds a wallet under, for a CAIP-10 subject on any network of its family:
+/// an EVM address on any chain id maps to its `eip155:1:` link, a Solana address on any cluster
+/// to its mainnet link.
+pub(crate) fn link_key(subject: &str) -> Option<String> {
+    let mut parts = subject.splitn(3, ':');
+    let (namespace, _reference, address) = (parts.next()?, parts.next()?, parts.next()?);
+    match namespace {
+        "eip155" => crypto::parse_eth_address(address).map(|b| format!("eip155:1:0x{}", hex::encode(b))),
+        "solana" => {
+            let bytes: [u8; 32] = near_sdk::bs58::decode(address).into_vec().ok()?.try_into().ok()?;
+            Some(format!("solana:{SOLANA_MAINNET}:{}", near_sdk::bs58::encode(bytes).into_string()))
+        }
+        _ => None,
+    }
+}
+
 /// A Solana signature: 64 bytes as hex (optional `0x`) or base58.
 fn parse_solana_signature(s: &str) -> Option<[u8; 64]> {
     let bare = s.strip_prefix("0x").unwrap_or(s);
@@ -89,6 +120,8 @@ impl Contract {
     /// (`personal_sign` for eip155, a raw ed25519 message signature for solana), and attests it
     /// under the `wallet_link` schema with the caller as subject. Attach 300 TGas and at least
     /// `link_wallet_deposit` (the rest is refunded): it pays for the link and the attestation.
+    /// A wallet has one link at a time: relinking it revokes the attestation of the link it
+    /// replaces, and a link whose attestation fails is rolled back with the deposit refunded.
     #[payable]
     pub fn link_wallet(&mut self, chain: String, address: String, signature: String) -> Promise {
         let schema_uid = self.schemas().wallet_link;
@@ -117,7 +150,8 @@ impl Contract {
 
         let nonce = self.link_nonce(caller.clone());
         self.link_nonces.insert(caller.clone(), nonce + 1);
-        let previous = self.links.insert(wallet.caip10.clone(), caller.clone()).filter(|p| p != &caller);
+        let replaced = self.links.insert(wallet.caip10.clone(), caller.clone());
+        let previous = replaced.clone().filter(|p| p != &caller);
         emit(
             events::WALLET_LINKED,
             &json!({
@@ -125,7 +159,57 @@ impl Contract {
                 "nonce": nonce, "previous": previous,
             }),
         );
-        self.attest(schema_uid, caller.to_string(), link_data(&wallet), None, remote)
+        self.attest(schema_uid, caller.to_string(), link_data(&wallet), None, remote).then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_LINKED.saturating_add(GAS_REVOKE_OLD))
+                .with_unused_gas_weight(0)
+                .on_wallet_linked(wallet.caip10.clone(), caller, replaced, U128(local + remote)),
+        )
+    }
+
+    /// Keeps the link once its attestation exists and revokes the attestation of the link it
+    /// replaced; when the attestation failed, restores the previous link and refunds `deposit`.
+    #[private]
+    pub fn on_wallet_linked(
+        &mut self,
+        caip10: String,
+        account_id: AccountId,
+        replaced: Option<AccountId>,
+        deposit: U128,
+    ) -> PromiseOrValue<Outcome> {
+        let outcome = (env::promise_results_count() == 1)
+            .then(|| env::promise_result_checked(0, 4 * 1024).ok())
+            .flatten()
+            .and_then(|bytes| serde_json::from_slice::<Outcome>(&bytes).ok())
+            .filter(|o| o.status != "rejected");
+        let mut uids = link_uids();
+        match outcome {
+            Some(o) => {
+                let old = uids.insert(caip10.clone(), o.uid).filter(|old| *old != o.uid);
+                if let Some(old) = old {
+                    emit(events::WALLET_LINK_REPLACED, &json!({ "caip10": caip10, "account_id": account_id, "revoked": old, "attestation": o.uid }));
+                    ext_attestations::ext(self.attestations.clone())
+                        .with_static_gas(GAS_REVOKE_OLD)
+                        .revoke(old)
+                        .detach();
+                }
+                PromiseOrValue::Value(o)
+            }
+            None => {
+                match replaced {
+                    Some(previous) => self.links.insert(caip10.clone(), previous),
+                    None => self.links.remove(&caip10),
+                };
+                refund(&account_id, deposit.0);
+                env::log_str(&format!("wallet link of {caip10} rolled back: its attestation failed"));
+                PromiseOrValue::Value(Outcome::new(Uid([0; 32]), "failed"))
+            }
+        }
+    }
+
+    /// The `wallet_link` attestation of a linked wallet (links made before this was recorded have none).
+    pub fn link_attestation(&self, caip10: String) -> Option<Uid> {
+        link_uids().get(&caip10).copied()
     }
 
     /// The NEAR account a wallet (CAIP-10 id, as `link_message` writes it) is linked to.

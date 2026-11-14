@@ -3,9 +3,12 @@
 //! The attester or the subject of an active attestation mints its credential to the subject (a
 //! NEAR account) with `mint`, which reads the attestation from the attestations contract and pays
 //! the token's storage from the attached deposit. The token id is the attestation UID in hex.
-//! When the attestation is revoked, the attestations contract calls `on_attestation_revoked` and
-//! the credential is burned. The storage it freed stays with this contract. A revocation that
-//! arrives while a mint is between its read and its callback marks that mint, which then refuses.
+//! When the attestation is revoked or its expiry is recorded, the attestations contract calls
+//! `on_attestation_revoked` and the credential is burned. The storage it freed stays with this
+//! contract. A revocation that arrives while a mint is between its read and its callback marks
+//! that mint, which then refuses. A credential past its attestation's expiry is gone from every
+//! view at once (like the attestation, whose expiry is computed on read), and anyone may burn it
+//! with `burn_expired`. The holder may burn a credential they do not want with `nft_burn`.
 //!
 //! Transfers and approvals are disabled; the enumeration and metadata views follow NEP-171,
 //! NEP-177 and NEP-181.
@@ -166,18 +169,27 @@ impl Contract {
         if let Some(m) = self.minting.get_mut(&attestation_uid) {
             m.revoked = true;
         }
-        let token_id = attestation_uid.to_hex();
-        let Some(owner_id) = self.burn(&token_id) else { return };
-        NftBurn { owner_id: &owner_id, token_ids: &[&token_id], authorized_id: None, memo: Some("revoked") }
-            .emit();
-        emit(
-            CREDENTIAL_BURNED,
-            &json!({ "token_id": token_id, "attestation_uid": attestation_uid, "owner_id": owner_id }),
-        );
+        self.burn_and_log(&attestation_uid.to_hex(), "revoked");
     }
 
     pub fn credential_for_attestation(&self, attestation_uid: Uid) -> Option<Token> {
-        self.tokens.nft_token(attestation_uid.to_hex())
+        self.nft_token(attestation_uid.to_hex())
+    }
+
+    /// Burns a credential whose attestation has expired. Anyone may call it (the keeper does).
+    pub fn burn_expired(&mut self, token_id: TokenId) -> bool {
+        let Some(token) = self.tokens.nft_token(token_id.clone()) else { return false };
+        require!(expired(&token), "the credential has not expired");
+        self.burn_and_log(&token_id, "expired");
+        true
+    }
+
+    /// The holder burns their own credential: an attester can issue one to anyone, and the
+    /// holder can always refuse it. The attestation itself is untouched.
+    pub fn nft_burn(&mut self, token_id: TokenId) {
+        let owner = self.tokens.owner_by_id.get(&token_id).unwrap_or_else(|| env::panic_str("no such credential"));
+        require!(env::predecessor_account_id() == owner, "only the holder can burn a credential");
+        self.burn_and_log(&token_id, "burned by the holder");
     }
 
     // NEP-171: transfers and approvals are disabled.
@@ -238,8 +250,9 @@ impl Contract {
 
     // NEP-171, NEP-177 and NEP-181 views.
 
+    /// The credential, or null once burned or past its attestation's expiry.
     pub fn nft_token(&self, token_id: TokenId) -> Option<Token> {
-        self.tokens.nft_token(token_id)
+        self.tokens.nft_token(token_id).filter(|t| !expired(t))
     }
 
     pub fn nft_metadata(&self) -> NFTContractMetadata {
@@ -250,8 +263,9 @@ impl Contract {
         self.tokens.nft_total_supply()
     }
 
+    /// Live credentials; expired ones are left out (the supply counts them until they are burned).
     pub fn nft_tokens(&self, from_index: Option<U128>, limit: Option<u64>) -> Vec<Token> {
-        self.tokens.nft_tokens(from_index, limit)
+        self.tokens.nft_tokens(from_index, limit).into_iter().filter(|t| !expired(t)).collect()
     }
 
     pub fn nft_supply_for_owner(&self, account_id: AccountId) -> U128 {
@@ -264,7 +278,7 @@ impl Contract {
         from_index: Option<U128>,
         limit: Option<u64>,
     ) -> Vec<Token> {
-        self.tokens.nft_tokens_for_owner(account_id, from_index, limit)
+        self.tokens.nft_tokens_for_owner(account_id, from_index, limit).into_iter().filter(|t| !expired(t)).collect()
     }
 }
 
@@ -329,6 +343,16 @@ impl Contract {
         Ok(token)
     }
 
+    /// Burns a token, if it exists, and logs the NEP-171 burn and the Attestra event.
+    fn burn_and_log(&mut self, token_id: &TokenId, memo: &str) {
+        let Some(owner_id) = self.burn(token_id) else { return };
+        NftBurn { owner_id: &owner_id, token_ids: &[token_id], authorized_id: None, memo: Some(memo) }.emit();
+        emit(
+            CREDENTIAL_BURNED,
+            &json!({ "token_id": token_id, "attestation_uid": token_id, "owner_id": owner_id, "reason": memo }),
+        );
+    }
+
     /// Removes a token from every map of the NFT and returns its owner.
     fn burn(&mut self, token_id: &TokenId) -> Option<AccountId> {
         let owner_id = self.tokens.owner_by_id.remove(token_id)?;
@@ -387,6 +411,16 @@ fn credential_metadata(a: &AttestationView) -> TokenMetadata {
         reference: None,
         reference_hash: None,
     }
+}
+
+/// Past the expiry its metadata carries (Unix milliseconds, from the attestation).
+fn expired(token: &Token) -> bool {
+    token
+        .metadata
+        .as_ref()
+        .and_then(|m| m.expires_at.as_deref())
+        .and_then(|ms| ms.parse::<u64>().ok())
+        .is_some_and(|ms| env::block_timestamp_ms() >= ms)
 }
 
 fn refund(account_id: &AccountId, amount: u128) {

@@ -34,7 +34,8 @@ pub struct ForeignEventClaim {
     pub log_index: u64,
     /// The log exactly as the chain's RPC returns it in the receipt.
     pub log: EvmLog,
-    /// Defaults to the emitting contract, `eip155:<chain id>:0x<address>`.
+    /// Defaults to the emitting contract, `eip155:<chain id>:0x<address>`. Any other subject must
+    /// be the caller or a wallet linked to the caller (`link_wallet`).
     pub subject: Option<String>,
 }
 
@@ -44,6 +45,8 @@ struct Prepared {
     request: mpc::ForeignChainRpcRequest,
     payload_hash: mpc::Hash256,
     subject: String,
+    /// The emitting contract, `eip155:<chain id>:0x<address>`.
+    default_subject: String,
     data: Vec<u8>,
 }
 
@@ -73,7 +76,12 @@ impl Contract {
         require_gas();
         let p = self.prepare(&claim).unwrap_or_else(|e| env::panic_str(&e));
         let uid = Uid(p.payload_hash.0);
-        require!(!self.used_payloads.contains(&uid), "this event was already attested");
+        require!(
+            self.may_name_subject(&p.subject, &p.default_subject, &env::predecessor_account_id()),
+            "the subject must be the emitting contract, the caller, or a wallet linked to the caller"
+        );
+        let lock = fact_lock(&p.payload_hash.0, &p.subject, &p.default_subject);
+        require!(!self.used_payloads.contains(&lock), "this event was already attested for this subject");
         let deposit = p.deposit();
         take_deposit(deposit, "the event and its attestation");
 
@@ -137,7 +145,9 @@ impl Contract {
         payload_hash: Uid,
         requester: AccountId,
         deposit: U128,
+        lock: Option<Uid>,
     ) -> Outcome {
+        let lock = lock.unwrap_or(payload_hash);
         let outcome = (env::promise_results_count() == 1)
             .then(|| env::promise_result_checked(0, MAX_RESPONSE_LEN).ok())
             .flatten()
@@ -145,13 +155,13 @@ impl Contract {
         match outcome {
             Some(o) if o.status != "rejected" => o,
             Some(o) => {
-                self.used_payloads.remove(&payload_hash);
+                self.used_payloads.remove(&lock);
                 refund(&requester, storage_cost(PAYLOAD_ENTRY_BYTES).min(deposit.0));
                 self.foreign_failed(&claim, payload_hash, "the schema resolver rejected the attestation");
                 o
             }
             None => {
-                self.used_payloads.remove(&payload_hash);
+                self.used_payloads.remove(&lock);
                 refund(&requester, deposit.0);
                 self.foreign_failed(&claim, payload_hash, "the attestation call failed")
             }
@@ -186,6 +196,10 @@ impl Contract {
         if !self.mpc_signed(&response, &p.payload_hash) {
             return PromiseOrValue::Value(self.foreign_failed(claim, uid, "invalid MPC signature"));
         }
+        if !self.may_name_subject(&p.subject, &p.default_subject, requester) {
+            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "the requester may not name this subject"));
+        }
+        let lock = fact_lock(&p.payload_hash.0, &p.subject, &p.default_subject);
         let Some(schema_uid) = self.schemas.as_ref().map(|s| s.foreign_tx) else {
             return PromiseOrValue::Value(self.foreign_failed(claim, uid, "schemas are not configured"));
         };
@@ -197,15 +211,15 @@ impl Contract {
                 "the deposit does not cover the storage",
             ));
         }
-        if !self.used_payloads.insert(uid) {
-            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "this event was already attested"));
+        if !self.used_payloads.insert(lock) {
+            return PromiseOrValue::Value(self.foreign_failed(claim, uid, "this event was already attested for this subject"));
         }
         emit(
             events::FOREIGN_TX_VERIFIED,
             &json!({
                 "payload_hash": uid, "chain": claim.chain, "tx_id": p.tx_id.to_hex(), "log_index": claim.log_index,
                 "block_number": claim.log.block_number, "emitter": format!("0x{}", claim.log.address.to_hex()),
-                "subject": p.subject,
+                "subject": p.subject, "requester": requester,
             }),
         );
         PromiseOrValue::Promise(
@@ -213,7 +227,7 @@ impl Contract {
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_AFTER_ATTEST)
                     .with_unused_gas_weight(0)
-                    .on_foreign_attested(claim.clone(), uid, requester.clone(), U128(deposit)),
+                    .on_foreign_attested(claim.clone(), uid, requester.clone(), U128(deposit), Some(lock)),
             ),
         )
     }
@@ -244,8 +258,8 @@ impl Contract {
         if data.len() > MAX_LOG_DATA_BYTES {
             return Err("log.data is larger than 8 KiB".into());
         }
-        let subject =
-            claim.subject.clone().unwrap_or_else(|| format!("eip155:{chain_id}:0x{}", log.address.to_hex()));
+        let default_subject = format!("eip155:{chain_id}:0x{}", log.address.to_hex());
+        let subject = claim.subject.clone().unwrap_or_else(|| default_subject.clone());
         if !is_valid_subject(&subject) {
             return Err("subject must be a NEAR account id or a CAIP-10 account id".into());
         }
@@ -262,7 +276,7 @@ impl Contract {
             claim.log_index,
         ))
         .expect("borsh");
-        Ok(Prepared { tx_id, request, payload_hash, subject, data })
+        Ok(Prepared { tx_id, request, payload_hash, subject, default_subject, data })
     }
 
     /// True when `response` is the MPC key's secp256k1 signature over `payload_hash`.

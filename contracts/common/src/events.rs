@@ -61,3 +61,4 @@ pub const FOREIGN_TX_REQUESTED: &str = "foreign_tx_requested";
 pub const FOREIGN_TX_VERIFIED: &str = "foreign_tx_verified";
 pub const FOREIGN_TX_FAILED: &str = "foreign_tx_failed";
 pub const WALLET_LINKED: &str = "wallet_linked";
+pub const WALLET_LINK_REPLACED: &str = "wallet_link_replaced";
