@@ -11,7 +11,7 @@
   <a href="deployments/testnet.json"><img alt="NEAR testnet: live" src="https://img.shields.io/badge/NEAR_testnet-live-1c1917?style=flat-square"></a>
   <a href="MAINNET.md"><img alt="NEAR mainnet: on the roadmap" src="https://img.shields.io/badge/NEAR_mainnet-roadmap-1c1917?style=flat-square"></a>
   <a href="https://github.com/AnasKWT/Attestra/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AnasKWT/Attestra/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="#verify-it-yourself"><img alt="Tests: 813 passing" src="https://img.shields.io/badge/tests-813_passing-16a34a?style=flat-square"></a>
+  <a href="#verify-it-yourself"><img alt="Tests: 925 passing" src="https://img.shields.io/badge/tests-925_passing-16a34a?style=flat-square"></a>
   <a href="#deployed-contracts"><img alt="Reproducible builds: NEP-330" src="https://img.shields.io/badge/builds-reproducible_NEP--330-1c1917?style=flat-square"></a>
   <a href="https://attestra.site/mcp"><img alt="MCP: hosted" src="https://img.shields.io/badge/MCP-hosted-f97316?style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-1c1917?style=flat-square"></a>
@@ -49,7 +49,7 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
   </tr>
   <tr>
     <td valign="top">Evidence such as an ID scan or a payslip is encrypted in the browser to a NEAR AI Cloud model. A checker in NEAR OutLayer's TEE signs the verdict, and only the verdict and a hash reach the chain.</td>
-    <td valign="top">The contract asks the NEAR MPC network to verify a transaction on Solana, Base, Arbitrum, Polygon, BNB or Avalanche (<code>verify_foreign_transaction</code>) and checks the signed answer itself.</td>
+    <td valign="top">The contract asks the NEAR MPC network to verify a transaction (<code>verify_foreign_transaction</code>) and checks the signed answer itself: live on Base Sepolia and Solana devnet, and wired the same way for Ethereum, Arbitrum, Polygon, BNB and Avalanche.</td>
     <td valign="top">AI agents get an on-chain identity, reviews, scoped delegation and a function-call key that can only attest and revoke. An agent is trusted only with an identity its own account (or its parent) registered and paid reviews, each naming the reviewer's payment to the agent on chain. Other agents read all of it over MCP before they trust or pay one.</td>
   </tr>
 </table>
@@ -125,7 +125,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 | Facts about EVM chains | Chain Signatures `verify_foreign_transaction` on an EVM log, answer checked with `env::ecrecover` | [foreign.rs](contracts/verdicts/src/foreign.rs), [mpc.rs](contracts/verdicts/src/mpc.rs) | [7J7xv1mj](https://testnet.nearblocks.io/txns/7J7xv1mjiZiFD8x3pNmYMe8WGicMXsBejafdAyBu9W9V) |
 | Facts about Solana | Chain Signatures `verify_foreign_transaction` on an inner instruction of a finalized transaction | [solana.rs](contracts/verdicts/src/solana.rs) | [3DqwQP9C](https://testnet.nearblocks.io/txns/3DqwQP9CnPBN7Le8i4ciMqYarv5Wni2iZJN8kgXCBj3W) |
 | Wallet links | EIP-191 and ed25519 signatures verified on chain | [wallet.rs](contracts/verdicts/src/wallet.rs) | [8kT7ZJaW](https://testnet.nearblocks.io/txns/8kT7ZJaWoAaFh1is4q6aSpoj6p6sSV3P93d8iZaYmMs8) |
-| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke; an identity is verified only when the agent account or its parent attested it, a review counts once per reviewer and never from the agent, its owner or their sub-accounts, and it is paid when its `job_ref` is a transaction (NEAR transfer, `ft_transfer`, or x402 settlement) in which the reviewer paid the agent, read with the `tx` RPC method; trusted means a verified identity and paid reviews averaging at least 3.5 | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts), [reputation.ts](packages/sdk/src/reputation.ts) | `agent.attestra.testnet`: identity [4BBKBgVK](https://testnet.nearblocks.io/txns/4BBKBgVKNfNYGCgm5RkV95v5XqWWearzuR8mDXPYYNhy), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), the function-call key its owner `attestra.testnet` added to its own account for the agent to hold [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
+| Know Your Agent | identity and review schemas, scoped delegation, a function-call access key limited to attest and revoke; an identity is verified only when the agent account or its parent attested it, a review counts once per reviewer and never from the agent, its owner or their sub-accounts, and it is paid when its `job_ref` is a transaction (NEAR transfer, `ft_transfer`, or x402 settlement) in which the reviewer paid the agent, read with the `tx` RPC method; trusted means a verified identity and paid reviews averaging at least 3.5 | [schemas.ts](packages/sdk/src/schemas.ts), [agent-keys.ts](packages/sdk/src/agent-keys.ts), [reputation.ts](packages/sdk/src/reputation.ts) | `agent.attestra.testnet`: identity [EpqX4MRw](https://testnet.nearblocks.io/txns/EpqX4MRwSmghKzaCCVWfZp48J64kSetSLe1Fff3D5nYG), delegation [3Lo6u9HY](https://testnet.nearblocks.io/txns/3Lo6u9HYTwumPe98BUY7aTtFYEuNpGtAraPzu7K963Rj), the function-call key its owner `attestra.testnet` added to its own account for the agent to hold [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ); a review [8VD7bT6B](https://testnet.nearblocks.io/txns/8VD7bT6BoPtuXdg9RhEunMDV1WuC1FGAvY7HyLjHJzVY) |
 | Paid verification | x402 on NEAR: a signed delegate action carrying `ft_transfer`, settled on chain before the answer | [x402.ts](packages/sdk/src/x402.ts), [paid.ts](apps/agent/src/paid.ts) | [Cym3k2or](https://testnet.nearblocks.io/txns/Cym3k2orMnXobF7zPwVUXACoFtQVdMkSFvNS7n2XxcYP) |
 | Gasless issuing | NEP-413 signed requests and NEP-366 meta transactions through the relayer | [relayer](services/src/relayer/app.ts), [ops.rs](contracts/attestations/src/ops.rs) | [BQTsSo5L](https://testnet.nearblocks.io/txns/BQTsSo5L5QytkpTvwNFHriSUFw5G8MRyXMmcXKFYasM7) |
 | Passkey accounts | WebAuthn PRF to an ed25519 implicit account | [passkey.ts](apps/web/src/lib/passkey.ts) | the same transaction, signed by a passkey account |
@@ -197,9 +197,9 @@ Everything below runs on a fresh clone with no deployment and no keys:
 
 ```bash
 pnpm install && pnpm build
-pnpm test                 # every TypeScript suite (202 tests; 3 indexer database tests skip without Postgres)
-pnpm test:contracts       # every contract unit and property test (323)
-pnpm test:checker         # the OutLayer checker (24)
+pnpm test                 # every TypeScript suite (299 tests; the indexer database tests skip without Postgres)
+pnpm test:contracts       # every contract unit and property test (334)
+pnpm test:checker         # the OutLayer checker (28)
 contracts/scripts/build.sh && pnpm test:sandbox   # 20 flows across every contract on a local NEAR node
 pnpm cli:e2e              # 95 CLI steps against a fresh local deployment
 pnpm e2e                  # 226 Playwright tests on a production build of the site (E2E_PORT=3102 when pnpm dev holds 3100)
