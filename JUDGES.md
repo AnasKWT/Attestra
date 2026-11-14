@@ -3,6 +3,7 @@
 This page maps each judging criterion to the evidence: the code (with line links), the tests and a live testnet transaction.
 Every contract is deployed on testnet under `attestra.testnet` from a reproducible build; mainnet is on the roadmap ([MAINNET.md](MAINNET.md)), with the code already behind one switch; the README's "Live on testnet" table links a transaction for each flow.
 The whole product is live at [attestra.site](https://attestra.site), with its services at `https://api.attestra.site` ([status](https://attestra.site/status)) and the MCP server at `https://attestra.site/mcp`.
+The demo video, a 4-minute walkthrough of every flow with real testnet transactions, is [on X](https://x.com/UseAttestra/status/2121745724136112445).
 
 ## At a glance
 
@@ -31,6 +32,8 @@ The whole product is live at [attestra.site](https://attestra.site), with its se
 | Playwright on a production build (`pnpm e2e`) | 226 passed |
 | Playwright live on testnet with a passkey account (`e2e:live`), against attestra.site | 18 passed |
 | `pnpm security` (Clippy, cargo audit, cargo deny, pnpm audit) | 6 of 6 clean |
+
+The README badge's 925 is the sum of the test rows (334 + 20 + 28 + 299 + 226 + 18); the CLI steps are counted apart.
 
 Every network call retries transient failures with exponential backoff and full jitter, and writes retry only on answers that prove nothing was processed ([retry.ts](packages/sdk/src/retry.ts)).
 

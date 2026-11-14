@@ -65,7 +65,7 @@ Attestations can be delegated, scheduled for revocation, minted as non-transfera
 | **For agents** | MCP at `https://attestra.site/mcp`, [llms.txt](https://attestra.site/llms.txt), [AGENTS.md](AGENTS.md), [skills/attestra/SKILL.md](skills/attestra/SKILL.md) |
 | **Source** | [github.com/AnasKWT/Attestra](https://github.com/AnasKWT/Attestra), MIT |
 | **For judges** | [JUDGES.md](JUDGES.md): each judging criterion mapped to code, tests and transactions |
-| **Video** | `[placeholder]` |
+| **Demo video** | [4-minute walkthrough on X](https://x.com/UseAttestra/status/2121745724136112445): every flow with real testnet transactions |
 
 <p align="center">
   <img src="assets/readme/site-home.png" alt="The Attestra site's landing page: the headline, the two calls to action and a real testnet attestation from a private check decided in NEAR OutLayer's TEE, with its schema, subject, evidence hash, issue and expiry times and block height" width="960">
