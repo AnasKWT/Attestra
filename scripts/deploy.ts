@@ -219,9 +219,11 @@ async function main() {
   // The indexer starts here on an empty database: the first deploy's block, kept across reruns.
   const previousFile = join(repo, `deployments/${NET}.json`);
   const previousStart = existsSync(previousFile) ? (JSON.parse(readFileSync(previousFile, 'utf8')).start_height as number | undefined) : undefined;
-  // The OutLayer checker is published by scripts/outlayer-publish.ts; a redeploy keeps its record.
-  const previousChecker = existsSync(previousFile) ? JSON.parse(readFileSync(previousFile, 'utf8')).checker : undefined;
-  if (previousChecker) record.checker = previousChecker;
+  // The OutLayer checker (scripts/outlayer-publish.ts) and the DAO (scripts/dao.ts) are recorded by their own
+  // scripts; a redeploy keeps their records.
+  const previous = existsSync(previousFile) ? (JSON.parse(readFileSync(previousFile, 'utf8')) as { checker?: unknown; dao?: unknown }) : {};
+  if (previous.checker) record.checker = previous.checker;
+  if (previous.dao) record.dao = previous.dao;
   record.start_height = previousStart ?? (await rpc<{ header: { height: number } }>('block', { finality: 'final' })).header.height - 10;
 
   // 1. accounts and code

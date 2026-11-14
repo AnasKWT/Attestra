@@ -97,12 +97,12 @@
   },
   "start_height": 277069607,
   "checker": {
-    "wasm_hash": "4a878586fb91e6debc543e51481b9b23274f034fb8945be547aea4fb8a4b3410",
-    "wasm_url": "https://test.fastfs.io/agent.attestra.testnet/outlayer.testnet/4a878586fb91e6debc543e51481b9b23274f034fb8945be547aea4fb8a4b3410.wasm",
-    "key": "ed25519:73Tk5SqxCRFGfDYTadgWUkwoZDndcvRyipyMrXKzmLpV",
-    "key_tx": "6n3rj51Gb7XN1QV3pF6tyiUYrYsPr2i2dto42Am98Ru3",
+    "wasm_hash": "b559c8584ddc52a3bcae4ada84f22654152a3e18f2c5328a643b480ecaade2cf",
+    "wasm_url": "https://test.fastfs.io/agent.attestra.testnet/outlayer.testnet/b559c8584ddc52a3bcae4ada84f22654152a3e18f2c5328a643b480ecaade2cf.wasm",
+    "key": "ed25519:AgvuhdSmhpSwD5hW5TuRw7aLCVMvEWZXkzAKQ9CkqsEa",
+    "key_tx": "9mZSECatwvPjoHkCG5DbidxDhJPg6Y8wQRPXT4tiYoGo",
     "key_tx_signer": "agent.attestra.testnet",
-    "commit": "64019ba1ab011ac6beea088ded2434fa1d96f34c",
+    "commit": "b2804bea7eae1e0172e3398682b0f82616267586",
     "build": "checker/build.sh --reproducible"
   },
   "dao": {
