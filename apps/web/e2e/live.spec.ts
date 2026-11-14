@@ -526,31 +526,20 @@ test.describe('live on testnet with one passkey account', () => {
     }, 180_000);
   });
 
-  test('a private AI check attests a pass with only the evidence hash', async () => {
-    // A busy OutLayer queue can drop a run; the agent sends it again, up to three runs.
-    test.setTimeout(720_000);
-    await open('/sandbox/app/private-check');
-    const health = (await (await fetch(`${AGENT}/health`)).json()) as { checker: { mode: 'local' | 'outlayer' } };
-    await expect(page.getByText(health.checker.mode === 'outlayer' ? 'Live: OutLayer TEE' : 'Live: local mode (bootstrap key)')).toBeVisible();
-    await page.locator('#rule').selectOption('age_over_18');
-    // The check is about the signed-in account, which signs the request itself.
-    await expect(page.getByText(me.accountId).first()).toBeVisible();
-    await page.locator('#ev').fill(EVIDENCE);
-    const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 660_000 });
-    if (r.tx) run.tx.private_check = r.tx;
-    const uid = await uidIn(r.card);
-    const att = await reader.getAttestation(uid);
-    expect(att.data?.schema_uid).toBe(knownSchemaUid('aiCheck'));
-    expect(att.data?.subject).toBe(me.accountId);
-    const fields = new SchemaEncoder(KNOWN_SCHEMAS.aiCheck.definition).decode(att.data!.data);
-    expect(fields).toMatchObject({ rule_id: 'age_over_18', result: true });
-    // Only the hash of the evidence is on chain, never the text.
-    expect(JSON.stringify(fields)).not.toContain('Test Person');
-  });
-
   test('a Sputnik DAO issues a membership through the grant its council voted', async () => {
     const DAO = 'attestra.sputnik-v2.testnet';
-    // Runs after the private check: another issuer (the verdicts contract) already vouches for this account.
+    // The desk admits an account another issuer vouches for: the testnet root vouches with a membership of its own.
+    const vouch = await unthrottled(async () => {
+      const data = new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).encode({ organization: 'Attestra testers', role: 'tester', since: Math.floor(Date.now() / 1000) });
+      const r = await rootClient.createAttestation({ schemaUid: knownSchemaUid('membership'), subject: me.accountId, data });
+      if (!r.success && /\b429\b|Too Many Requests/i.test(r.error?.message ?? '')) throw new Error(r.error!.message);
+      return r;
+    });
+    expect(vouch.success, vouch.error?.message).toBe(true);
+    await eventually(async () => {
+      const about = await indexer.listAttestations({ subject: me.accountId, status: 'active', limit: 50 });
+      expect(about.data.some((a) => a.attester === ROOT)).toBe(true);
+    }, 120_000);
     await open('/sandbox/app/dao-attestation');
     await expect(page.getByText('membership schema only').first()).toBeVisible({ timeout: 30_000 });
     const r = await submit('Ask the membership desk', 'Request membership', { timeout: 120_000 });
@@ -650,6 +639,28 @@ test.describe('live on testnet with one passkey account', () => {
     run.tx.x402_settlement = settlement![1];
     expect(paid.text).toContain(run.attestationUid!);
     await eventually(async () => expect(BigInt((await reader.tokenBalance(me.accountId)).data!.balance)).toBe(before - 10n ** 18n), 60_000);
+  });
+
+  test('a private AI check attests a pass with only the evidence hash', async () => {
+    // A busy OutLayer queue can drop a run; the agent sends it again, up to three runs.
+    test.setTimeout(720_000);
+    await open('/sandbox/app/private-check');
+    const health = (await (await fetch(`${AGENT}/health`)).json()) as { checker: { mode: 'local' | 'outlayer' } };
+    await expect(page.getByText(health.checker.mode === 'outlayer' ? 'Live: OutLayer TEE' : 'Live: local mode (bootstrap key)')).toBeVisible();
+    await page.locator('#rule').selectOption('age_over_18');
+    // The check is about the signed-in account, which signs the request itself.
+    await expect(page.getByText(me.accountId).first()).toBeVisible();
+    await page.locator('#ev').fill(EVIDENCE);
+    const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 660_000 });
+    if (r.tx) run.tx.private_check = r.tx;
+    const uid = await uidIn(r.card);
+    const att = await reader.getAttestation(uid);
+    expect(att.data?.schema_uid).toBe(knownSchemaUid('aiCheck'));
+    expect(att.data?.subject).toBe(me.accountId);
+    const fields = new SchemaEncoder(KNOWN_SCHEMAS.aiCheck.definition).decode(att.data!.data);
+    expect(fields).toMatchObject({ rule_id: 'age_over_18', result: true });
+    // Only the hash of the evidence is on chain, never the text.
+    expect(JSON.stringify(fields)).not.toContain('Test Person');
   });
 
   test('the agent chat answers from the chain with a signed reply', async () => {

@@ -263,7 +263,13 @@ async function main() {
     } else if (now.code_hash !== hash) {
       log(`warning: ${id} runs ${now.code_hash}, local build is ${hash} (set UPGRADE=1 to redeploy)`);
     }
-    const final = await account(id);
+    // An RPC node can still answer with the code from before a deploy for a moment: wait until it shows the new code.
+    let final = await account(id);
+    for (let i = 0; tx && final?.code_hash !== hash && i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      final = await account(id);
+    }
+    if (tx && final?.code_hash !== hash) throw new Error(`${id} does not show ${hash} after the deploy (${tx})`);
     const previous = existsSync(join(repo, `deployments/${NET}.json`))
       ? (JSON.parse(readFileSync(join(repo, `deployments/${NET}.json`), 'utf8')).contracts?.[p.name] ?? {})
       : {};

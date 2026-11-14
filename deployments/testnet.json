@@ -15,7 +15,7 @@
     "attestations": {
       "account": "attestations.attestra.testnet",
       "crate": "attestra-attestations",
-      "code_hash": "2Wvsc7PNpgxH1BXhH7DvbTztGuQcMuGtj7rtVe4wBb1m",
+      "code_hash": "FDb1QXuBz6wskfbeiXMmcyPtYcxCZDZTfWsMdADcudTg",
       "deploy_tx": "8wQhJqH2WaHb8xJTDw1EJKUFY6QVnBnqRGxhxrVqqEVD",
       "wasm_bytes": 401025
     },
