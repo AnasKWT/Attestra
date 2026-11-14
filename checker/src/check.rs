@@ -1,6 +1,9 @@
 //! The private check, the same steps as `runCheck` in `apps/agent/src/check.ts`:
+//!   0. checks that the subject asked for it: its key signed the request (NEP-413) and is a
+//!      full-access key of the subject (`proof.rs`),
 //!   1. reads the rule from the verdicts contract itself (the caller names only its id),
-//!   2. for GitHub rules, fetches the facts from GitHub itself so they cannot be faked,
+//!   2. for GitHub rules, checks that the login's owner named the subject in a public gist, then
+//!      fetches the facts from GitHub itself so they cannot be faked,
 //!   3. encrypts the rule prompt to the attested model key and calls the verifiable model with
 //!      end-to-end encryption (the gateway sees ciphertext),
 //!   4. decrypts the one-word answer with an ephemeral key and checks the model's ed25519
@@ -68,6 +71,9 @@ pub struct CheckInput {
     pub encrypted_evidence: String,
     #[serde(default)]
     pub github: Option<String>,
+    /// The subject's signed request; required.
+    #[serde(default)]
+    pub subject_proof: Option<crate::proof::SubjectProof>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -182,10 +188,12 @@ pub fn fetch_rules(host: &dyn Host, net: &Network) -> Result<Vec<Rule>> {
 }
 
 /// Merged pull requests of a GitHub login, counted from GitHub's search API.
+pub fn is_github_login(login: &str) -> bool {
+    (1..=39).contains(&login.len()) && login.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
 pub fn github_merged_prs(host: &dyn Host, login: &str, token: Option<&str>) -> Result<u64> {
-    let valid =
-        (1..=39).contains(&login.len()) && login.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-');
-    if !valid {
+    if !is_github_login(login) {
         return Err("not a GitHub login".into());
     }
     let mut headers = vec![
@@ -235,6 +243,7 @@ pub fn run_check(host: &dyn Host, input: &CheckInput) -> Result<CheckOutput> {
     if input.model.is_empty() || input.model.len() > MAX_MODEL_LEN {
         return Err("invalid model name".into());
     }
+    crate::proof::verify_subject(host, net, input)?;
     let rule = fetch_rules(host, net)?
         .into_iter()
         .find(|r| r.id == input.rule_id && r.enabled)
@@ -249,6 +258,10 @@ pub fn run_check(host: &dyn Host, input: &CheckInput) -> Result<CheckOutput> {
         let login =
             input.github.as_deref().filter(|g| !g.is_empty()).ok_or("this rule needs a GitHub login")?;
         let token = host.env("GITHUB_TOKEN").filter(|t| !t.is_empty());
+        if !is_github_login(login) {
+            return Err("not a GitHub login".into());
+        }
+        crate::proof::github_owner_agrees(host, login, &input.subject, token.as_deref())?;
         let merged = github_merged_prs(host, login, token.as_deref())?;
         evidence = encrypt_for_model(
             host,

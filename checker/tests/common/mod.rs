@@ -26,6 +26,42 @@ pub fn checker_key() -> SigningKey {
     SigningKey::from_bytes(&[9; 32])
 }
 
+/// The subject's (bob.testnet's) full-access key.
+pub fn subject_key() -> SigningKey {
+    SigningKey::from_bytes(&[5; 32])
+}
+
+pub fn near_key(k: &SigningKey) -> String {
+    attestra_checker::near_public_key(&k.verifying_key().to_bytes())
+}
+
+/// Signs the request as its subject would (what `signPrivateCheck` does in the SDK).
+pub fn prove_with(input: &mut attestra_checker::check::CheckInput, key: &SigningKey, deadline: u64) {
+    use base64::Engine;
+    let message = json!({
+        "action": "private_check",
+        "rule_id": input.rule_id,
+        "subject": input.subject,
+        "evidence_sha256": attestra_checker::proof::evidence_sha256(&input.encrypted_evidence),
+        "github": input.github,
+        "deadline": deadline,
+    })
+    .to_string();
+    let nonce = [0x5a; 32];
+    let sig = key.sign(&attestra_checker::proof::nep413_hash(&message, &nonce, "verdicts.attestra.testnet"));
+    let b64 = base64::engine::general_purpose::STANDARD;
+    input.subject_proof = Some(attestra_checker::proof::SubjectProof {
+        message,
+        nonce: b64.encode(nonce),
+        public_key: near_key(key),
+        signature: b64.encode(sig.to_bytes()),
+    });
+}
+
+pub fn prove(input: &mut attestra_checker::check::CheckInput) {
+    prove_with(input, &subject_key(), NOW + 600);
+}
+
 /// Encrypts to the model key with fixed randomness (what a browser does with random values).
 pub fn evidence(plaintext: &str) -> String {
     encrypt_with(plaintext, &model_pub(), [0x42; 32], [0x24; 24]).unwrap()
@@ -48,6 +84,10 @@ pub struct Mock {
     pub plaintext_answer: bool,
     /// RPC URLs that answer 500.
     pub failing_rpc: Vec<&'static str>,
+    /// Full-access keys the RPC reports, (account, key).
+    pub full_access: Vec<(String, String)>,
+    /// The content of the login's `attestra.txt` gist, if it has one.
+    pub gist: Option<String>,
 
     pub requests: RefCell<Vec<HttpRequest>>,
     pub seen: RefCell<Vec<String>>,
@@ -73,6 +113,8 @@ impl Mock {
             signer_seed: None,
             plaintext_answer: false,
             failing_rpc: vec![],
+            full_access: vec![("bob.testnet".into(), near_key(&subject_key()))],
+            gist: Some("attestra:bob.testnet\n".into()),
             requests: RefCell::new(vec![]),
             seen: RefCell::new(vec![]),
             sleeps: RefCell::new(vec![]),
@@ -104,6 +146,13 @@ impl Host for Mock {
             }
             assert_eq!(req.method, Method::Post);
             let body: Value = serde_json::from_slice(req.body.as_ref().unwrap()).unwrap();
+            if body["params"]["request_type"] == "view_access_key" {
+                let pair = (body["params"]["account_id"].as_str().unwrap().to_string(), body["params"]["public_key"].as_str().unwrap().to_string());
+                if self.full_access.contains(&pair) {
+                    return Self::respond(200, json!({ "jsonrpc": "2.0", "id": "x", "result": { "nonce": 1, "permission": "FullAccess" } }).to_string());
+                }
+                return Self::respond(200, json!({ "jsonrpc": "2.0", "id": "x", "error": { "cause": { "name": "UNKNOWN_ACCESS_KEY" } } }).to_string());
+            }
             assert_eq!(body["params"]["account_id"], "verdicts.attestra.testnet");
             assert_eq!(body["params"]["method_name"], "get_rules");
             let bytes: Vec<u8> = serde_json::to_vec(&self.rules).unwrap();
@@ -111,6 +160,16 @@ impl Host for Mock {
                 200,
                 json!({ "jsonrpc": "2.0", "id": "x", "result": { "result": bytes, "logs": [] } }).to_string(),
             );
+        }
+        if url.starts_with("https://api.github.com/users/") && url.contains("/gists") {
+            let list = match &self.gist {
+                Some(_) => json!([{ "files": { "attestra.txt": { "raw_url": "https://gist.githubusercontent.com/octo-cat/1/raw/attestra.txt" } } }]),
+                None => json!([]),
+            };
+            return Self::respond(200, list.to_string());
+        }
+        if url.starts_with("https://gist.githubusercontent.com/") {
+            return Self::respond(200, self.gist.clone().unwrap_or_default());
         }
         if url.starts_with("https://api.github.com/") {
             return Self::respond(200, json!({ "total_count": self.github_count }).to_string());

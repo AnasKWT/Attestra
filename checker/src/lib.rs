@@ -12,6 +12,7 @@
 pub mod check;
 pub mod e2ee;
 pub mod nearai;
+pub mod proof;
 pub mod verdict;
 
 use serde_json::{json, Value};

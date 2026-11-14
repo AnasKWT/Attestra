@@ -11,14 +11,17 @@ use common::*;
 use ed25519_dalek::{Signature as EdSignature, Verifier, VerifyingKey};
 
 fn input(rule_id: &str, evidence: String) -> CheckInput {
-    CheckInput {
+    let mut i = CheckInput {
         request_id: "AB".repeat(32),
         rule_id: rule_id.into(),
         subject: "bob.testnet".into(),
         model: MODEL.into(),
         encrypted_evidence: evidence,
         github: None,
-    }
+        subject_proof: None,
+    };
+    prove(&mut i);
+    i
 }
 
 /// What the verdicts contract checks, done here with an independent ed25519 implementation path.
@@ -89,14 +92,18 @@ fn encrypts_end_to_end_checks_the_model_signature_and_signs_a_verdict_the_contra
 #[test]
 fn the_json_output_has_the_agent_check_output_shape() {
     let mock = Mock::new("PASS");
+    let mut req = input("age_over_18", evidence("passport: 1980"));
+    req.request_id = "cd".repeat(32);
+    prove(&mut req);
     let raw = serde_json::json!({
         "operation": "check",
-        "request_id": "cd".repeat(32),
-        "rule_id": "age_over_18",
-        "subject": "eip155:1:0xabcdef0123456789abcdef0123456789abcdef01",
+        "request_id": req.request_id,
+        "rule_id": req.rule_id,
+        "subject": req.subject,
         "model": MODEL,
-        "encrypted_evidence": evidence("passport: 1980"),
+        "encrypted_evidence": req.encrypted_evidence,
         "github": null,
+        "subject_proof": req.subject_proof,
     });
     let out = handle(&mock, &raw.to_string());
     let mut keys: Vec<&str> = out.as_object().unwrap().keys().map(String::as_str).collect();
@@ -165,7 +172,8 @@ fn falls_back_to_the_next_rpc() {
     let mut mock = Mock::new("PASS");
     mock.failing_rpc = vec!["https://test.rpc.fastnear.com"];
     run_check(&mock, &input("age_over_18", evidence("x"))).unwrap();
-    assert_eq!(mock.requests_to("fastnear.com").len(), 2);
+    // The key lookup and the rules each fail over once.
+    assert_eq!(mock.requests_to("fastnear.com").len(), 4);
 }
 
 #[test]
@@ -173,13 +181,14 @@ fn fetches_github_facts_itself() {
     let mock = Mock::new("PASS");
     let mut req = input("github_contributor", String::new());
     req.github = Some("octo-cat".into());
+    prove(&mut req);
     let out = run_check(&mock, &req).unwrap();
     assert!(out.verdict.result);
     assert_eq!(
         mock.seen.borrow()[1],
         "Fetched by the checker from api.github.com just now: the GitHub user \"octo-cat\" has 12 merged pull requests in public repositories."
     );
-    let gh = &mock.requests_to("api.github.com")[0];
+    let gh = &mock.requests_to("api.github.com/search")[0];
     assert_eq!(
         gh.url,
         "https://api.github.com/search/issues?q=type%3Apr%20author%3Aocto-cat%20is%3Amerged&per_page=1"
@@ -191,6 +200,7 @@ fn fetches_github_facts_itself() {
     no_login.github = None;
     assert_eq!(run_check(&Mock::new("PASS"), &no_login).unwrap_err(), "this rule needs a GitHub login");
     no_login.github = Some("bad login!".into());
+    prove(&mut no_login);
     assert_eq!(run_check(&Mock::new("PASS"), &no_login).unwrap_err(), "not a GitHub login");
 }
 
@@ -271,4 +281,87 @@ fn answers_its_public_key_and_reports_errors_as_json() {
     assert!(out["error"].as_str().unwrap().starts_with("invalid input"), "{out}");
     let out = handle(&mock, "not json");
     assert!(out["error"].is_string());
+}
+
+#[test]
+fn the_subject_must_sign_the_request_with_its_own_key() {
+    // No proof.
+    let mut req = input("age_over_18", evidence("born 1990"));
+    req.subject_proof = None;
+    assert_eq!(run_check(&Mock::new("PASS"), &req).unwrap_err(), "the subject must sign the request (subject_proof)");
+
+    // Someone else's key, valid signature: not a key of bob.testnet.
+    let mut stranger = input("age_over_18", evidence("born 1990"));
+    let other = ed25519_dalek::SigningKey::from_bytes(&[6; 32]);
+    prove_with(&mut stranger, &other, NOW + 600);
+    let err = run_check(&Mock::new("PASS"), &stranger).unwrap_err();
+    assert!(err.contains("is not a full-access key of bob.testnet"), "{err}");
+
+    // A function-call key is not enough either.
+    let mut fc = Mock::new("PASS");
+    fc.full_access.clear();
+    assert!(run_check(&fc, &input("age_over_18", evidence("born 1990"))).unwrap_err().contains("is not a full-access key"));
+
+    // The proof is for other evidence, another rule or another subject.
+    let mut swapped = input("age_over_18", evidence("born 1990"));
+    swapped.encrypted_evidence = evidence("born 2015");
+    assert_eq!(run_check(&Mock::new("PASS"), &swapped).unwrap_err(), "the signed message names other evidence");
+    let mut other_subject = input("age_over_18", evidence("born 1990"));
+    other_subject.subject = "carol.testnet".into();
+    assert_eq!(run_check(&Mock::new("PASS"), &other_subject).unwrap_err(), "the signed message names another rule or subject");
+
+    // Expired, or valid for too long.
+    let mut old = input("age_over_18", evidence("born 1990"));
+    prove_with(&mut old, &subject_key(), NOW - 1);
+    assert_eq!(run_check(&Mock::new("PASS"), &old).unwrap_err(), "the signed request has expired");
+    let mut long = input("age_over_18", evidence("born 1990"));
+    prove_with(&mut long, &subject_key(), NOW + 2 * 86_400);
+    assert_eq!(run_check(&Mock::new("PASS"), &long).unwrap_err(), "the signed request is valid for more than a day");
+
+    // A tampered signature.
+    let mut tampered = input("age_over_18", evidence("born 1990"));
+    let p = tampered.subject_proof.as_mut().unwrap();
+    p.message = p.message.replace("\"deadline\"", "\"deadline\" ");
+    assert_eq!(run_check(&Mock::new("PASS"), &tampered).unwrap_err(), "the subject's signature does not verify");
+
+    // CAIP-10 subjects cannot sign a NEAR request.
+    let mut caip = input("age_over_18", evidence("born 1990"));
+    caip.subject = "eip155:1:0xabcdef0123456789abcdef0123456789abcdef01".into();
+    assert_eq!(run_check(&Mock::new("PASS"), &caip).unwrap_err(), "a private check is about a NEAR account");
+}
+
+#[test]
+fn an_implicit_account_proves_with_the_key_it_is_made_of() {
+    let key = ed25519_dalek::SigningKey::from_bytes(&[8; 32]);
+    let mut req = input("age_over_18", evidence("born 1990"));
+    req.subject = hex::encode(key.verifying_key().to_bytes());
+    prove_with(&mut req, &key, NOW + 600);
+    let mock = Mock::new("PASS");
+    assert!(run_check(&mock, &req).unwrap().verdict.result);
+    // No RPC lookup is needed for an implicit account.
+    assert!(mock.requests_to("fastnear.com").iter().all(|r| !String::from_utf8_lossy(r.body.as_ref().unwrap()).contains("view_access_key")));
+}
+
+#[test]
+fn a_github_rule_needs_the_logins_gist_naming_the_subject() {
+    let mut req = input("github_contributor", String::new());
+    req.github = Some("octo-cat".into());
+    prove(&mut req);
+    let mut none = Mock::new("PASS");
+    none.gist = None;
+    assert_eq!(run_check(&none, &req).unwrap_err(), "octo-cat has no public gist attestra.txt with the line attestra:bob.testnet");
+    let mut other = Mock::new("PASS");
+    other.gist = Some("attestra:mallory.testnet".into());
+    assert!(run_check(&other, &req).is_err());
+    // The facts are only counted once the owner agreed.
+    assert!(other.requests_to("api.github.com/search").is_empty());
+    let ok = Mock::new("PASS");
+    assert!(run_check(&ok, &req).unwrap().verdict.result);
+}
+
+#[test]
+fn the_nep413_hash_matches_the_sdk() {
+    // The same vector packages/sdk/test/subject-proof.test.ts checks.
+    let h = attestra_checker::proof::nep413_hash(r#"{"action":"private_check"}"#, &[0x5a; 32], "verdicts.attestra.testnet");
+    assert_eq!(hex::encode(h), "bc4a661274abe9eb4c9df6fc9bf5911fb5e638d602c137285393247c0058900c");
 }
