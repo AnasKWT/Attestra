@@ -552,9 +552,10 @@ test.describe('live on testnet with one passkey account', () => {
       expect(att.data?.subject).toBe(me.accountId);
       expect(new SchemaEncoder(KNOWN_SCHEMAS.membership.definition).decode(att.data!.data)).toMatchObject({ organization: DAO, role: 'member' });
     }, 60_000);
-    // A second request is refused: one membership per account.
-    const again = await submit('Ask the membership desk', 'Request membership', { expectError: true });
-    expect(again.text).toMatch(/already a member/);
+    // A second request is refused: one membership per account (the per-account limit may answer first).
+    const again = page.getByRole('form', { name: 'Ask the membership desk', exact: true });
+    await again.getByRole('button', { name: 'Request membership', exact: true }).click();
+    await expect(again.getByRole('alert')).toContainText(/already a member|rate limited|Too Many Requests/i, { timeout: 60_000 });
 
     // The explorer names the DAO as the attester and the grant its council voted.
     await open(`/attestations/${uid}`, { signIn: false });

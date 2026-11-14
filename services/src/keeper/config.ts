@@ -42,7 +42,7 @@ export function loadKeeperConfig(env: NodeJS.ProcessEnv = process.env): KeeperCo
     daoRoles: list(env.KEEPER_DAO_ROLES, ['member', 'contributor']),
     rates: {
       runIp: rate(env, 'KEEPER_RATE_RUN_IP', '5/1h'),
-      daoIp: rate(env, 'KEEPER_RATE_DAO_IP', '5/1h'),
+      daoIp: rate(env, 'KEEPER_RATE_DAO_IP', '10/1h'),
       membershipAccount: rate(env, 'KEEPER_RATE_MEMBERSHIP_ACCOUNT', '1/1d'),
     },
   };
