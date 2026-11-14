@@ -301,11 +301,13 @@ async function serviceSteps(
   step('profile', run(['profile', t.alice]), (d) => JSON.stringify(d).includes(t.a1));
   step('agent profile', run(['agent', 'profile', t.agent]), (d) => JSON.stringify(d).includes(t.agent));
   step('check rules', run(['check', 'rules']), (d) => JSON.stringify(d).includes('age_over_18'));
-  step('check run (NEAR AI, encrypted evidence)', run(['check', 'run', 'age_over_18', '--subject', t.alice, '--evidence', 'State ID card. Name: Test Person. Date of birth: 1990-04-12.']), (d) => d.outcome?.status === 'created' && d.verdict?.result === true);
+  // A private check is about the account that asks: alice signs her own request.
+  step('check run (NEAR AI, encrypted evidence)', run(['check', 'run', 'age_over_18', '--evidence', 'State ID card. Name: Test Person. Date of birth: 1990-04-12.'], t.alice), (d) => d.outcome?.status === 'created' && d.verdict?.result === true);
+  refused('check run about someone else', run(['check', 'run', 'age_over_18', '--subject', t.agent, '--evidence', 'x'], t.alice));
   step('pay verify-claim (x402)', run(['pay', 'verify-claim', t.a1], t.alice), (d) => d.settlement?.success === true && d.result?.valid === true);
   step('pay verify-agent (x402)', run(['pay', 'verify-agent', t.agent], t.alice), (d) => d.settlement?.success === true);
   step('ai (NEAR AI chat with tools)', run(['ai', `Is attestation ${t.a1} valid? Answer yes or no.`]), (d) => typeof d.answer === 'string' && typeof d.model === 'string');
-  refused('check run with an unknown rule', run(['check', 'run', 'no_such_rule', '--subject', t.alice, '--evidence', 'x']));
+  refused('check run with an unknown rule', run(['check', 'run', 'no_such_rule', '--evidence', 'x'], t.alice));
   const sol = await solanaInstruction();
   if (sol) step('chain attest-solana (MPC)', run(['chain', 'attest-solana', '--tx', sol.signature, '--instruction', String(sol.index), '--inner', '0'], t.alice), (d) => d.status === 'created');
   else results.push({ step: 'chain attest-solana (MPC)', ok: false, detail: 'no finalized devnet transaction with inner instructions found' });
