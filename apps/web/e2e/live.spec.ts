@@ -149,6 +149,19 @@ async function attest(schemaUid: string, subject: string, name: string, opts: { 
 }
 
 /** Re-runs a check until it passes: the indexer and the chain's final views trail a fresh transaction. */
+/**
+ * An attestation read through this process' RPC right after the page wrote it: that RPC can trail by a block or
+ * throttle, so the read is retried until the record is there.
+ */
+async function fresh(uid: string): Promise<Awaited<ReturnType<typeof reader.getAttestation>>> {
+  let last: Awaited<ReturnType<typeof reader.getAttestation>> | undefined;
+  await expect(async () => {
+    last = await reader.getAttestation(uid);
+    expect(last.data, last.error?.message).toBeTruthy();
+  }).toPass({ timeout: 60_000, intervals: [1000, 2000, 4000] });
+  return last!;
+}
+
 async function eventually(fn: () => Promise<void>, timeout = 120_000) {
   await expect(fn).toPass({ timeout, intervals: [2000, 4000, 8000] });
 }
@@ -287,7 +300,7 @@ test.describe('live on testnet with one passkey account', () => {
     const uid = await uidIn(r.card);
 
     // The chain has it, issued by the passkey account and decoding to what was typed.
-    const att = await reader.getAttestation(uid);
+    const att = await fresh(uid);
     expect(att.success).toBe(true);
     expect(att.data?.subject).toBe(member);
     expect(att.data?.attester).toBe(me.accountId);
@@ -310,7 +323,7 @@ test.describe('live on testnet with one passkey account', () => {
     const a = await attest(schema.uid, subject, 'Test Person');
     run.attestationUid = a.uid;
     if (a.tx) run.tx.attest = a.tx;
-    const att = await reader.getAttestation(a.uid);
+    const att = await fresh(a.uid);
     expect(att.data?.status).toBe('active');
     expect(att.data?.schema_uid).toBe(schema.uid);
     expect(new SchemaEncoder(s.data!.definition).decode(att.data!.data)).toMatchObject({ name: 'Test Person', level: 3, verified: true, [RUN_FIELD]: TAG });
@@ -340,7 +353,7 @@ test.describe('live on testnet with one passkey account', () => {
     await page.locator('#uid').fill(a.uid);
     const rev = await submit('Revoke an attestation', 'Revoke');
     if (rev.tx) run.tx.revoke = rev.tx;
-    expect((await reader.getAttestation(a.uid)).data?.status).toBe('revoked');
+    expect((await fresh(a.uid)).data?.status).toBe('revoked');
     // The attestations contract told the credentials contract: the token is gone.
     await eventually(async () => expect((await reader.getCredential(a.uid)).data ?? null).toBeNull(), 60_000);
 
@@ -371,7 +384,7 @@ test.describe('live on testnet with one passkey account', () => {
     const uid = await uidIn(submitPanel);
     const tx = await txOf(submitPanel);
     if (tx) run.tx.delegated_relayed = tx;
-    const att = await reader.getAttestation(uid);
+    const att = await fresh(uid);
     expect(att.data?.attester).toBe(me.accountId);
     expect(att.data?.subject).toBe(subject);
 
@@ -400,7 +413,7 @@ test.describe('live on testnet with one passkey account', () => {
 
     const ok = await attest(schema.uid, `wl-${TAG}.testnet`, 'Now allowed', { field });
     if (ok.tx) run.tx.whitelist_attest = ok.tx;
-    expect((await reader.getAttestation(ok.uid)).data?.status).toBe('active');
+    expect((await fresh(ok.uid)).data?.status).toBe('active');
   });
 
   test('a scheduled revocation takes effect at its time and the keeper records it', async () => {
@@ -411,7 +424,7 @@ test.describe('live on testnet with one passkey account', () => {
     await page.locator('#m').fill('1');
     const s = await submit('Schedule', 'Schedule revocation');
     if (s.tx) run.tx.schedule_revocation = s.tx;
-    const before = await reader.getAttestation(a.uid);
+    const before = await fresh(a.uid);
     expect(before.data?.revoke_at).toBeGreaterThan(0);
     expect(before.data?.status).toBe('active');
 
@@ -560,7 +573,11 @@ test.describe('live on testnet with one passkey account', () => {
     // The explorer names the DAO as the attester and the grant its council voted.
     await open(`/attestations/${uid}`, { signIn: false });
     await expect(page.getByText('Sputnik DAO').first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/a delegate grant of the DAO, voted in proposal #\d+/)).toBeVisible({ timeout: 60_000 });
+    // The panel reads the issuing event from the indexer, which trails the chain by a few blocks.
+    await eventually(async () => {
+      await page.reload();
+      await expect(page.getByText(/a delegate grant of the DAO, voted in proposal #\d+/)).toBeVisible({ timeout: 15_000 });
+    }, 180_000);
   });
 
   test('a fact from Base Sepolia is verified by the MPC network and attested', async () => {
@@ -575,7 +592,7 @@ test.describe('live on testnet with one passkey account', () => {
     const r = await submit('2. Verify with Chain Signatures and attest', 'Verify and attest', { timeout: 420_000 });
     if (r.tx) run.tx.cross_chain = r.tx;
     const uid = await uidIn(r.card);
-    const att = await reader.getAttestation(uid);
+    const att = await fresh(uid);
     expect(att.data?.schema_uid).toBe(knownSchemaUid('foreignEvent'));
     const fields = new SchemaEncoder(KNOWN_SCHEMAS.foreignEvent.definition).decode(att.data!.data);
     expect(fields).toMatchObject({ chain: 'base', log_index: String(logIndex) });
@@ -594,7 +611,7 @@ test.describe('live on testnet with one passkey account', () => {
     const r = await submit('2. Verify with Chain Signatures and attest', 'Verify and attest', { timeout: 420_000 });
     if (r.tx) run.tx.solana = r.tx;
     const uid = await uidIn(r.card);
-    const att = await reader.getAttestation(uid);
+    const att = await fresh(uid);
     expect(att.data?.schema_uid).toBe(knownSchemaUid('foreignInstruction'));
     const fields = new SchemaEncoder(KNOWN_SCHEMAS.foreignInstruction.definition).decode(att.data!.data);
     expect(fields).toMatchObject({ chain: 'solana', instruction_index: String(index), inner_instruction_index: '0' });
@@ -612,7 +629,11 @@ test.describe('live on testnet with one passkey account', () => {
     await page.locator('#cm').fill('Answered every check on time.');
     const rate = await submit('Client: review the agent', 'Leave review');
     if (rate.tx) run.tx.rate_agent = rate.tx;
-    expect((await reader.getAttestation(await uidIn(rate.card))).data?.schema_uid).toBe(knownSchemaUid('agentReview'));
+    const reviewUid = await uidIn(rate.card);
+    await eventually(async () => {
+      const review = await reader.getAttestation(reviewUid);
+      expect(review.data?.schema_uid, review.error?.message).toBe(knownSchemaUid('agentReview'));
+    }, 60_000);
 
     await page.getByRole('link', { name: 'Open the agent profile' }).click();
     await expect(page).toHaveURL(new RegExp(`/agents/${agent}$`));
@@ -655,7 +676,7 @@ test.describe('live on testnet with one passkey account', () => {
     const r = await submit('Check a private fact', 'Encrypt and check', { timeout: 660_000 });
     if (r.tx) run.tx.private_check = r.tx;
     const uid = await uidIn(r.card);
-    const att = await reader.getAttestation(uid);
+    const att = await fresh(uid);
     expect(att.data?.schema_uid).toBe(knownSchemaUid('aiCheck'));
     expect(att.data?.subject).toBe(me.accountId);
     const fields = new SchemaEncoder(KNOWN_SCHEMAS.aiCheck.definition).decode(att.data!.data);
