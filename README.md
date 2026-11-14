@@ -132,7 +132,7 @@ Steps 1 to 3 and 6 need no keys; steps 4, 5 and 7 need the keys noted (put them 
 | Resolver gate | an asynchronous cross-contract call with commit or rollback, five resolver kinds in one wasm | [gate.rs](contracts/attestations/src/gate.rs), [resolvers](contracts/resolvers/src/lib.rs) | [BooZWk68](https://testnet.nearblocks.io/txns/BooZWk68wYGBYcB2ijG5WEiJmxRkSa6kE7ox8p9VyKfX) (a refusal) |
 | Light client proofs | block approvals over 2/3 of stake, with the validator set chained from a pinned checkpoint, and the outcome's merkle path, checked locally | [lightclient.ts](packages/sdk/src/lightclient.ts) | proves the transactions above; `pnpm verify` runs one |
 | DAO attesters | Sputnik DAO v2: a `FunctionCall` proposal the council votes on makes the DAO account call `attest` itself; for routine memberships the council votes the keeper an Attestra delegate grant (membership schema, use limit, expiry), and the keeper issues with `attest_on_behalf`, so the DAO stays the attester and the keeper has no vote or say over the DAO | [dao.ts](packages/sdk/src/dao.ts), [council.ts](services/src/keeper/council.ts) | `attestra.sputnik-v2.testnet`: council vote [GGtxFaJk](https://testnet.nearblocks.io/txns/GGtxFaJkWzmzgPMzZnuW2SLEjaSfkVnk65v4VdFT6SvH), the grant voted [9vWVUVtx](https://testnet.nearblocks.io/txns/9vWVUVtxbkSpBsEnvehrwFj7Gs9QiWLUqFLxkr51Qsgy) |
-| Credentials | NEP-171, non-transferable, burned when the attestation is revoked | [credentials](contracts/credentials/src/lib.rs) | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
+| Credentials | NEP-171, non-transferable, burned when the attestation is revoked or its expiry is recorded, gone from every view once it expires, and burnable by its holder | [credentials](contracts/credentials/src/lib.rs) | [rLLq9Jcd](https://testnet.nearblocks.io/txns/rLLq9Jcd275MXqiH8j3EcxxLKbdjJchgqMNAUw6hTpp), [6bBg3bmv](https://testnet.nearblocks.io/txns/6bBg3bmvPFDrNXTDF5EPMa4627JGKZWM52d4v4T4YB1v) |
 | Reproducible builds | NEP-330 metadata, `near contract verify` | [build.sh](contracts/scripts/build.sh) | see [Deployed contracts](#deployed-contracts) |
 
 ---
@@ -306,6 +306,9 @@ Locally, `contracts/scripts/build.sh --reproducible <commit>` rebuilds the same 
 - **Whom you trust for "final":** NEAR's validators, through a light client proof you check yourself: more than 2/3 of stake approved the block, and the outcome's merkle path leads to it.
   The validator set is not taken from the RPC: it is chained from a checkpoint pinned in the SDK ([checkpoints.ts](packages/sdk/src/checkpoints.ts)), epoch by epoch, each epoch's producers approving the next set's hash (`next_bp_hash`), as NEAR's light client spec defines.
   What is still trusted is that pinned checkpoint (a block hash you can compare with any explorer) and more than 2/3 of stake in each epoch since; a lying RPC can make a proof fail, never pass, and the proof runs in your own process.
+- **Two deliberate choices**, explained in [JUDGES.md](JUDGES.md#design-choices-worth-knowing):
+  an agent's function-call key lives on its owner's account, because that is what lets the agent act for its owner within limits NEAR enforces;
+  and TEE attestations are verified before a key is trusted rather than inside each contract call, because NEAR contracts cannot verify Intel or NVIDIA quotes, while two ed25519 checks per verdict under attested keys can.
 - **Contract owners** manage allowlisted keys and resolver settings, a role meant for a multisig on mainnet; the security review, its fixes and the design decisions are in [SECURITY.md](SECURITY.md).
 
 ---

@@ -139,6 +139,20 @@ E2E_LIVE=https://attestra.site E2E_INDEXER=$A/indexer E2E_AGENT=$A/agent pnpm --
 4. [SECURITY.md](SECURITY.md): the audit, its findings, the fixes and the design decisions.
 5. [AGENTS.md](AGENTS.md): layout, commands and where each NEAR primitive lives.
 
+## Design choices worth knowing
+
+Two choices look unusual at first and are deliberate.
+
+**An agent's function-call key lives on its owner's account.**
+The owner adds a key to their own account that NEAR itself limits to the attestations contract, the `attest`, `revoke` and `schedule_revocation` methods and a gas allowance, and the agent holds the private half ([agent-keys.ts#L11](packages/sdk/src/agent-keys.ts#L11), live: [7Hk6acpU](https://testnet.nearblocks.io/txns/7Hk6acpUrSMi17WtniYAK1REZJFHr2DS3HZ6AnuvZeiQ)).
+That is what lets an AI agent issue in its owner's name without the owner's keys: the protocol, not the agent's code, stops it from moving NEAR, adding keys or calling anything else, and the owner deletes the key at any time.
+A key on the agent's own account could only act as the agent, never for its owner.
+
+**TEE attestation is verified before a key is trusted, not inside each contract call.**
+NEAR contracts have no host function for Intel TDX or NVIDIA quote verification (P-256 signatures, X.509 chains and Intel's collateral), and doing it in wasm would not fit a call's gas.
+So the trust is established once and checked cheaply every time: the checker's key is derived inside NEAR OutLayer's TEE from the hash of its own build, `pnpm verify` checks OutLayer's TDX attestation that binds that key to the build, `tools/nearai-verify` checks the NEAR AI model's TDX and GPU attestation against Intel's and NVIDIA's roots, and the verdicts contract then accepts a verdict only with both ed25519 signatures under those keys ([ai.rs#L84](contracts/verdicts/src/ai.rs#L84)).
+A new checker build has a new key, so the contract can only ever trust code whose attestation was checked, and anyone can re-run the check with one command.
+
 ## Release scope
 
 - **Networks:** live on NEAR testnet at [attestra.site](https://attestra.site); mainnet planned, with the same reproducible build deployed by one switch and rehearsed in its mainnet configuration ([MAINNET.md](MAINNET.md)).

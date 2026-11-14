@@ -18,7 +18,7 @@ export default function Credential() {
       notes={
         <>
           <p><code>{CONTRACTS.credentials}</code> reads the attestation across contracts and mints a NEP-171 token to its subject, with the attestation UID as the token id.</p>
-          <p>Transfers and approvals are refused: the credential stays with the subject. When the attestation is revoked (directly or by schedule), the attestations contract tells the credentials contract and the token burns.</p>
+          <p>Transfers and approvals are refused: the credential stays with the subject. When the attestation is revoked (directly or by schedule) or its expiry is recorded, the attestations contract tells the credentials contract and the token burns. Past its expiry it is gone from every view at once, and the holder can always burn a credential they do not want (<code>nft_burn</code>).</p>
         </>
       }
     >

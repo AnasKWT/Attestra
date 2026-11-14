@@ -12,6 +12,9 @@ What is left before the launch is in [The road to mainnet](#the-road-to-mainnet)
 4. Native USDC for x402 payments and fees, and a real NEP-141 for staking, configured and tested end to end.
 5. Each component deployed and tested on mainnet with small amounts first: contracts, then the indexer, relayer, keeper and agent, then the site.
 6. Monitoring and on-call for the services, and refreshed light client checkpoints in the SDK.
+7. Staking with an unbonding period, so a tier cannot be borrowed for one attestation and returned at once.
+8. x402 payments bound to the exact request they pay for, with an automatic refund when the answer cannot be served after settlement.
+9. The mainnet rehearsal re-run on the launch build.
 
 ## The switch
 
@@ -52,7 +55,7 @@ What the operator provides:
 
 2. Rehearse the whole mainnet deploy on a local node from the same build: reproducible wasm only, no faucet token, a stand-in NEP-141 for USDC and staking.
    The rehearsal runs the mainnet code paths of the deploy script against stand-ins, not mainnet's own contract code: USDC and the staking token are a local NEP-141, and the MPC is the sandbox double.
-   It was last run on 2026-11-10 and deployed, wired and registered every contract and schema.
+   It was last run on 2026-11-10 with the build of that day and deployed, wired and registered every contract and schema; it is re-run on the launch build as part of the road to mainnet.
 
    ```bash
    REHEARSE=mainnet BUILD=<commit> pnpm deploy:sandbox
