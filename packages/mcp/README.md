@@ -2,7 +2,12 @@
 
 An MCP server that lets any AI agent read and issue attestations on NEAR with Attestra: verify a claim, prove it final, read an agent's identity and reputation, and, with a key, issue and revoke.
 
+[Website](https://attestra.site) · [Docs](https://attestra.site/docs) · [Sandbox](https://attestra.site/sandbox/app) · [GitHub](https://github.com/AnasKWT/Attestra) · [llms.txt](https://attestra.site/llms.txt)
+
+No install needed for reading: the read tools are hosted at `https://attestra.site/mcp`.
+
 ```bash
+claude mcp add --transport http attestra https://attestra.site/mcp   # hosted, read tools
 claude mcp add attestra -- npx -y attestra-mcp       # Claude Code
 npx -y attestra-mcp --http 5600                       # Streamable HTTP on /mcp
 ```
@@ -28,7 +33,7 @@ Only on NEAR:
 - `propose_dao_attestation` asks a Sputnik DAO to issue an attestation by proposal (the bond is capped like a deposit); once its council approves, the DAO is the attester; `list_dao_proposals` reads a DAO's proposals with their attestation calls decoded.
 - `paid_verify` pays the Attestra agent over x402 for a verified claim or agent check.
 
-Attestations are public: never put secrets or raw evidence in `create_attestation`; use `request_private_check`.
+Attestations are public: never put secrets or raw evidence in `create_attestation`; use `request_private_check`, which checks a fact about the configured account itself (the request is signed with its key).
 
 ## Caps and spend limits
 
